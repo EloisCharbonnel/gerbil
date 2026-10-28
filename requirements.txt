@@ -1,0 +1,8 @@
+# Python packages needed by Gerbil (gerbil.py)
+# (installed automatically by Install.bat or by the interface)
+numpy
+opencv-python-headless
+pillow
+rawpy                  # RAW photos (DNG, CR2, NEF, ARW...)
+# optional, for the AI second opinion (--ai):
+#   onnxruntime-directml   (Windows, uses the graphics card)  or  onnxruntime  (processor only)

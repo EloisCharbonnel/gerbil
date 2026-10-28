@@ -1,0 +1,1218 @@
+==============================================================================
+ GERBIL - ARCHAEOLOGICAL PHOTO TOOLKIT (formerly SherdCut)
+ DESCRIPTION OF THE PROCESSING
+ Script: gerbil.py (version 2.0)
+ © 2026 Eloïs CHARBONNEL
+==============================================================================
+
+This document describes step by step what the script does, in pseudocode,
+with the libraries used and the mathematical notions involved. The function
+names are those of the script, so that they can be looked up.
+
+Contents
+  1. Overview
+  2. Libraries used
+  3. Mathematical and image processing notions
+  4. Main program (main)
+  5. Processing of one photo (process_photo)
+  6. Reading the photo and its metadata (load_photo)
+  7. Background model (BackgroundModel)
+  8. Square scale: black/white/red checkerboard or single row (detect_scale)
+  9. Ruler graduated in millimetres (detect_ruler)
+ 10. Outlining the ceramic (outline_ceramic)
+ 11. Mounting putty (find_putty)
+ 12. Layout and compositing (layout, composite)
+ 13. Writing the PSD (write_psd)
+ 14. Writing the TIFF files (write_tiff)
+ 15. Control preview, file names, report
+ 16. Table of parameters
+ 17. Known limits
+ 18. Interface and .exe version
+ 19. Plates (gerbil_plates.py)
+ 20. Site profiles and learned scales
+ 21. IPTC metadata, inventory, thumbnails
+ 22. One-click cut-out
+
+
+------------------------------------------------------------------------------
+1. OVERVIEW
+------------------------------------------------------------------------------
+
+  JPG photo (6000 x 4000 px, plain light background, ceramic + scale)
+      |
+      |-- reading, EXIF orientation, metadata (camera body, lens...)
+      |
+      |-- reduced copy (1500 px at most) for the analysis
+      |       |-- background model (polynomial of degree 2, Lab space)
+      |       |-- search for the scale: checkerboard -> single row -> ruler
+      |       |       -> measurement at full resolution: pixels per cm (px/cm)
+      |       |-- "object / background" map and first mask of the object
+      |       |-- sorting: labels, handwriting, translucent supports, colour
+      |       |   charts, scale
+      |
+      |-- refinement of the mask at full resolution (precise edges, anti-aliasing)
+      |-- (--ai) AI second opinion: removes background the script kept
+      |-- search for mounting putty (flagged, removed if --remove-putty)
+      |
+      |-- layout: ceramic at the top, straightened scale centred under it
+      |-- PSD with 3 layers + layer masks   (NAME.psd)
+      |-- TIFF ceramic alone                (NAME_outlined.tif)
+      |-- TIFF ceramic + scale              (NAME_outlined_scale.tif)
+      |-- control preview                   (to_control/NAME_to_control.jpg)
+      |-- row of the CSV report             (outlined_report.csv)
+      |
+      '-- resolution stored: ppi = px/cm x 2.54  => real size 1:1
+          in Illustrator or when printing.
+
+  When something is doubtful (scale not found, not 5, 10 or 20 cm, possible
+  mounting putty, ceramic cut by the edge...), all the files written get the
+  "_to_be_verified" suffix.
+
+
+------------------------------------------------------------------------------
+2. LIBRARIES USED
+------------------------------------------------------------------------------
+
+External libraries (to install: py -m pip install -r requirements.txt)
+
+  numpy (np)       Array computing: images are arrays of pixels
+                   (height x width x 3 channels). Statistics (median,
+                   percentiles, means), least squares (np.linalg.lstsq),
+                   complex numbers (circular mean), vectorised PackBits
+                   encoding.
+
+  OpenCV (cv2)     Image processing: conversion to Lab, Gaussian blur, median
+                   filter, mathematical morphology, connected components,
+                   distance transform, contours, convex hull, minimum-area
+                   rectangle, affine transformations (rotation + crop),
+                   resizing, drawing.
+
+  Pillow (PIL)     Reading / writing the files: JPEG, TIFF (through libtiff),
+                   EXIF, ICC colour profile (ImageCms, sRGB), text on the
+                   previews (ImageDraw, ImageFont), EXIF orientation (ImageOps).
+
+  onnxruntime      OPTIONAL, only for the --ai option
+                   (py -m pip install onnxruntime-directml): runs a neural
+                   network stored in the ONNX format, on the graphics card
+                   (DirectML on Windows, or CUDA) or on the processor.
+                   IS-Net (DIS) and BiRefNet models: the same files and the
+                   same pre-processing as the rembg library, called directly
+                   (rembg is not needed).
+
+Python standard library
+
+  argparse         Command-line options (--background, --layout...).
+  csv              outlined_report.csv report (";" separator for Excel).
+  math             Trigonometry (angles of the scale), roots, rounding.
+  os, shutil       Files and folders; copy of the original photo (copy2
+                   keeps the date).
+  struct           Binary writing of the PSD format ("big-endian" integers).
+  sys, time,       Console, timing, error messages.
+  traceback
+  unicodedata      Removal of accents for the ASCII text tags of the TIFF.
+  concurrent.      Several photos processed in parallel
+  futures          (ProcessPoolExecutor: one process per photo).
+  dataclasses      Small data structures (Photo, Scale, Layer).
+  fractions        EXIF values written as fractions (e.g. 1/40 s) for the XMP.
+  hashlib,         --ai option: download of the model (once) and check of its
+  urllib.request   MD5 sum.
+  multiprocessing  freeze_support(): worker processes of the .exe version.
+
+
+------------------------------------------------------------------------------
+3. MATHEMATICAL AND IMAGE PROCESSING NOTIONS
+------------------------------------------------------------------------------
+
+3.1 CIELAB colour space (Lab)
+  The RGB (sRGB) pixels are converted to L*a*b*:
+    L* = lightness (0 black -> 100 white),
+    a* = green (-) / red (+) axis,
+    b* = blue (-) / yellow (+) axis.
+  Advantage: distances in Lab roughly match perceived colour differences.
+  OpenCV gives L, a, b on 0-255; the script brings them back to the usual
+  scale: L* = L x 100/255; a* = a - 128; b* = b - 128.
+  Chroma (saturation): C* = sqrt(a*² + b*²).  Hue: h = atan2(b*, a*).
+
+3.2 Distance to the background (weighted colour difference)
+  d = sqrt( (0.5 x ΔL*)² + Δa*² + Δb*² )
+  where Δ = colour of the pixel - colour of the background expected there.
+  The 0.5 weight on lightness makes soft shadows (darker but of the same hue
+  as the background) less visible than the ceramic (different hue).
+  For unweighted measurements: ΔE = sqrt(ΔL*² + Δa*² + Δb*²).
+
+3.3 2D polynomial regression by least squares (background model)
+  The background of a photo is not uniform (lighting gradient). For each
+  channel c (L*, a*, b*) we fit:
+    c(x, y) = k1 + k2.y + k3.y² + k4.x + k5.x.y + k6.x²
+  (x, y normalised between 0 and 1). The coefficients k minimise the sum of
+  the squared differences over the background pixels: linear least squares
+  (np.linalg.lstsq, solved by singular value decomposition).
+
+3.4 Gaussian blur (cv2.GaussianBlur)
+  Convolution by the Gaussian G(x, y) = 1/(2πσ²) . exp(-(x² + y²)/(2σ²)).
+  Smooths the JPEG noise before the colour measurements. Uses:
+    - 3x3 kernel (σ ≈ 0.8 px) before the object/background map;
+    - 5x5 kernel (σ ≈ 1.1 px) before the mean colour measurements;
+    - σ = 0.8 px to soften the edge of the mask (anti-aliasing);
+    - σ = 1.2 px for the "high-pass" texture measurement (3.6);
+    - σ = max(0.6; 0.08 x step) to smooth the profile of the graduations.
+  (When only the kernel is given, OpenCV takes σ = 0.3 x ((n-1)/2 - 1) + 0.8.)
+
+3.5 Other filters
+  - 5x5 median filter (cv2.medianBlur): each pixel of the mask takes the
+    median value of its neighbourhood; smooths the outline without rounding it.
+  - 7x7 mean filter (cv2.blur, "box"): local mean.
+  - Resampling: INTER_AREA (mean of the pixels covered) to reduce,
+    bilinear (INTER_LINEAR) or bicubic (INTER_CUBIC) for rotations.
+
+3.6 Texture (surface grain)
+  high_pass = g - gaussian_blur(g, σ = 1.2)        (g = grey level)
+  texture   = sqrt( mean_7x7(high_pass²) )         (local standard deviation)
+  The high-pass removes slow variations (shading, curvature) and keeps the
+  grain. Mounting putty or plexiglass is smooth; a ceramic is grainy.
+
+3.7 Mathematical morphology (disc-shaped structuring element, function disk(r))
+  - Erosion: a pixel stays "object" if the whole disc around it is object
+    (thins, removes what is thinner than the disc).
+  - Dilation: a pixel becomes "object" if the disc touches the object (thickens).
+  - Opening = erosion then dilation: removes dust and filaments.
+  - Closing = dilation then erosion: fills small cracks and holes.
+  - Black top-hat ("black-hat") = closing(image) - image: brings out the dark
+    strokes thinner than the disc (graduations, handwriting), whatever the
+    lighting.
+
+3.8 Hysteresis thresholding (function hysteresis)
+  Two thresholds on the distance to the background: low = 8, high = 18.
+  "Weak" areas (d > 8) are kept only if they contain at least one "strong"
+  pixel (d > 18). The pale edges of a sherd are thus kept (connected to the
+  sherd), but an isolated spot slightly different from the background (dust,
+  shadow) is rejected.
+
+3.9 Connected components (cv2.connectedComponentsWithStats)
+  Labelling of the groups of touching pixels (8-connectivity: the 8
+  neighbours; 4-connectivity: up/down/left/right). Gives for each group its
+  area, its bounding rectangle and its centre. Used to separate sherds,
+  labels, scale, holes of the mask...
+
+3.10 Distance transform (cv2.distanceTransform)
+  For each pixel of an object, distance to the nearest background pixel.
+  Its maximum = radius of the largest inscribed disc = half-thickness of the
+  object (used to recognise felt-pen writing, thinner than a sherd).
+  Computed on the background, it gives the distance to the main object.
+
+3.11 Geometry of outlines
+  - Minimum-area rectangle (cv2.minAreaRect, "rotating calipers" method on
+    the convex hull): orientation and size of a scale, of a graduation tick,
+    of an elongated element.
+  - Convex hull and convexity defects (cv2.convexHull,
+    cv2.convexityDefects): hollows of the outline (to isolate a ball of putty).
+  - Douglas-Peucker outline simplification (cv2.approxPolyDP, 1 px).
+  - Sub-pixel polygon filling with anti-aliasing (cv2.fillPoly,
+    coordinates x16, LINE_AA).
+
+3.12 Affine transformations (function straighten)
+  To straighten the scale, a crop rotated by an angle θ is extracted:
+    [x_source]   [cos θ  -sin θ] [x_crop - cx]   [X_centre]
+    [y_source] = [sin θ   cos θ] [y_crop - cy] + [Y_centre]
+  The 2x3 matrix M sends the coordinates of the crop to the photo;
+  cv2.warpAffine (WARP_INVERSE_MAP mode) fetches each pixel of the crop in the
+  photo, with bilinear or bicubic interpolation.
+  If the scale is straight (|θ| < 0.1°), the crop is an exact copy (odd sizes,
+  integer centre). Turning the scale over = θ + 180°.
+
+3.13 Sub-pixel measurements
+  - Linear crossing (_crossing): position where a profile crosses 0.5 between
+    two pixels: x = k - 1 + (0.5 - p[k-1]) / (p[k] - p[k-1]).
+  - Parabolic peak (_peaks): parabola through 3 values a, b, c;
+    peak at x = i + ½ (a - c) / (a - 2b + c).
+
+3.14 Fitting a regular sequence (graduations of the ruler)
+  The positions x_k of the ticks must satisfy x_k = a0 + step x k.
+  - Common phase by circular mean (robust to spurious ticks):
+      a0 = step x arg( mean( exp(2πi . x / step) ) ) / 2π
+  - Then linear least-squares regression on (k, x_k), rejecting the points
+    whose residual exceeds 0.2 step (5 iterations).
+  - Quality: root mean square of the residuals (RMS) / step.
+
+3.15 Robust statistics
+  Median, percentiles (e.g. 98th percentile = "white" of the photo), median
+  weighted by length (typical length of a square of the scale), standard
+  deviation (alignment of the ends of the graduations).
+
+3.16 Grouping ticks: union-find and spatial grid
+  Each tick is an element; two compatible neighbouring ticks are "united"
+  (union-find structure with path compression). A grid of fixed-size cells
+  limits the search for neighbours to the adjacent cells (otherwise the cost
+  would be quadratic).
+
+3.17 Alpha compositing (Porter-Duff "over", function composite)
+  To lay a layer (colour Cs, opacity As) over what already exists (Cd, Ad):
+    A = As + Ad (1 - As)
+    C = (Cs As + Cd Ad (1 - As)) / A
+  On a white background ("matting"): C_white = C x A + 255 x (1 - A).
+
+3.18 Lossless compression
+  - PackBits (RLE, "run-length encoding") for the PSD: a run of 3 to 128
+    identical bytes becomes (header 257 - n, value); otherwise "literal"
+    packets of 1 to 128 bytes (header n - 1, bytes). Coded row by row, fully
+    vectorised with NumPy.
+  - LZW (or Deflate/ZIP) for the TIFF, with horizontal predictor: each pixel
+    is stored as the difference with its left neighbour, which makes the data
+    more compressible. No loss: unlike a new JPEG save, the image is not
+    degraded.
+
+3.19 Resolution and 1:1 scale
+  ppi (pixels per inch) = px/cm x 2.54 (1 inch = 2.54 cm).
+  Illustrator places an image at the size: width_cm = width_px / px/cm.
+  Example: 703.86 px/cm -> 1787.8 ppi; an image of 3244 px is 4.61 cm wide.
+
+3.20 Metadata
+  - Embedded sRGB ICC profile (the one of the photo if it exists).
+  - EXIF (copied into the PSD); XMP (PSD and TIFF): camera body, lens,
+    focal length, date, aperture, shutter speed, ISO, serial number, and
+    description of the measurement ("Scale detected (ruler): 5 cm,
+    416.29 px/cm, ..."). Software name: "Gerbil <version>".
+
+
+------------------------------------------------------------------------------
+4. MAIN PROGRAM (main)
+------------------------------------------------------------------------------
+
+  READ the command-line options (argparse)
+  files <- all the .jpg .jpeg .tif .tiff .png photos of the given folders
+           (+ the photos given directly)
+  IF no photo: print "No photo to process."; END
+  IF --ai: check that onnxruntime is installed (otherwise: print the
+      installation command; END); download the model if missing (once,
+      MD5 check); print the model and the hardware used
+
+  FOR each photo:
+      output_folder <- -o option, otherwise <folder of the photo>/outlined_result
+  CREATE each output_folder and its to_control subfolder
+
+  plan_names: for each photo, the project of its folder (gerbil_project.json:
+      fields, template, rule, common values, values of the photos):
+      output name = template with the values (forbidden characters and
+      spaces -> "_", separators of empty fields merged), else the name of
+      the photo; same name twice in a result folder -> suffix _2, _3...
+      (doubt); required fields empty -> doubt "missing information";
+      rule (regular expression) not matched -> doubt
+  IF several processes are asked for (-j, default = min(4, cores/2)):
+      run process_photo(photo) in parallel (ProcessPoolExecutor;
+      each process limits OpenCV to 2 threads)
+  OTHERWISE: process_photo(photo) one after the other
+  Each time a photo is finished: print a line
+      [i/n] NAME: status (scale type, length, px/cm, duration) | notes
+
+  remove_renamed: files written under a former output name (from the review
+      data of the previous run) are removed, unless another photo uses it
+  FOR each output_folder: write_report (CSV report, merged with the existing
+      one; columns file, output_name, ..., then one column per field)
+  Print the summary: number ok / to verify / failed, then print_summary: the
+      reasons for doubt grouped by problem (PROBLEMS: scale not found, scale
+      doubtful, no object kept, object cut by the photo edge, mounting putty,
+      colour chart touching), each with the photos concerned
+  IF --open: open the result folders in the Explorer
+
+
+------------------------------------------------------------------------------
+5. PROCESSING OF ONE PHOTO (process_photo)
+------------------------------------------------------------------------------
+
+  photo   <- load_photo(file)                                     [§6]
+  f       <- min(1, 1500 / longest side)          (reduction factor)
+  small   <- photo reduced by a factor f (INTER_AREA)
+  bg      <- BackgroundModel( Lab( gaussian_blur_3x3(small) ) )   [§7]
+
+  IF the photo has a manual scale (gerbil_scales.json next to the photos, or
+      sherdcut_scales.json written before the renaming,
+      written by "Set scale…" in the interface): scale <- manual_scale:
+      px/cm = distance between the two points / length given (cm); scale
+      layer = band of the given width around the segment, straightened;
+      centimetre marks every cm; it prevails over everything else
+  ELSE IF --no-scale: no scale
+  OTHERWISE: scale <- detect_scale(photo, small, f, dark background?) [§8, §9]
+             if not found: doubt "scale not detected"
+  IF a scale is found: ppi <- px/cm x 2.54; possible measurement doubts
+  OTHERWISE: ppi <- --default-ppi (300)
+
+  IF --ai: ai <- ai_mask(photo)                                   [§10.3]
+           (on failure: note "AI not used", the processing goes on without it)
+  ceramic <- outline_ceramic(photo, small, f, bg, scale, ai)      [§10]
+  IF a scale is found:
+      putty <- find_putty(photo, ceramic, px/cm)                  [§11]
+      IF putty is found:
+          IF --remove-putty: remove it; doubt "mounting putty removed"
+          OTHERWISE: flag it (red area); doubt "possible mounting putty"
+  Notes: small isolated element discarded; translucent support removed;
+         colour chart discarded; background removed by the AI
+  IF a colour chart touches the ceramic: doubt "colour chart touching the ceramic"
+  IF the cut-out touches the edge of the photo: doubt "ceramic cut by the photo edge"
+
+  doubtful <- there is at least one doubt
+  file names <- output_paths(NAME, doubtful)   (_to_be_verified suffix)
+
+  IF a ceramic is found:
+      size in cm = size of the cut-out / px/cm (for the report)
+      layers, canvas <- layout(photo, ceramic, scale)             [§12]
+      image_with_scale <- composite(visible layers)
+      IF not --no-psd: write_psd(NAME.psd)                        [§13]
+      IF scale: write_tiff(NAME_outlined_scale.tif, image_with_scale)
+      write_tiff(NAME_outlined.tif, ceramic alone)                [§14]
+      status <- "to verify" if doubtful, otherwise "ok"
+  OTHERWISE status <- "failed"
+
+  IF not --no-control: control_image(...)                         [§15]
+      and write_review: the cut-out mask (photo size, PNG) and the scale
+      outline, in outlined_result/gerbil_review, for the review window
+  Corrections made in the review window (gerbil_edits next to the photos,
+  read by edits_entry, right after outline_ceramic):
+      corrected mask (0 / 255, photo size) -> cutout_from_mask: replaces
+          the cut-out (edge softened as in §10.2: Gaussian blur 0.8 px);
+          no putty search; note "cut-out corrected by hand"
+      angle -> the object is turned at the layout (rotated_ceramic:
+          rotation around the centre of its box, bicubic for the pixels,
+          bilinear for the layer mask, one resampling; the scale and the
+          hidden original photo are not turned); note "object turned by
+          hand"; the sizes of the report are those of the turned object
+  IF not --no-original-copy: copy_original(photo -> outlined_result)
+  remove_stale: delete the other variant (with / without _to_be_verified)
+                of the files just written
+  ON ERROR: status "error", message in the notes
+  RETURN the row of the report
+
+
+------------------------------------------------------------------------------
+6. READING THE PHOTO AND ITS METADATA (load_photo)
+------------------------------------------------------------------------------
+
+  RAW file (DNG, CR2, CR3, NEF, ARW, ORF, RW2, RAF, PEF, SRW, 3FR, IIQ):
+      developed by LibRaw (rawpy.postprocess: white balance of the camera,
+      sRGB, 8 bits, turned upright); EXIF read by Pillow from the TIFF
+      structure of the file (copied at once, its sub-directories being read
+      lazily), no ICC profile (sRGB)
+  other files: open the file (Pillow); read the EXIF and the ICC profile;
+      apply the EXIF orientation (photo taken in portrait -> turned upright)
+  convert to 8-bit RGB
+  note: make + model of the camera body, lens, focal length, date taken,
+        aperture, shutter speed, ISO, serial number (for the report and the XMP)
+
+  output_exif: copy of the EXIF updated for the output file
+               (orientation = 1, resolution = ppi in inches, software;
+                removal of the "MakerNote" and of the original dimensions)
+
+
+------------------------------------------------------------------------------
+7. BACKGROUND MODEL (BackgroundModel)
+------------------------------------------------------------------------------
+
+  lab <- Lab colours of the reduced photo (after a 3x3 blur)
+  median <- median colour of the whole image (the background is the largest part)
+  median_edges <- median colour of a 3 % band along the 4 edges
+  IF d(median, median_edges) > 12: median <- median_edges
+      (the object fills most of the frame: the global median would be its
+       colour; the edges of the photo remain mostly background)
+  background <- pixels whose distance d to the median < 12  (< 25 if too few)
+  REPEAT 4 times:
+      take 1 background pixel out of 5
+      for L*, a*, b*: fit the polynomial of degree 2 in (x, y)
+                      by least squares                            [§3.3]
+      model <- value of the polynomial at each pixel
+      background <- pixels whose d(pixel, model) < 6
+  keep: the 6 coefficients per channel + the model at the small resolution
+  dark background <- median lightness of the model L* < 35 (black velvet)
+
+  evaluate(area): background colour expected over an area of the photo at full
+  resolution: polynomial computed on a grid (1 point / 8 px) then enlarged by
+  bilinear interpolation (the background varies slowly).
+
+
+------------------------------------------------------------------------------
+8. SQUARE SCALE: BLACK/WHITE/RED CHECKERBOARD OR SINGLE ROW (detect_scale)
+------------------------------------------------------------------------------
+
+8.0 Dark background (black velvet): _scale_on_dark
+  The black squares merge with the background: the search starts from the
+  light squares.
+  light <- min(R, G, B) > 0.55 x (99.5th percentile)
+  thickness of the squares <- median of the short side of the solid,
+      elongated light spots (L ≥ 2 S); if there are at least 3: set aside
+      what is much thicker (opening, disc 0.75 x thickness: label stuck to
+      the scale, light sherd); the opening is made on the light spots with
+      their closed holes filled, so that a label is thick despite the writing
+      on it (the black squares of the scale reach its edge: not filled)
+  group the light spots by a dilation (disc 3): the white squares of a
+  checkerboard only touch at their corners
+  FOR the 6 largest groups, elongated (L ≥ 1.6 S):
+      minimum-area rectangle around the light spots (it also covers the black
+      squares of the corners), dilated by 2 px
+      paint white everything outside the rectangle, and the 1 px border of
+      the photo (what is copied beyond the edge becomes white)
+      -> the scale looks as it does on a light background
+      usual detection (§8.1 to 8.3) on these images, without the ruler and
+      with L/S ≥ 2
+  second pass, if this finds no scale of a usual length (5, 10 or 20 cm):
+      groups of the light spots of BOTH masks (with and without the thick
+      ones set aside: large white squares, not bands, count as "thick"), each
+      rectangle lengthened 3 times along its long side (digits such as "10"
+      or "cm" split the light squares, so a group may cover only part of the
+      scale); second reading only (analyze_comb, §8.2b)
+  kept: the first scale of a usual length; failing that, the first scale of
+      the usual reading, or else the second reading with the most squares
+      (doubtful length)
+
+8.1 Locating at low resolution
+  white <- 98th percentile of min(R, G, B) over the reduced photo
+  scale_ink_classes:
+      black: max(R, G, B) < 0.42 x white
+      red:   R > 0.45 x white AND G < 0.42 x white AND B < 0.5 x white
+             AND R - max(G, B) > 0.3 x white
+  ink <- black OR red; closing (disc r = 3) to connect the squares
+  (in a checkerboard, the squares touch at their corners)
+  FOR each connected component of at least 120 px (and 60 px of ink):
+      minimum-area rectangle -> angle θ, length L, width S
+      reject if S < 3 px or L/S < 2.5 (not elongated enough)
+      straightened crop (size 1.3 L x 4 S); analyze_pattern(crop)
+      score = 10 x number_of_squares + L / image_width - 5 x irregularity
+  IF no candidate: _single_row_groups (single row, separate squares)
+      solid spots (filling > 55 % of their rectangle), of the same size
+      (ratio < 1.6), spaced 1.2 to 3.5 times their side, aligned (distance
+      to the line < 0.3 side) at an integer step; at least 3 -> candidate
+  IF still no candidate: detect_ruler (ruler), then its second pass [§9.2b]
+  IF still nothing: the same components read by analyze_comb      [§8.2b]
+  OTHERWISE keep the candidate with the best score
+
+8.2 analyze_pattern (crop where the scale is horizontal)
+  white <- 98th percentile of min(R, G, B) in the centre of the crop
+  ink <- black OR red (same rules)
+  fr(y) <- proportion of ink in row y (between 12 % and 88 % of the width)
+  printed face: rows around the maximum where fr > 0.25, tolerating a dip
+                of a few rows (thin white line between the 2 rows of squares)
+  top / bottom <- the two halves of the face (12 % margin)
+  state(x) <- 1 if the top row is inked at x, 2 if the bottom one,
+              3 if both, 0 if none  (threshold 40 % of the column)
+  runs <- sequences of columns with the same state ("run-length")
+  cleaning: runs that are too short (digits "5", "cm", arrow, graduations)
+            are absorbed by their longest neighbour; threshold = 0.35 x
+            typical length of a square (median weighted by length), 3 passes
+  squares <- non-empty runs between the first and the last; n = their number
+  scale cut by the photo edge (_inside: the crop goes beyond the photo, where
+      the straightening copies the edge pixels): ink beyond the edge is
+      ignored; a first / last square that starts at the edge is a cut square:
+      counted (n_cut) but left out of the measurement; n = complete squares
+  start / end of the scale: sub-pixel crossing of the profile at 0.5 [§3.13]
+  length of a square = (end - start) / n
+  REJECT if: square < 3 px; a square differs by more than 30 % from the
+             mean; height/square outside [0.15; 3]; or, for a single row, if
+             the light squares are not white (it would be painted bands on a
+             ceramic)
+  turn over <- the red is in the bottom row (the scale is upside down)
+  RETURN face (y0, y1), start, end, n, square, boundaries, irregularity
+
+8.2b analyze_comb: second reading (only when analyze_pattern finds nothing)
+  Case of digits printed inside the squares ("5", "10" in a white square,
+  "cm" in white on a red one): analyze_pattern takes such a square for an
+  inked one. Here the squares are read by their BOUNDARIES:
+  face, top / bottom rows: as in §8.2
+  signed profile q(x) = ink(top)(x) - ink(bottom)(x)     (two rows: +1 / -1)
+                 q(x) = ink(top)(x) + ink(bottom)(x) - 1 (single row)
+      (Gaussian blur σ = 1 px; 0 beyond the photo edge)
+      a digit lowers |q| inside its square but does not change its sign
+  boundaries <- places where q changes sign between two plateaus |q| > 0.3
+      (sub-pixel: linear crossing of 0)
+  regular comb x_k = a0 + square x k fitted on the boundaries (circular mean
+      then least squares, residuals > 0.15 square rejected, as for the ruler
+      ticks §3.14); REJECT if RMS of the residuals > 8 % of the square
+  squares: the longest run of squares between fitted boundaries whose mean q
+      alternates in sign (|q| ≥ 0.3 to start, ≥ 0.12 inside: squares with
+      digits); a boundary found on an object near the scale falls outside it
+  end squares (two rows only): no sign change against the card or the
+      background (both rows alike: q = 0); added while their sign continues
+      the alternation (|q| > 0.15); a square cut by the photo edge: n_cut
+  REJECT if fewer than 3 squares, square < 3 px, height/square outside
+      [0.15; 3], or (single row) light squares not white, or (two rows) the
+      row that is not inked is coloured: median chroma C* > 20 (CARD_CHROMA;
+      the white of the cards measured 3 to 11, an orange sherd under written
+      strokes 42: handwriting on a sherd is not a scale)
+  never turned over: the red row is on top on some scales (DDN) and below on
+      others (digits upright): the scale keeps its orientation in the photo
+  The measurement uses all the boundaries (least squares): the ends of the
+  scale (card edge, frame, blur) do not enter it.
+
+8.3 Precise measurement at full resolution
+  centre, θ, crop size <- candidate brought back to full resolution
+  REPEAT at most 2 times:
+      crop <- straighten(photo, centre, θ)                        [§3.12]
+      res <- analyze_pattern(crop)
+      IF res says "turn over" (red row below): θ <- θ + 180°; start again
+  IF failure: try the ruler (§9, §9.2b), then analyze_comb (§8.2b), otherwise
+      "scale spotted but unreadable"
+  second reading: as long as the squares read reach an end of the crop (the
+      component found at low resolution covered part of the scale), the crop
+      is lengthened (squares read + 8 squares) around them and read again;
+      note "squares read by their boundaries (second reading)"
+  re-centre on the printed face; final crop with bicubic interpolation
+  IF the digits of this final crop read upside down (§8.4): θ <- θ + 180°,
+      final crop again (note "scale turned by reading its digits")
+  length_px = end - start
+  IF --scale-cm X: px/cm = length_px / X
+  OTHERWISE: px/cm = length_px / n                (one square = 1 cm)
+      length = n + n_cut cm; with a cut square, note "scale cut by the photo
+      edge: measured on its n complete squares" (the measurement stays
+      precise: the boundaries between complete squares are sharp)
+      case of a single row ending with a white square (invisible on the white
+      card): _card_side compares each end with the white of the inner squares
+      and adds the square on the right side; the px/cm measurement is already
+      right, only the outline of the scale changes
+      IF the length is not 5, 10 or 20 cm (SCALE_LENGTHS): look for a ruler
+          (§9, §9.2b); a ruler of 5 or 10 cm without doubt is kept instead
+          (a number written on the sherd may look like a few squares);
+          otherwise doubt
+  IF irregularity > 15 %: doubt "irregular scale squares"
+  outline of the scale <- rectangle of the printed face (flush with the
+      squares, without the edge or the white border of the card); a cut
+      square is kept up to the photo edge
+  enlarged zone <- this rectangle + 0.35 square lengthwise and 1.3 face height
+      (support, putty under the scale: kept out of the cut-out)
+
+
+8.4 Orientation by the digits (digits_upside_down)
+  The side of the red row differs between makes of scale (on top for the
+  DDN scales, below for others, whose digits are then upright): the signs
+  printed in the squares decide.
+  templates <- "0123456789cm" drawn with 12 common Windows fonts (Arial,
+      Calibri, Verdana, Tahoma, Segoe UI, Times; regular and bold), each
+      sign cropped to its box, scaled into 24 x 24, zero mean, unit norm
+  FOR each half-square (row) of the printed face (12 % margins):
+      light half-square: sign = ink < 0.5 x white; dark or red: sign = light
+      pixels > 0.7 x white; kept if 3 % to 45 % of the half-square
+      FOR each connected component at least half as tall as the tallest
+          (a character), 8 px at least:
+          up   <- best correlation with the templates
+          down <- best correlation of the component turned over (180°)
+          IF |up - down| > 0.08 (GLYPH_MARGIN): vote += up - down
+  upside down IF vote < 0; undecided IF no sign voted (or no font found):
+      the red row decides, as before
+  Applied to the final crop (re-centred, bicubic), once the red row is on
+  top: on the first, coarser crop, 4 DDN scales were wrongly turned.
+  A "m" turned over looks like a "w", a "5" like nothing: the templates
+  only hold the signs of scales. Measured on 1,265 scales of known
+  orientation: no error (undecided ones keep the red-row rule).
+  Only for the usual reading (§8.2); the second reading (§8.2b) keeps the
+  orientation of the photo.
+
+
+------------------------------------------------------------------------------
+9. RULER GRADUATED IN MILLIMETRES (detect_ruler)
+------------------------------------------------------------------------------
+
+9.1 Locating (photo reduced to 3000 px)
+  grey <- min(R, G, B)
+  _thin_ticks: black-hat (disc r = 4) > 22 -> thin dark strokes
+      keep the components of 5 to 2500 px, elongated (length ≥ 2.5 x width),
+      thin (width ≤ 6 px); note centre, angle, length
+  _tick_combs: group (union-find + grid, §3.16) two ticks if:
+      angles within 10°; shift along the tick < 0.6 length;
+      perpendicular distance < 1.6 length
+    for each group of at least 8 ticks:
+      axis of the ruler = perpendicular to the ticks
+      step = median of the successive gaps along the axis
+      regularity = share of the gaps within ± 25 % of the step (≥ 60 % needed)
+    merge two groups aligned end to end (bent ruler, or graduations hidden by
+      a support): angles within 4°, step within 5 %, lateral shift < 0.8 tick
+      length, gap ≤ 8 steps
+    keep the groups of at least 15 ticks, ranked by size x regularity
+
+9.2 analyze_ruler (straightened crop, horizontal ruler)
+  ink <- black-hat (disc ≈ ¼ step) > 22
+  band of the graduations <- rows where the ink density ≥ 60 % of the maximum
+      (looked for in the centre of the crop)
+  profile(x) <- mean of the black-hat over the band
+  _peaks: local maxima of the smoothed profile (Gaussian), above
+      median + 0.35 x (max - median), at least 0.55 step apart, position
+      refined by a parabola                                       [§3.13]
+  fit x_k = a0 + step x k (circular mean then least squares, rejection of
+      residuals > 0.2 step)                                       [§3.14]
+  REJECT if fewer than 15 ticks or RMS of the residuals > 8 % of the step
+  for each tick: top and bottom ends (vertical walk tolerating small gaps)
+      -> length
+  orientation: the graduations all start from the edge of the card; the side
+      where the ends are aligned (smallest standard deviation) must be at the
+      top, otherwise turn the ruler over (θ + 180°)
+  centimetre ticks: among the 10 possible phases (k modulo 10), the one whose
+      ticks are on average the longest (≥ 1.3 x median)
+  n_cm = (last cm tick - first cm tick) / 10
+  px/cm = 10 x step  (precision ≈ 0.1 % thanks to the ~50 intervals measured)
+
+9.2a Crop lengthened (both passes)
+  The group of ticks found at low resolution may cover only part of the
+  ruler (object or shadow over it): as long as the first or last tick read
+  lies within 2 steps of an end of the crop, the crop is redone around the
+  ticks read, 24 steps longer than them, and read again (at most 3 times;
+  kept only if more ticks are read). Otherwise the first or last
+  centimetre tick is missed and the ruler is read as 2, 3 or 4 cm.
+
+9.2b Second pass (detect_ruler robust), only when the first finds nothing
+  Rulers with thick, long ticks hanging from the edge of the card (another
+  make of ruler, or a closer shot):
+  _tick_combs(long_ticks): grid cell sized on the LONGEST strokes (1.7 x)
+      instead of the 95th percentile of all of them: on a sherd, hundreds of
+      short strokes of its surface make the cell too small, and one tick
+      missing breaks the chain of neighbours
+  analyze_ruler(robust): band of the graduations <- rows where the density
+      > 60 % of the 90th percentile of the densities (not of the maximum: the
+      top of the ticks, darker along the card edge, is denser), crossing dips
+      of up to 1/4 step (light line just under the card edge)
+  A ruler bent or seen in perspective shows a regular (parabolic) drift of
+  the ticks: RMS > 3 % of the step -> doubt "irregular graduations".
+
+9.3 Validation, outline, zone
+  doubts: n_cm neither 5 nor 10; RMS > 3 % of the step (deformed ruler);
+          fewer than 80 % of the expected ticks (hidden graduations)
+  ruler_outline (edges of the card):
+      colour of the card = Lab median between the ticks
+      d = Lab distance to the card; threshold = max(3; 2 x median in the band)
+      top: go up as long as the row has the colour of the card (≤ 0.3 h)
+      bottom: skip the space, find the band of the digits (ink), then go down
+              to the edge of the card, at most 0.6 digit height lower (a label
+              often touches the ruler)
+      left / right: start just after the first / last tick and go on as long
+              as at least half of the column is "card" (at most 12 mm)
+  enlarged zone <- outline + 0.2 height on the sides, 0.5 above, 0.3 below
+
+
+------------------------------------------------------------------------------
+10. OUTLINING THE CERAMIC (outline_ceramic)
+------------------------------------------------------------------------------
+
+10.1 First mask (photo reduced to 1500 px)
+  d <- distance to the background (§3.2) of each pixel, with the model of §7
+  object <- hysteresis(d, 8, 18)                                    [§3.8]
+  object <- opening (disc 1) then closing (disc 2)                  [§3.7]
+  object <- fill_holes(object):
+      holes = background areas surrounded by the object (4-connectivity)
+      a hole of ≥ 0.02 cm² whose mean distance to the background < 2.5 is a
+      true opening (handle, perforation): it stays transparent;
+      the others (gloss reflections, light concretions) are filled
+  remove the rectangle of the scale (dilated by 2 px)
+  translucent_supports (plexiglass supports):
+      areas of the object where d < 15 (almost the background colour), after
+      an opening (disc 0.25 mm), of at least 0.015 cm², with at least half of
+      their perimeter on the background or an opening (they stick out of the
+      object), and as light as the background (ΔL ≥ -8) or whiter than it
+      (Δb ≥ +6)
+      -> a reflection of the background on a black gloss is excluded: it runs
+         along the ceramic, it is darker and of the same hue
+      -> these areas are removed from the object
+  remove_charts (colour charts), for each component ≥ 0.25 cm²:
+      colour_chart:
+          saturated pixels = chroma C* > 30 (§3.1)
+          histogram of their hue h in 12 sectors of 30°
+          sector present = at least 0.1 cm² of saturated pixels
+          chart IF at least 5 sectors are present, with at least one warm
+          (red, orange, yellow, magenta), one green and one blue
+          (a ceramic, even glazed or painted, covers 2 neighbouring sectors at
+          most: 1,763 photos tested; the charts 5 to 9)
+      -> regular outline (solidity = area / area of the convex hull ≥ 0.95):
+         chart alone, removed whole, red outline
+      -> irregular outline: chart stuck to something else (sherd):
+         chart_disc (round chart):
+             inks of a hue foreign to ceramics: C* > 40 and h outside 30-90°
+             (pinks, yellows, greens, blues)
+             circle fitted by "algebraic" least squares:
+               x² + y² + D x + E y + F = 0  ->  centre (-D/2, -E/2)
+             2nd fit on the points of the coloured ring
+             (|radius - median| < 35 %)
+             valid IF the inks surround the centre (≥ 20 sectors of 10° out of
+             36) and if the mask fills at least 60 % of the disc
+             cutting radius = 99.5th percentile of the radii + 1.5 px
+         -> circle found: the disc is removed (also at full resolution, after
+            the filling of holes), then its cast shadow: pixels of the object
+            within 1.6 radius, darker than the background (ΔL < -3) and of the
+            colour of the darkened background:
+              k = L / L_background;
+              sqrt((a - k a_background)² + (b - k b_background)²) < 6
+            connected to the edge of the disc; opening (disc 2) of what is left
+         -> circle not found: chart kept, flagged (doubt)
+  connected components of the object, kept if:
+      - less than 50 % of their area in the enlarged zone of the scale, or
+        an object lying close to the scale: it reaches at least 0.8 cm from
+        the printed face (NEAR_SCALE_CM) and its mean distance to the
+        background is at least 18 (NEAR_SCALE_D); note "object(s) lying
+        close to the scale kept" (on 1,764 reference photos, what the zone
+        discards reaching that far is a translucent support, mean distance
+        13.2 at most; the card edge stays within 0.35 cm of the face)
+      - not stuck to the edge of the photo with less than 30 % of the largest;
+      - at least 0.25 cm²
+      - on a dark background only, not a paper label (label_card): median
+        L* ≥ 78 and filling ≥ 85 % of its minimum-area rectangle, and
+        chroma ≤ 12, or b* < 0 and chroma ≤ 30 (bluish white: optical
+        brighteners, from L* 72 when |a*| ≤ 5), or L* ≥ 90 and chroma ≤ 25
+        (pale yellow note), or - whatever the colour - filling ≥ 95 % and
+        L* ≥ 70 (very rectangular); red
+        outline, note "paper label discarded". Before that, split_labels cuts
+        each blob that is not a label at its narrow joins (opening, disc of
+        2 % of its size) and removes a part (≥ 2 % of the blob) that is a label (label touching a
+        sherd by a corner). If every object is a "label", they are kept and
+        the photo flagged (a small pale square sherd alone)
+  discard_labels:
+      main object = the largest component (always kept)
+      normal to the scale n; signed distance s = (point - centre) . n
+      - discarded if entirely on the other side of the scale from the main
+        object (labels placed under the ruler);
+      - discarded if its inscribed radius (distance transform) < 0.85 mm
+        (felt-pen writing, thread, printed line of a bag);
+      - discarded if narrow (< 5 mm) and 12 times longer than wide (line);
+      - discarded if small (< 8 % of the main object) and more than 8 mm from
+        it (thick letter of a label); outlined in red on the preview if it is
+        at least 4 % of the main object
+  discard the components smaller than 4 % of the largest (crumbs)
+  number of pieces = remaining components
+
+10.2 Refinement at full resolution (useful area = object + 3 % margin)
+  d <- distance to the background at full resolution (3x3 blur, background of §7)
+  enlarged mask <- first mask enlarged (bilinear interpolation, > 0.5)
+  r <- 1.5 / f + 2 px  (uncertainty due to the reduction)
+  sure     <- erosion(enlarged mask, r) AND d ≥ 3.2
+              (the background seen between two parts is never "sure")
+  allowed  <- dilation(enlarged mask, r)
+  mask     <- (d > 8 AND allowed) OR sure; keep what is connected to "sure"
+  remove the scale; remove the translucent supports (d < 18)
+  fill_holes (true openings ≥ 0.02 cm² kept open, as well as the holes that
+             contained a removed support)
+  dark background: edge_at_half_contrast - in the outer band of the mask
+             (depth = max(8, longest side / 600) px), the pixels whose d is
+             under half the d of the object nearby (Gaussian-weighted mean
+             of d over the inner part, σ = 2 x depth) are removed, peeled
+             from the outside only (4-connected to the background): the
+             edge moves to the middle of the ramp (no dark outline)
+  remove the discs of the colour charts again (a ring of shadow may surround
+             them and get them filled)
+  IF --ai: AI second opinion, subtraction only                    [§10.3]
+  opening (disc 2); closing (disc 2); 5x5 median filter
+  1 px erosion (avoids a thin line of background colour)
+  alpha <- Gaussian blur σ = 0.8 px of the mask (softened edge, anti-aliasing)
+  RETURN alpha, bounding rectangle, number of pieces, outlines of the
+         discarded elements, of the removed supports, of the colour charts and
+         of the areas removed by the AI (and their area)
+
+10.3 AI second opinion (--ai option: ai_mask, then end of outline_ceramic)
+  "Object / background" segmentation networks trained on millions of images
+  (convolutional / transformer neural networks), in the ONNX format:
+      isnet    : IS-Net, from the DIS project (Dichotomous Image Segmentation),
+                 "isnet-general-use" model; fast (< 1 s per photo on the
+                 graphics card)
+      birefnet : BiRefNet "general"; finer on perforations, but ~1 GB: on the
+                 processor (too large for DirectML with an 8 GB card; CUDA only)
+  ai_mask (same pre-processing as rembg: masks identical to the pixel):
+      image <- photo resized to 1024 x 1024 (Lanczos filter)
+      image <- image / max(image); then (image - mean) / standard deviation
+               isnet    : mean 0.5; standard deviation 1
+               birefnet : means (0.485; 0.456; 0.406),
+                          standard deviations (0.229; 0.224; 0.225) (ImageNet)
+      p <- network(image)   (1024 x 1024 map)
+      birefnet: p <- sigmoid(p) = 1 / (1 + e^-p)
+      p <- (p - min) / (max - min); ai <- 255 x p
+      if the graphics card fails (memory): done again on the processor
+  Rule (in outline_ceramic, at full resolution):
+      ai_object <- ai brought back to the useful area (affine transformation,
+                   bilinear interpolation) > 127
+      to_remove <- mask AND NOT dilation(ai_object, 3 px) AND d < 12
+          = what the script keeps, that the AI sees as background, more than
+            3 px from the edges it draws, and whose colour stays close to the
+            background (background seen in a shadowed perforation, between two
+            sherds, halo of a blurred edge)
+      opening (disc 3); keep the areas ≥ 0.02 cm²
+      mask <- mask AND NOT to_remove
+  The AI never adds anything: when it is wrong, it is by keeping too much
+  (label, support); these errors therefore have no effect.
+  Note in the report: "AI (model) removed background: n area(s), x cm² (cyan
+  outline in preview)".
+
+
+------------------------------------------------------------------------------
+11. MOUNTING PUTTY (find_putty)
+------------------------------------------------------------------------------
+
+  work at about 80 px/cm (reduction)
+  texture <- local standard deviation of the high-pass (§3.6)
+  FOR each outline of the object:
+      simplify (Douglas-Peucker 1 px); convex hull
+      hollows <- convexity defects deeper than 0.8 mm
+      FOR each pair of hollows:
+          cut the outline in two by the segment between the two hollows
+          part <- the smallest piece (0.2 cm² to 45 % of the area)
+          compare the part with the rest (areas eroded by 3 px):
+              texture(part) < 0.5 x texture(rest)           (smoother)
+              ΔE(mean colour of part, rest) > 6              (other colour)
+              chroma(part) < 0.8 x chroma(rest)              (less coloured)
+              L*(part) > max(45; L*(rest))                   (lighter)
+          if all are true: candidate (the largest one is kept)
+  IF --remove-putty:
+      remove the part from the mask; clean the filaments around the cut
+      (opening 0.4 mm) and the small leftovers (< 4 %)
+  OTHERWISE: flag it (red area of the preview, _to_be_verified suffix)
+  In every case the pixels stay in the PSD layer: only the layer mask
+  changes, and the retouching stays possible with the brush.
+
+
+------------------------------------------------------------------------------
+12. LAYOUT AND COMPOSITING (layout, composite)
+------------------------------------------------------------------------------
+
+  margin = 0.5 cm (--margin-cm); gap ceramic/scale = 0.5 cm (--gap-cm)
+  (without a scale: 2 % of the photo)
+  "recompose" layout (default):
+      Scale layer <- straightened crop of the scale + anti-aliased rectangular
+                     mask (§3.11)
+      canvas: width = max(ceramic, scale) + 2 margins;
+              height = margin + ceramic + gap + scale + margin
+      ceramic centred at the top; scale centred under it
+  "original" layout: scale left where it is; canvas = rectangle around
+      ceramic + scale + margins
+  Ceramic layer <- original pixels of the rectangle of the ceramic + 0.15 cm,
+      with the alpha mask as layer mask
+  Original photo layer <- the whole original photo, placed where it falls on
+      the canvas ("photo -> canvas" offset): the scale stays where it was
+      photographed, even when moved under the sherd; the layer goes beyond the
+      canvas (negative coordinates are allowed in the PSD: Photoshop keeps these
+      pixels); hidden (unless --no-original-layer)
+  composite: "over" merging of the visible layers on a transparent
+      background (§3.17)
+  version without the scale: Ceramic layer alone, canvas = ceramic + 2 margins
+
+
+------------------------------------------------------------------------------
+13. WRITING THE PSD (write_psd) - Adobe Photoshop format, written byte by byte
+------------------------------------------------------------------------------
+
+  header: "8BPS", version 1, 4 channels (RGB + alpha), height, width,
+          8 bits, RGB mode
+  resources:
+      0x03ED resolution = ppi (16.16 fixed-point number), shown in cm
+      0x0421 version information (composite image present)
+      0x040F ICC profile (sRGB)
+      0x0422 EXIF
+      0x0424 XMP (description of the measurement + shooting information)
+  layers (from bottom to top: Original photo, Scale, Ceramic):
+      rectangle (signed coordinates: may go beyond the canvas), channels
+      (-1 full opacity, 0 R, 1 G, 2 B, -2 layer mask), "normal" mode, opacity
+      255, visible / hidden, mask data (20 bytes), blending ranges (40 bytes),
+      name (Pascal string + "luni" Unicode block), "lyid" identifier
+      data of each channel: PackBits row by row (§3.18)
+  negative number of layers = the 4th channel of the composite image is the
+      transparency
+  composite image: colours "matted" on white + alpha channel, PackBits
+  Checked with the independent psd-tools library: file read without error,
+  rendering of the layers identical to the composite image.
+
+
+------------------------------------------------------------------------------
+14. WRITING THE TIFF FILES (write_tiff)
+------------------------------------------------------------------------------
+
+  transparent background (default): RGBA (non-premultiplied alpha)
+  --background white: RGB, colours matted on white
+  LZW compression (default, --compression zip|none) + horizontal predictor
+  tags: X/Y resolution = ppi, unit inch; ICC profile; XMP;
+        make, model, date taken, software;
+        ASCII description of the measurement
+
+
+------------------------------------------------------------------------------
+15. CONTROL PREVIEW, FILE NAMES, REPORT
+------------------------------------------------------------------------------
+
+  control_image:
+      photo reduced to 1600 px, 15 % white veil
+      green   : outline of the cut-out
+      magenta : outline of the scale; orange: boundaries of squares / cm ticks
+      blue    : translucent supports removed
+      red     : isolated elements and colour charts discarded (outline);
+                mounting putty (area)
+      cyan    : background removed on the AI's advice (--ai option)
+      text    : name, type and length of the scale, px/cm, ppi, size,
+                "TO VERIFY: ...", notes
+
+  output_paths: NAME.psd, NAME_outlined.tif, NAME_outlined_scale.tif,
+      to_control/NAME_to_control.jpg (+ _to_be_verified when doubtful)
+  remove_stale: after writing, deletes the other variant of the same file
+  copy_original: copies the photo (date kept), unless already identical
+
+  write_report: outlined_report.csv, one row per photo, ";" separator,
+      decimal comma, UTF-8 with BOM (readable directly by Excel).
+      The rows of the other photos already present are kept (merged by file
+      name); an older report with French column names is converted.
+      Columns: file, status, to_verify, scale_found, scale_type,
+      squares, scale_length_cm, px_per_cm, ppi_1_1, ceramic_width_cm,
+      ceramic_height_cm, pieces, camera, lens, focal_mm, date_taken, notes,
+      duration_s
+
+  The former DDN naming rule (name_ok column) is removed: naming rules will be
+      set per project (ROADMAP, phase B); the column is dropped from older
+      reports.
+
+
+------------------------------------------------------------------------------
+16. TABLE OF PARAMETERS
+------------------------------------------------------------------------------
+
+  Parameter                      Value         Role
+  ---------------------------    ----------    ------------------------------------
+  ANALYSIS_SIZE                  1500 px       size of the reduced analysis photo
+  BG_DEGREE                      2             degree of the background polynomial
+  L_WEIGHT                       0.5           weight of lightness in d
+  LOW_T / HIGH_T                 8 / 18        object / background hysteresis thresholds
+  TRUE_HOLE_T                    2.5           max mean distance of a true opening
+  min area of a true opening     0.02 cm²
+  SUPPORT_T                      15            max distance of a translucent support
+  min area of a support          0.015 cm²
+  black (scale)                  max(RGB) < 0.42 x white
+  red (scale)                    see §8.1
+  max irregularity of squares    30 % (rejection), 15 % (doubt)
+  second reading (analyze_comb)  plateaus |q| > 0.3; comb residuals < 0.15
+                                 square, RMS < 8 %; squares |q| ≥ 0.3 to
+                                 start, ≥ 0.12 inside, > 0.15 at the ends
+  usual scale lengths            5, 10, 20 cm (SCALE_LENGTHS)
+  card white (second reading)    median chroma ≤ 20 (CARD_CHROMA)
+  paper label (dark background)  L* ≥ 78, rectangle filled ≥ 85 %, chroma ≤ 12
+                                 (≤ 30 if b* < 0, ≤ 25 if L* ≥ 90)
+  object close to the scale      reaches ≥ 0.8 cm from the face, mean d ≥ 18
+  background: seed on the edges  if global / edge median differ by > 12
+  dark background                median background L* < 35
+  ruler: black-hat threshold     22 grey levels
+  ruler: min ticks               15; max RMS 8 % of the step (rejection), 3 % (doubt)
+  min thickness of an element    inscribed radius 0.85 mm
+  isolated element               < 8 % of the object and > 8 mm from it
+  crumbs                         < 4 % of the largest component
+  colour chart                   C* > 30; ≥ 5 sectors of 30° (≥ 0.1 cm²
+                                 each); alone if solidity ≥ 0.95
+  round chart stuck to a sherd   inks C* > 40 over ≥ 20 sectors of 10°
+  shadow of the chart            < 1.6 radius; ΔL < -3; distance to the
+                                 darkened background < 6
+  AI (--ai)                      1024 x 1024 input; object if > 127; margin
+                                 3 px; d < 12; areas ≥ 0.02 cm²
+  mounting putty                 texture < 50 %, ΔE > 6, chroma < 80 %, lighter
+  margin / gap                   0.5 cm / 0.5 cm
+  border of the Ceramic layer    0.15 cm around the mask
+  blur of the edge (alpha)       σ = 0.8 px
+  resolution without a scale     300 ppi
+
+
+------------------------------------------------------------------------------
+17. KNOWN LIMITS
+------------------------------------------------------------------------------
+
+  - The measurement is right only if the scale is in the plane of the object.
+  - The background must be plain and different from the ceramic. A light
+    background is the intended situation. On black velvet the scale is found
+    from its light squares (§8.0): 41 of 42 photos of a 2025 sample (5, 10
+    and 20 cm checkerboards with digits in the squares); on 15 old photos of
+    448 px, 12 of the 14 that show a scale, plus one of doubtful length (scale
+    cut by the edge); the last one (squares of 13 px in three rows) needs the
+    manual scale. Enlarging the photo before the search was tried: it found
+    nothing more and gave a wrong reading.
+  - Scale forms supported: black/white/red checkerboard (one or two rows,
+    digits inside the squares allowed, 5, 10 or 20 cm), ruler graduated in
+    millimetres. Another form is most often flagged _to_be_verified.
+  - Opaque white or cream supports (putty, foam) lodged in a hollow or behind
+    a handle look too much like a light ceramic: they are not recognised and
+    are retouched with the brush on the mask of the Ceramic layer.
+  - Mounting putty is only flagged by default: a light, smooth vessel base
+    looks too much like it to remove it straight away.
+  - The --ai option only opens background whose colour is close to the
+    background: it fixes neither opaque supports nor mounting putty. Its
+    results depend on the model used (noted in the report).
+
+
+------------------------------------------------------------------------------
+18. INTERFACE AND .EXE VERSION
+  ReviewWindow ("Review…"): photos of the last results (doubtful first);
+      display = photo, background dimmed, outline of the mask (morphological
+      edge), scale outline; tools: brushes (cv2.line / cv2.circle on the
+      full-size mask) or lasso (cv2.fillPoly), removal of a piece (flood fill
+      from the click), undo (saved patches); the photo of the view is cached
+      and the redraws are limited to one every 30 ms while painting; orientation: line A-B -> angle φ such
+      that the line becomes horizontal with the centre of the object below
+      it (rim on top), or quarter turns; Accept: mask PNG + {"mask", "angle"}
+      in gerbil_edits/gerbil_edits.json; the corrected photos are processed
+      again
+------------------------------------------------------------------------------
+
+  gerbil_gui.pyw (tkinter): list of folders / photos, options grouped by
+      theme, Run / Cancel, progress bar and coloured log.
+      - runs gerbil.py (or gerbil_cli.exe) as a separate process, reads
+        its output line by line ([i/n] NAME: status ...) to show the progress;
+        Cancel stops the whole process tree (taskkill /T)
+      - remembers its settings in ~/.gerbil.json (earlier ~/.sherdcut.json taken over)
+      - missing packages (numpy, OpenCV, Pillow, rawpy): banner with an "Install now"
+        button (pip in the background); onnxruntime is offered when the AI
+        option is ticked; --install / --check for Install.bat
+      - --selftest FOLDER photos...: processes the photos with the default
+        settings, writes FOLDER/selftest.txt and closes (checks a build)
+
+  .exe version (build_exe.bat, PyInstaller recipe gerbil.spec):
+      Gerbil.exe (interface, no console) and gerbil_cli.exe (engine,
+      console) share the same libraries (_internal folder): Python, numpy,
+      OpenCV, Pillow, rawpy, onnxruntime-directml. The AI models are downloaded next
+      to the .exe files (models folder). The engine calls freeze_support() so
+      that its worker processes start correctly; double-clicked, or with
+      folders dropped on it, it waits for Enter before closing its window.
+
+  Installer (packaging/gerbil_setup.pyw, recipe packaging/gerbil_setup.spec,
+      built by build_exe.bat after Gerbil.zip): Gerbil_Setup.exe, one file
+      (PyInstaller onefile) holding Gerbil.zip and the version number.
+      - folder: %LOCALAPPDATA%\Programs\Gerbil by default (no administrator
+        rights); refused if it already holds other files than Gerbil
+      - refuses to go on while Gerbil.exe or gerbil_cli.exe is running
+      - update: removes the top-level entries of the new archive and of the
+        previous installed_files.txt, except "models" (AI models already
+        downloaded), then extracts the archive without its top "Gerbil" folder
+      - writes Uninstall.bat (shortcuts and registry entry removed, then the
+        folder deletes itself: "(goto) 2>nul & rmdir /s /q "%~dp0"")
+      - shortcuts (PowerShell, WScript.Shell): Start menu, desktop if ticked
+      - entry HKCU\...\Uninstall\Gerbil (name, version, publisher, icon,
+        size, UninstallString = Uninstall.bat): Windows "Installed apps"
+      - "Open Gerbil": started with PYINSTALLER_RESET_ENVIRONMENT=1
+
+------------------------------------------------------------------------------
+19. PLATES (gerbil_plates.py)
+------------------------------------------------------------------------------
+
+  collect(results folder): every NAME_outlined.tif (and _to_be_verified if
+      wanted) with a resolution; the object = bounding box of its alpha > 0
+      (the transparent margin left out; white background: the whole image);
+      real size (cm) = pixels of that box / dpi x 2.54; the row
+      of outlined_report.csv of the same output name gives the fields
+  sort: by group, then by the order field, then by name (natural order:
+      2 before 10)
+  layout (rows): paper size of an object = real size x 10 / ratio (mm);
+      cell = max(object width, caption width measured with the font);
+      a row is closed when the next cell does not fit in the page width,
+      a page when the next row does not fit above the scale bar; a new
+      group closes the row (or the page); rows centred, images aligned on
+      their bottom edge, caption 1.25 x its size under them
+  Drawing: list of shapes in mm (rect, poly, text, image) by layer, written
+      either as SVG (width/height in mm, viewBox in mm, layers as
+      <g inkscape:groupmode="layer">, images as PNG data URIs at the plate
+      dpi) or drawn with Pillow for the preview (same coordinates x px/mm,
+      text anchored on its baseline like SVG): both show the same thing
+  draw_bar (in the manner of the QGIS scale bar):
+      length L (real cm; auto = largest of 1, 2, 5, 10, 20, 50 cm whose paper
+      length 10 L / ratio fits in a third of the width, at most 10 cm at 1:1),
+      n segments (auto: one per cm up to 10 cm, otherwise 4 or 5), first
+      segment cut in k parts; cells alternate colours (the subdivisions among
+      themselves, the segments keep the colours they have without them)
+      styles: single box, double box (two rows, colours crossed), hollow
+      (outline + half-height band), line ticks up / down / middle (full ticks
+      at segments, half ticks at subdivisions), stepped line
+      numbers: real values (x10 when the unit is mm) at the ends or at every
+      segment, centred on their tick, the unit after the last one; ratio
+      "1:r" after the bar if wanted
+  title (optional): {page} {pages} {group} replaced, left / centred / right
+      at the top margin; file names: template (plate_{page} by default,
+      page on 2 digits), characters not allowed by Windows replaced by "_",
+      the number added when {page} is missing, duplicates numbered
+  scales: object_ratio = the scale chosen for the object, else the plate
+      scale, else (fit_large) the first of 1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10,
+      15, 20 at which it fits the page; layout() lays out each scale
+      separately (layout_one) - one scale per plate, its own bar; {scale}
+  by material: material_ratio = first rule "word=reduction" whose word is
+      in the material column (1/3 -> 1:3, 2/3 -> 1:1.5); then fit_large
+  mix_scales: one layout with each object at its own scale, "(1:r)" added
+      to the caption, one bar per scale stacked at the bottom (named 1:r)
+  drawings: attach_drawings - files .svg/.ai/.pdf/.eps of the folder; name
+      without Gerbil's suffixes = output name ({name}), or fields read with
+      the template and compared with the object's (letters and digits only,
+      leading zeros ignored); .ai/.pdf/.eps -> SVG by Inkscape (cached);
+      size from the root width/height (mm, cm, in, pt, pc, px at 96/in) x
+      the drawing scale; placed beside the photo (gap / 2), bottom-aligned;
+      written as a nested <svg> (viewBox kept, ids prefixed) in the layer
+      "Drawings"; preview: PNG by Inkscape (cached)
+  draw_measures (option "measurements"): width and height of the placed box
+      (real cm, 1 decimal) as dimension lines 2.5 mm above and left of the
+      object, end ticks 1 mm, the height written along its line (rotated
+      -90°); layer "Measurements" written with style="display:none" (hidden
+      in Illustrator / Inkscape), drawn in the preview only on demand
+
+------------------------------------------------------------------------------
+20. SITE PROFILES AND LEARNED SCALES
+------------------------------------------------------------------------------
+
+  profile: --profile FILE, else gerbil_profile.json next to the photo
+      {"background": auto|light|dark, "learned_first": bool, "scales": [model],
+       "settings": options of the interface (ignored by the engine)}
+      background light / dark: replaces the decision of BackgroundModel
+  learn_scale(photo, two points, length, band width): manual_scale crop
+      (straightened band between the points) resized to 2400 px long; kept
+      as PNG (base64) with its px/cm
+  detect_learned_scale(photo, models): photo reduced to 3000 px; SIFT
+      points (20,000 on the photo, 8,000 on each model); matches: ratio test
+      0.8; RANSAC similarity (estimateAffinePartial2D, 3 px); refused with
+      fewer than 8 inliers or an absurd size (under 5 % or over 150 % of the
+      photo); fine: the photo warped into the model frame, ECC affine
+      (findTransformECC, Gaussian 5x5), refused under correlation 0.80;
+      best model = highest correlation; its two ends -> manual_scale (kind
+      "learned"); correlation under 0.90: doubt ("another copy of the
+      scale?")
+  order: usual detection first, the learned scales when it fails or has a
+      doubt; learned_first: the learned scales first
+  measured: Qusur 2025, 10 cm scales learned from one photo each: same
+      physical scale 0.02-0.05 % from the checkerboard reading; one more
+      photo read (37 -> 38 ok), all the others identical
+
+------------------------------------------------------------------------------
+21. IPTC METADATA, INVENTORY, THUMBNAILS
+------------------------------------------------------------------------------
+
+  iptc_values(project, values, name): mapping of the project ("iptc", else
+      DEFAULT_IPTC) - each IPTC key -> text, {field} -> value of the photo,
+      {name} -> output name; lists (Keywords, Creator) split on commas;
+      empty results not written
+  make_xmp: IPTC_TARGETS (dc:title, photoshop:Headline, dc:description,
+      dc:subject, dc:creator, photoshop:DateCreated, Iptc4xmpCore:CountryCode,
+      photoshop:Country, photoshop:State, photoshop:City, Iptc4xmpCore:Location,
+      photoshop:TransmissionReference, photoshop:Instructions,
+      photoshop:Credit, photoshop:Source, dc:rights + xmpRights:Marked); the
+      scale description stays after the IPTC description; an IPTC field takes
+      precedence over the same property from the EXIF of the photo
+  copy of the original: JPEG -> embed_xmp_jpeg (APP1 "http://ns.adobe.com/
+      xap/1.0/" segment replaced or added after the APPn segments, the
+      compressed image copied byte for byte); other formats -> NAME.xmp
+  project "xmp_sidecar": write_sidecar(original) -> NAME.xmp next to the
+      photo, never over a .xmp that Gerbil did not write
+  gerbil_tools.inventory: os.walk (gerbil_review, gerbil_edits, to_control,
+      thumbnails, plates skipped); template -> regex (literal text escaped,
+      {field} -> (?P<field>.+?), anchored), applied to the name without
+      Gerbil's suffixes (_outlined, _outlined_scale, _to_control,
+      _to_be_verified, _thumb -> column "variant"); EXIF of the images
+      (Pillow); CSV ";" UTF-8 with BOM
+  gerbil_tools.powershell_line: Get-ChildItem -Recurse -File -Include ... |
+      Select-Object Name, DirectoryName, Extension, SizeKB, LastWriteTime,
+      one calculated column per field (($_.BaseName -replace suffixes) -match
+      .NET regex, $Matches) | Export-Csv -Delimiter ';' -Encoding UTF8
+  gerbil_tools.thumbnails: RAW developed at half size (rawpy), others opened
+      at a reduced size (draft), turned upright; alpha cropped to its box;
+      LANCZOS to the size; PNG, or JPEG 90 on white
+
+------------------------------------------------------------------------------
+22. ONE-CLICK CUT-OUT (review window)
+------------------------------------------------------------------------------
+
+  model: MobileSAM (MIT), ONNX export by Acly (Hugging Face): image encoder
+      (28 MB) + single-mask SAM decoder (16.5 MB), downloaded once into
+      models/ and checked with their SHA-256
+  ClickCutout.set_image: photo reduced to 1024 px (longest side), RGB 0-255
+      (normalisation and padding inside the model) -> embedding 256x64x64
+  ClickCutout.mask: points (x, y) x 1024 / longest side, label 1 (keep), plus
+      the padding point (0, 0) label -1; no mask input; output at the size of
+      the photo, logits > 0
+  click_refine: band = max(6, longest side / 400) px around the edge of the
+      SAM mask; the computed cut-out pieces lying mostly inside the mask
+      (eroded by the band) give the edge where they cover over 80 % of it;
+      otherwise the SAM mask
+  review window: tool "One click on the object": the photo is encoded in a
+      thread when the tool is chosen; first click: the cut-out is replaced by
+      the object; next clicks add objects; Shift + click removes one; each
+      click is undoable
+

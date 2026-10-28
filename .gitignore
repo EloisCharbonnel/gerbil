@@ -1,0 +1,32 @@
+# built and downloaded (large, regenerated)
+build/
+dist/
+models/
+__pycache__/
+*.pyc
+*.part
+*.tmp
+# results and corrections written next to photos
+outlined_result/
+gerbil_review/
+gerbil_edits/
+thumbnails/
+plates/
+# photos are never versioned (rights of their owners)
+*.jpg
+*.jpeg
+*.JPG
+*.JPEG
+*.tif
+*.tiff
+*.TIF
+*.dng
+*.DNG
+*.cr2
+*.cr3
+*.nef
+*.arw
+*.psd
+# icons are the exception
+!icons/*.png
+.pytest_cache/
