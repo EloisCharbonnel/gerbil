@@ -284,7 +284,9 @@ Soft shadows are left out by the colour rule itself (the lightness counts for ha
 background). A darker cast shadow (lamp from the side, museum photos) is recognised on a light background
 and removed: darker than the background by a shadow but of its colour, smooth, lying along the outline of
 the object and fading into the background (its outer edge is soft, the edge of an object is sharp). It is
-outlined in blue on the preview (note "cast shadow removed"). A dark, smooth part of the object itself
+outlined in blue on the preview (note "cast shadow removed"). Its darkest part, against the object (tinted
+by the light the object reflects), is followed up to the sharp edge of the object. A dark, smooth part of
+the object itself
 (black gloss, obsidian, grey flint) does not fade into the background and stays. On 191 open photos of finds,
 22 shadows were removed, none on the objects. On a dark background a shadow does not show: nothing changes.
 
@@ -481,6 +483,10 @@ In the .exe version, `gerbil_cli.exe` takes the same arguments (`gerbil_cli.exe 
   velvet. On velvet, the scale was found on 41 of 42 photos of a 2025 sample (5, 10 and 20 cm
   checkerboards), but less often on small old photos (448 px: 12 of the 14 that show a scale, plus one of
   doubtful length; the last one, squares of 13 px in three rows, needs the manual scale).
+- A very light object on a white background (white paste, flint cortex, chalk spindle whorl) cannot be
+  told from the background by its colour or its grain where it is almost white: parts of it may be lost.
+  Photograph such objects on a darker background (grey or black), or use *One click on the object* in
+  *Review…*, which is told which object to cut out.
 - When the ceramic fills almost the whole frame (close-up of a vessel base), the background is taken from
   the edges of the photo.
 - Scale forms tested: black/white/red checkerboard (one or two rows, digits inside the squares allowed),

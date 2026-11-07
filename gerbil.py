@@ -282,6 +282,12 @@ TRUE_HOLE_T = 2.5   # mean background distance under which a hole shows the back
 SUPPORT_T = 15.0    # background distance under which a region attached to the edge is a translucent support
 
 
+def local_texture(L, k=5):
+    """Local spread (standard deviation) of the lightness over k x k pixels: the grain of a surface."""
+    mu = cv2.blur(L, (k, k))
+    return np.sqrt(np.maximum(cv2.blur(L * L, (k, k)) - mu * mu, 0))
+
+
 def fill_holes(m, d=None, min_true_hole_area=None, keep_open=None):
     """Fills the holes of the mask (gloss reflections, light concretions), except true openings:
     holes large enough whose mean colour is the background colour (handle, perforation)."""
@@ -308,6 +314,11 @@ SHADOW_TOUCH, SHADOW_SOFT = 0.15, 0.5
 # fades into the background (gradient on that edge under SHADOW_SOFT of the object's own edge): on open
 # photos of finds, shadows 0.21-0.66 and 0.07-0.40; dark smooth patches of objects (black gloss,
 # obsidian, grey flint) touch the background on 0-5 % of their outline
+SHADOW_DEEP_CD = 12.0   # the darkest part of a shadow, against the object, is followed up to this colour
+                        # distance (light reflected by the object tints it: 3-9.5 measured), as long as
+                        # it stays smooth (gradient under SHADOW_SOFT of the object's edge)
+SHADOW_DEEP_MAX = 1.0   # ... and adds at most this fraction of the shadow found (a spindle whorl's: 0.56;
+                        # more is a dark, smooth object - green glass - not the end of a shadow)
 
 
 def cast_shadows(obj, lab, model):
@@ -317,8 +328,7 @@ def cast_shadows(obj, lab, model):
     L = lab[..., 0]
     k = (L + 1) / (model[..., 0] + 1)
     cd = np.hypot(lab[..., 1] - k * model[..., 1], lab[..., 2] - k * model[..., 2])
-    mu = cv2.blur(L, (5, 5))
-    tex = np.sqrt(np.maximum(cv2.blur(L * L, (5, 5)) - mu * mu, 0))
+    tex = local_texture(L)
     around = cv2.dilate(obj.astype(np.uint8), disk(5)) > 0
     if around.all():
         return None
@@ -332,6 +342,7 @@ def cast_shadows(obj, lab, model):
     edge_bg = ~obj & (cv2.dilate(obj.astype(np.uint8), disk(1)) > 0)       # background touching the mask
     shadows = np.zeros(obj.shape, bool)
     min_area = max(50, 0.002 * obj.sum())
+    sharp = 0.0                                 # gradient of the object's own edge (the sharpest seen)
     for i in range(1, n):
         x, y, w, h, a = stats[i]
         if a < min_area:
@@ -344,7 +355,20 @@ def cast_shadows(obj, lab, model):
         rest = edge_bg & ~(cv2.dilate(r.astype(np.uint8), disk(6)) > 0)        # the object's own edge
         if rest.any() and grad[contact].mean() < SHADOW_SOFT * np.median(grad[rest]):
             shadows |= r
-    return shadows if shadows.any() else None
+            sharp = max(sharp, float(np.median(grad[rest])))
+    if not shadows.any():
+        return None
+    # the darkest part of a shadow, against the object, is less of the background's colour (light
+    # reflected by the object): the shadow is followed into it, up to the sharp edge of the object
+    deep = (obj & ~shadows & (k > SHADOW_K[0]) & (k < SHADOW_K[1]) & (cd < SHADOW_DEEP_CD)
+            & (grad < SHADOW_SOFT * sharp))
+    nd, lab_d = cv2.connectedComponents((deep | shadows).astype(np.uint8), connectivity=8)
+    base = np.bincount(lab_d[shadows], minlength=nd)
+    added = np.bincount(lab_d[deep & ~shadows], minlength=nd)
+    # followed only where it adds less than the shadow itself (more: a dark, smooth object - glass)
+    linked = (base > 0) & (added <= SHADOW_DEEP_MAX * base)
+    linked[0] = False
+    return shadows | (linked[lab_d] & deep)
 
 
 def disk(r):
@@ -2227,7 +2251,8 @@ def outline_ceramic(photo, small, f, background, scale, ai=None):
     if shadows is not None:                   # pixels of the colour of a shadow on this background
         kr = (lab_roi[..., 0] + 1) / (model[..., 0] + 1)
         shade = ((kr > SHADOW_K[0]) & (kr < SHADOW_K[1])
-                 & (np.hypot(lab_roi[..., 1] - kr * model[..., 1], lab_roi[..., 2] - kr * model[..., 2]) < SHADOW_CD))
+                 & (np.hypot(lab_roi[..., 1] - kr * model[..., 1], lab_roi[..., 2] - kr * model[..., 2])
+                    < SHADOW_DEEP_CD))
         del kr
     del lab_roi, model
     gx0, gy0 = (X0 + 0.5) * f - 0.5, (Y0 + 0.5) * f - 0.5
@@ -2255,7 +2280,7 @@ def outline_ceramic(photo, small, f, background, scale, ai=None):
                                  flags=cv2.INTER_LINEAR | cv2.WARP_INVERSE_MAP) > 0.5
         m &= ~(sup_big & (d < SUPPORT_T + 3))
     if shade is not None:                     # the shadows removed stay out at full resolution
-        sh_big = cv2.warpAffine(cv2.dilate(shadows.astype(np.uint8), disk(2)).astype(np.float32), Mup, (w, h),
+        sh_big = cv2.warpAffine(cv2.dilate(shadows.astype(np.uint8), disk(1)).astype(np.float32), Mup, (w, h),
                                 flags=cv2.INTER_LINEAR | cv2.WARP_INVERSE_MAP) > 0.5
         m &= ~(sh_big & shade)
         del sh_big, shade

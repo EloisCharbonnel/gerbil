@@ -719,9 +719,16 @@ Python standard library
       (open photos of finds: shadows touch 21-66 %, gradient ratio 0.07-0.40;
        dark smooth patches of objects - black gloss, obsidian, grey flint -
        touch the background on 0-5 % of their outline)
+      darkest part, against the object (tinted by light reflected from it,
+          cd 3-9.5 measured): followed from the shadow found through pixels
+          of 0.3 < k < 0.92, cd < 12 and gradient < 0.5 x the object's edge
+          (it stops at the sharp edge of the object), only where it adds at
+          most as much as the shadow itself (more: a dark smooth object such
+          as green glass, left alone)
       -> removed from the object; at full resolution, the pixels of the
-         colour of a shadow (same k and cd) in these regions (dilated 2 px)
-         stay out; blue outline in the preview, note "cast shadow removed"
+         colour of a shadow (0.3 < k < 0.92, cd < 12) in these regions
+         (dilated 1 px) stay out; blue outline in the preview, note "cast
+         shadow removed"
   remove_charts (colour charts), for each component ≥ 0.25 cm²:
       colour_chart:
           saturated pixels = chroma C* > 30 (§3.1)

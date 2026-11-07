@@ -43,7 +43,10 @@ FR = {
         "ouvertures : trous assez grands dont la couleur moyenne est celle du fond (anse, perforation).",
     "gerbil.py:cast_shadows": "Fond clair : les ombres portées gardées par la règle de couleur. Une ombre est plus "
         "sombre que le fond mais de sa couleur, lisse, le long du contour, et se fond dans le fond (bord "
-        "extérieur flou, alors que le bord d'un objet est net). Renvoie leur masque, ou None.",
+        "extérieur flou, alors que le bord d'un objet est net). Sa partie la plus sombre, contre l'objet, "
+        "teintée par la lumière qu'il renvoie, est suivie jusqu'au bord net de l'objet, sans ajouter plus que "
+        "l'ombre elle-même (au-delà : un objet sombre et lisse, comme du verre). Renvoie leur masque, ou None.",
+    "gerbil.py:local_texture": "La dispersion locale de la clarté sur k × k pixels : le grain d'une surface.",
     "gerbil.py:disk": "Élément structurant en forme de disque de rayon r, pour la morphologie (érosion, dilatation…).",
     "gerbil.py:scale_ink_classes": "Les pixels noirs et rouge vif : les cases colorées d'une échelle archéologique.",
     "gerbil.py:straighten": "Extrait une vignette de taille donnée centrée sur un point, tournée pour que la direction "

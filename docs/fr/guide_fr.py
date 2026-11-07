@@ -328,6 +328,10 @@ PARTS = [
     ("ul", ["La mesure n'est juste que si l'échelle est **dans le plan de l'objet**.",
             "Le fond doit être uni et différent de l'objet. Un support opaque blanc ou crème logé dans un creux "
             "n'est pas reconnu : l'effacer dans *Review…* ou dans Photoshop.",
+            "Un objet très clair sur fond blanc (pâte blanche, cortex de silex, fusaïole en craie) ne se distingue "
+            "du fond ni par sa couleur ni par son grain là où il est presque blanc : des parties peuvent manquer. "
+            "Photographier ces objets sur un fond plus sombre (gris ou noir), ou utiliser l'outil *One click on "
+            "the object* de *Review…*, à qui l'on indique l'objet.",
             "Une autre forme d'échelle sera le plus souvent signalée à vérifier : l'apprendre dans un profil de "
             "site, ou la donner à la main.",
             "Pour un rendu des couleurs précis des RAW, les développer soi-même (Lightroom, darktable) et donner "

@@ -100,7 +100,7 @@ gerbil_gui.pyw  (windows)  --runs-->  gerbil.py / gerbil_cli.exe  (engine, one p
 
 ### gerbil.py
 
-The engine and the command line: everything that processes a photo. (3919 lines.)
+The engine and the command line: everything that processes a photo. (3944 lines.)
 
 Gerbil - archaeological photo toolkit (formerly SherdCut): outlining of finds photographed with a scale, at their real size (1:1). © 2026 Eloïs CHARBONNEL Licence: GNU General Public License v3 or later (SPDX: GPL-3.0-or-later), see LICENSE. This program comes with ABSOLUTELY NO WARRANTY; it is free software, and you are welcome to redistribute it under the conditions of the licence.
 
@@ -180,102 +180,105 @@ Usage:
   
   above `high` (a faint edge is kept when it belongs to a clear object).
 
-- **`fill_holes(m, d, min_true_hole_area, keep_open)`** — function, line 285  
+- **`local_texture(L, k)`** — function, line 285  
+  Local spread (standard deviation) of the lightness over k x k pixels: the grain of a surface.
+
+- **`fill_holes(m, d, min_true_hole_area, keep_open)`** — function, line 291  
   Fills the holes of the mask (gloss reflections, light concretions), except true openings: holes large enough whose mean colour is the background colour (handle, perforation).
 
-- **`cast_shadows(obj, lab, model)`** — function, line 313  
+- **`cast_shadows(obj, lab, model)`** — function, line 324  
   Light background: the cast shadows kept by the colour rule (darker than the background by a
   
   shadow, of its colour, smooth, along the outline, fading into the background). Returns their mask, or None.
 
-- **`disk(r)`** — function, line 350  
+- **`disk(r)`** — function, line 374  
   Disc-shaped structuring element of radius r for the morphology (erosion, dilation...).
 
 
 #### Scale detection and measurement (squares)
 
-- **`scale_ink_classes(rgb, white)`** — function, line 360  
+- **`scale_ink_classes(rgb, white)`** — function, line 384  
   Black and vivid red pixels (coloured squares of an archaeological scale).
 
-- **`straighten(img, center, theta, size, interp)`** — function, line 370  
+- **`straighten(img, center, theta, size, interp)`** — function, line 394  
   Extracts a crop of size=(w, h) centred on `center`, rotated so that the direction `theta` (radians, image frame) becomes horizontal.
 
-- **`apply_affine(M, pts)`** — function, line 383  
+- **`apply_affine(M, pts)`** — function, line 407  
   Applies the 2 x 3 affine matrix M to points (N x 2): rotation / scale / translation.
 
-- **`_runs(state)`** — function, line 389  
+- **`_runs(state)`** — function, line 413  
   Runs of equal values in a 1D array: [[value, start, end], ...] (reading the squares).
 
-- **`_merge_runs(R)`** — function, line 397  
+- **`_merge_runs(R)`** — function, line 421  
   Joins consecutive runs of the same value.
 
-- **`_clean_runs(R, min_len)`** — function, line 408  
+- **`_clean_runs(R, min_len)`** — function, line 432  
   Removes the shortest inner runs (noise, digits) until all are at least min_len long.
 
-- **`_crossing(p, x, direction)`** — function, line 422  
+- **`_crossing(p, x, direction)`** — function, line 446  
   Sub-pixel position where the profile p crosses 0.5 near x (direction +1: rising to the right).
 
-- **`analyze_pattern(crop, valid)`** — function, line 436  
+- **`analyze_pattern(crop, valid)`** — function, line 460  
   Analyses a crop where the scale is horizontal and centred. Returns the position of the printed face, the number of squares and their length. `valid`: pixels of the crop that come from inside the photo (None: all of them). Beyond the photo edge the straightening copies the edge pixels: nothing is read there, and a square cut by the edge is counted but left out of the measurement (n = complete squares, n_cut = cut ones).
 
-- **`_inside(shape, M, crop_shape)`** — function, line 538  
+- **`_inside(shape, M, crop_shape)`** — function, line 562  
   Pixels of a straightened crop that come from inside the photo; None when they all do.
 
-- **`_fit_comb(xs, step, min_n, tol)`** — function, line 551  
+- **`_fit_comb(xs, step, min_n, tol)`** — function, line 575  
   Fits a regular sequence x_k = a0 + step * k to the positions xs (common phase by circular mean, then least squares rejecting the residuals above tol x step). Returns (a0, step, k, res) for the kept positions, or None.
 
-- **`analyze_comb(crop, valid)`** — function, line 576  
+- **`analyze_comb(crop, valid)`** — function, line 600  
   Second reading of a checkerboard (crop where the scale is horizontal and centred), used only when analyze_pattern fails. Robust to digits printed inside the squares ("5", "10", "cm") and to any number of squares: the boundaries between squares are where the signed profile
   
           q(x) = ink(top row) - ink(bottom row)      (two rows), or 2 ink(row) - 1 (single row)
   changes sign between two plateaus (|q| > 0.3). A digit only lowers |q| inside its square: the sign, hence the boundaries, do not change. The boundaries are fitted by a regular comb x_k = a0 + square x k (as the ruler ticks), so that the square length is measured over the whole scale; the end squares (no sign change against the card or the background) are added when their sign continues the alternation. Same result fields as analyze_pattern.
 
-- **`Scale`** — class, line 760  
+- **`Scale`** — class, line 784  
   A scale found (or given): px/cm, number of squares, length, angle, outline in the photo (poly), enlarged zone (holder, putty), straightened crop and its matrix M, reading details (pattern), note, doubts and kind (checkerboard, ruler, manual, learned).
 
-- **`_rect_axis(rect)`** — function, line 782  
+- **`_rect_axis(rect)`** — function, line 806  
   Angle of the long side of a rotated rectangle (radians, -pi/2..pi/2), and its long and short sides.
 
-- **`_single_row_groups(ink)`** — function, line 796  
+- **`_single_row_groups(ink)`** — function, line 820  
   Single-row scale: its black squares do not touch. Looks for solid blobs of the same size, aligned and evenly spaced. Returns lists of points.
 
-- **`_card_side(crop, res)`** — function, line 839  
+- **`_card_side(crop, res)`** — function, line 863  
   Single-row scale ending with a white square: side where the card continues (-1 left, +1 right, 0 undecided). Each end is compared with the white of the inner white squares of the scale.
 
-- **`_scale_on_dark(rgb, small, f, forced_cm)`** — function, line 874  
+- **`_scale_on_dark(rgb, small, f, forced_cm)`** — function, line 898  
   Dark background (black velvet): the black squares merge with the background. The scale is looked for from its light squares: for each large, elongated group of light areas, everything outside the rectangle around it (and beyond the photo edge) is painted white, so that the scale looks as it does on a light background; then the usual detection runs (without the ruler).
 
-- **`_glyph_vector(g)`** — function, line 966  
+- **`_glyph_vector(g)`** — function, line 990  
   Sign cropped to its box, scaled into GLYPH_SIZE x GLYPH_SIZE, centred, zero mean, unit norm.
 
-- **`_glyph_templates_get()`** — function, line 982  
+- **`_glyph_templates_get()`** — function, line 1006  
   Templates of GLYPH_CHARS drawn with the fonts of Windows (empty list when none is found).
 
-- **`digits_upside_down(crop, res)`** — function, line 1004  
+- **`digits_upside_down(crop, res)`** — function, line 1028  
   Is the scale of this straightened crop upside down, judging from the signs printed in its squares ("5", "10", "cm")? Each sign (dark ink in a light square, light ink in a dark or red one) is compared with templates of digits and of "c", "m" drawn with common fonts, as it is and turned over (180 degrees): the side that looks more like a printed character gets the vote of the sign, when the difference exceeds GLYPH_MARGIN. Returns True / False, or None when undecided (no clear sign, no font). Used on the final crop, once the red row is on top: on 1,265 scales of known orientation, no error (2 % undecided at a margin of 0.05, 0.08 is used).
 
-- **`manual_scale_entry(path)`** — function, line 1052  
+- **`manual_scale_entry(path)`** — function, line 1076  
   Scale given by hand for this photo (interface: "Set scale…"), or None. The file MANUAL_SCALES, in the folder of the photo, maps a photo name to {"p1": [x, y], "p2": [x, y], "cm": length between the two points, "width_cm": width of the scale}; coordinates in pixels of the upright photo.
 
-- **`manual_scale(rgb, entry)`** — function, line 1074  
+- **`manual_scale(rgb, entry)`** — function, line 1098  
   Scale from two points of known distance: px/cm = distance / length. The scale layer is a band of the given width around the segment, straightened like a detected scale; centimetre marks every cm.
 
 
 #### Site profiles and learned scales
 
-- **`find_profile(path, given)`** — function, line 1115  
+- **`find_profile(path, given)`** — function, line 1139  
   Profile of a photo: the file given (--profile), else PROFILE_FILE in the folder of the photo.
 
-- **`load_profile(file)`** — function, line 1126  
+- **`load_profile(file)`** — function, line 1150  
   {"name", "background": "auto"|"light"|"dark", "learned_first": bool, "scales": [model...]}; models ready for matching (cached per process). A model: {"name", "cm", "width_cm", "px_cm", "image": PNG in base64}. learned_first: the learned scales are looked for before the usual detection (by default only when it fails or is doubtful: a learned 10 cm scale is also found inside a 20 cm one of the same make).
 
-- **`learn_scale(rgb, entry, name)`** — function, line 1153  
+- **`learn_scale(rgb, entry, name)`** — function, line 1177  
   Model of a scale from two points of known distance on a photo (entry as manual_scale): the band of the scale between the two points, straightened, kept LEARN_LEN pixels long, and its px/cm.
 
-- **`detect_learned_scale(rgb, models)`** — function, line 1167  
+- **`detect_learned_scale(rgb, models)`** — function, line 1191  
   Looks for the learned scales on the photo. Coarse: points matched between each model and the photo (SIFT), one position, size and angle agreed by RANSAC; fine: the model correlated with the photo (ECC, affine) refines the length to better than 0.1 % when it is the same physical scale. The best model (correlation) gives two points at its ends: the scale is then built as a manual one.
 
-- **`detect_scale(rgb, small, f, forced_cm, dark, min_ratio, ruler, comb)`** — function, line 1224  
+- **`detect_scale(rgb, small, f, forced_cm, dark, min_ratio, ruler, comb)`** — function, line 1248  
   comb: also try the second reading (analyze_comb) when the usual one finds nothing;
   
   "only": the second reading alone.
@@ -283,24 +286,24 @@ Usage:
 
 #### Graduated ruler (millimetre ticks on a light card)
 
-- **`_thin_ticks(grey)`** — function, line 1384  
+- **`_thin_ticks(grey)`** — function, line 1408  
   Thin, elongated dark strokes (graduations): list of (cx, cy, theta, length).
 
-- **`_tick_combs(ticks, long_ticks)`** — function, line 1404  
+- **`_tick_combs(ticks, long_ticks)`** — function, line 1428  
   Groups parallel strokes lying side by side and evenly spaced (graduations). long_ticks: grid cell sized on the longest strokes instead of the 95th percentile of all of them (long graduations among many short strokes of a sherd surface: neighbours further apart).
 
-- **`_peaks(profile, step)`** — function, line 1485  
+- **`_peaks(profile, step)`** — function, line 1509  
   Local maxima of a profile, at least 0.55 step apart, sub-pixel position.
 
-- **`analyze_ruler(crop, step_estimate, robust)`** — function, line 1503  
+- **`analyze_ruler(crop, step_estimate, robust)`** — function, line 1527  
   Straightened crop: horizontal ruler, vertical graduations.
   
   Returns the measurement (millimetre step, centimetre ticks) or None. robust (second pass): the band of the ticks is measured against the 90th percentile of the row densities instead of their maximum, and short dips are crossed (thick ticks hanging from the card edge: the top rows, darker, and a light line under the edge, would make the band a few rows).
 
-- **`ruler_outline(crop, res)`** — function, line 1605  
+- **`ruler_outline(crop, res)`** — function, line 1629  
   Edges of the ruler card (straightened crop, graduations at the top).
 
-- **`detect_ruler(rgb, robust)`** — function, line 1666  
+- **`detect_ruler(rgb, robust)`** — function, line 1690  
   Ruler graduated in millimetres: measures the millimetre step over the whole length.
   
   Returns a Scale, or None when no ruler is found. robust: second pass (thick, long ticks: _tick_combs(long_ticks) and analyze_ruler(robust)), used when the first one finds nothing.
@@ -308,10 +311,10 @@ Usage:
 
 #### Ceramic outlining
 
-- **`poly_mask(shape, poly, aa)`** — function, line 1741  
+- **`poly_mask(shape, poly, aa)`** — function, line 1765  
   Mask of a polygon (sub-pixel coordinates), anti-aliased or not.
 
-- **`discard_labels(keep, lab, stats, f, scale, dark)`** — function, line 1749  
+- **`discard_labels(keep, lab, stats, f, scale, dark)`** — function, line 1773  
   Discards what is not ceramic (modifies `keep`):
   
         * what lies entirely on the other side of the scale from the main object
@@ -322,41 +325,41 @@ Usage:
           dark background (a dark letter does not stand out there: what does is a small sherd).
   Returns the outlines (image frame) of the small isolated elements discarded.
 
-- **`translucent_supports(obj, d_small, dl_small, db_small, cm_small)`** — function, line 1802  
+- **`translucent_supports(obj, d_small, dl_small, db_small, cm_small)`** — function, line 1826  
   Plexiglass (translucent) supports: regions whose colour stays close to the background colour (distance < SUPPORT_T, whereas the ceramic differs clearly), at least 0.015 cm² in area, which stick out of the object (at least half of their perimeter on the background or an opening). A reflection of the background on a black gloss also has the background colour, but it runs along the ceramic, it is clearly darker and of the same hue; a support is as light as the background, or whiter than it (lavender background). Returns their mask (low resolution) or None.
 
-- **`colour_chart(lab, m, sector_px)`** — function, line 1838  
+- **`colour_chart(lab, m, sector_px)`** — function, line 1862  
   Colour chart (Pantone colorimeter, ColorChecker...): its saturated pixels (chroma > CHART_CHROMA) cover at least CHART_HUES hue sectors of 30° (each one at least `sector_px` pixels, i.e. CHART_SECTOR), among the warm hues (red, orange, yellow, magenta), the greens and the blues alike. A ceramic, even glazed or painted, stays within a few neighbouring hues (2 sectors at most over 1763 photos, against 5 to 9 for the charts). Returns None (not a chart), "alone" (regular, convex outline: the chart only) or "attached" (irregular outline: the chart touches something else, e.g. the ceramic).
 
-- **`chart_disc(lab, m)`** — function, line 1859  
+- **`chart_disc(lab, m)`** — function, line 1883  
   Circle of a round colour chart (Pantone colorimeter) inside the mask m, fitted on its printed inks whose hue is foreign to ceramics (pinks, yellows, greens, blues: chroma > 40, hue outside 30-90°). Algebraic circle fit (x² + y² + Dx + Ey + F = 0, least squares), refitted on the points of the coloured ring; the inks must surround the centre (at least 20 of 36 sectors of 10°: under a warm light the yellow turns orange and joins the excluded hues) and the disc must be filled by the mask. Returns (cx, cy, r) in the frame of m, or None.
 
-- **`remove_charts(obj, lab_small, bg_small, f, cm_small)`** — function, line 1890  
+- **`remove_charts(obj, lab_small, bg_small, f, cm_small)`** — function, line 1914  
   Removes the colour charts from the analysis mask `obj` (in place): a chart alone is discarded whole; a round chart touching the ceramic is cut out along its circle, together with its cast shadow (the chart is a thick disc). Shadow = pixels of the object having the colour of the background darkened (a* and b* of the background scaled by the lightness ratio, distance < SHADOW_T), within 1.6 radius, connected to the edge of the disc. Returns the outlines to show (image frame), the circles cut out (polygons, image frame, also applied at full resolution) and whether a chart touching the ceramic could not be separated.
 
-- **`label_card(lab_small, m, origin)`** — function, line 1965  
+- **`label_card(lab_small, m, origin)`** — function, line 1989  
   Paper label on a dark background: white (L* >= LABEL_L), uncoloured (chroma <= LABEL_C) - or bluish (paper with optical brighteners: b* < 0, chroma <= LABEL_BLUE_C), or very bright (L* >= LABEL_BRIGHT_L, chroma <= LABEL_BRIGHT_C: pale yellow note) - and rectangular (it fills at least LABEL_FILL of its minimum-area rectangle). A pale sherd is warm (b* > 0), darker, or not that rectangular. Very rectangular (LABEL_SQUARE_FILL) and light (L* >= LABEL_SQUARE_L): a label of any colour (sticky note) - a broken sherd never fills its rectangle that much.
 
-- **`straight_outline(m, origin, size)`** — function, line 1988  
+- **`straight_outline(m, origin, size)`** — function, line 2012  
   Share of the outline of a piece (away from the photo border) made of long straight sides parallel or perpendicular to its main direction: near 1 for a scale bar, a ruler, a label or a chart (even L-shaped), lower for a broken sherd, a coin or a tool. The outline is closed first, so that the ticks of a ruler or the squares of a scale make a straight side. Returns (that share, how much of its minimum-area rectangle the closed outline fills).
 
-- **`printed_element(lab_small, m, origin, size)`** — function, line 2019  
+- **`printed_element(lab_small, m, origin, size)`** — function, line 2043  
   A scale bar, ruler, label or colour card, recognised without measuring it (no scale found): straight-sided, and the content of a print (see PRINT_*).
 
-- **`split_labels(obj, lab_small, f)`** — function, line 2042  
+- **`split_labels(obj, lab_small, f)`** — function, line 2066  
   Dark background: a paper label touching an object by a narrow join (a corner, a point) forms
   
   one blob with it, neither label-coloured nor rectangular. Each blob that is not a label as a whole is cut at its narrow joins (opening, disc of 2 % of its size); a part that is a label is removed from the mask. Returns the mask and the outlines of the labels removed (photo coordinates).
 
-- **`edge_at_half_contrast(m, d, depth)`** — function, line 2073  
+- **`edge_at_half_contrast(m, d, depth)`** — function, line 2097  
   Dark background: the edge of a light object is a ramp several pixels wide (blur, shadow at its
   
   foot), and the threshold LOW_T keeps it almost down to the dark background (dark outline). In the outer band of the mask (depth pixels), the pixels whose distance to the background is under half that of the object nearby are removed, peeled from the outside only: the edge goes to the middle of the ramp. Dark areas inside the object (decoration) are not reached; where the object is hardly different from the background, LOW_T stays the threshold.
 
-- **`outline_ceramic(photo, small, f, background, scale, ai)`** — function, line 2097  
+- **`outline_ceramic(photo, small, f, background, scale, ai)`** — function, line 2121  
   The cut-out of the object(s): first mask on the reduced photo (colour distance to the background, hysteresis, holes filled), sorting of the pieces (scale zone, labels, supports, colour charts, isolated elements), refinement at full resolution, edge softened. Returns the alpha mask and what was discarded (see PSEUDOCODE §10).
 
-- **`find_putty(rgb, cer, px_cm)`** — function, line 2320  
+- **`find_putty(rgb, cer, px_cm)`** — function, line 2345  
   Looks for a visible support (mounting putty) attached to the ceramic.
   
   A part of the outline is a candidate only if:
@@ -369,37 +372,37 @@ Usage:
 
 #### AI second opinion (optional, --ai): neural segmentation of the object
 
-- **`ai_model_path(model)`** — function, line 2440  
+- **`ai_model_path(model)`** — function, line 2465  
   Model file, in the 'models' folder next to the script; downloaded the first time (checked with its MD5 sum).
 
-- **`ai_providers(device, model)`** — function, line 2466  
+- **`ai_providers(device, model)`** — function, line 2491  
   Graphics card when onnxruntime offers one (CUDA, or DirectML on Windows), else the processor. BiRefNet (1 GB) is too large for DirectML on an 8 GB card: it fails, or crawls in shared memory; it only uses CUDA.
 
-- **`_ai_open(model, providers, jobs)`** — function, line 2477  
+- **`_ai_open(model, providers, jobs)`** — function, line 2502  
   Opens an ONNX model with onnxruntime (graphics card or processor), threads shared by the photos processed in parallel.
 
-- **`ai_mask(rgb, opts)`** — function, line 2490  
+- **`ai_mask(rgb, opts)`** — function, line 2515  
   Object probability (0-255, AI_SIZE x AI_SIZE) for the whole photo, as in rembg: photo resized to 1024 x 1024 (Lanczos), values divided by their maximum, centred and scaled (mean, standard deviation of the network), network, sigmoid (BiRefNet), stretched to 0-1. On a failure of the graphics card (lack of memory), the processor takes over.
 
 
 #### One-click cut-out (review window): Segment Anything, MobileSAM version
 
-- **`click_model_path(part, progress)`** — function, line 2531  
+- **`click_model_path(part, progress)`** — function, line 2556  
   File of the one-click model, in the 'models' folder; downloaded the first time (SHA-256 checked).
 
-- **`ClickCutout`** — class, line 2554  
+- **`ClickCutout`** — class, line 2579  
   Cut-out of the object the archaeologist clicks on. Segment Anything is told WHICH object to cut out (a click on it; a click with "remove" on what must not be kept): it no longer has to guess what is a sherd and what is a label, a shadow or the background, hence a more reliable result than the automatic way on difficult photos. Its own edge is coarse (it sees the photo at 1024 px): where the computed cut-out agrees with it, the edge of the computed cut-out is kept.
 
-  - **`__init__(self, progress)`** — method, line 2561  
+  - **`__init__(self, progress)`** — method, line 2586  
     Loads the two parts of MobileSAM (image encoder, mask decoder); downloads them the first time.
 
-  - **`set_image(self, rgb)`** — method, line 2572  
+  - **`set_image(self, rgb)`** — method, line 2597  
     Encodes the photo once (about a second); the clicks are then instant.
 
-  - **`mask(self, points, out_size)`** — method, line 2580  
+  - **`mask(self, points, out_size)`** — method, line 2605  
     Mask (bool) of the object for points [(x, y, keep)] in photo pixels; out_size (h, w) of the mask, by default the photo's.
 
-- **`click_refine(sam, computed, band)`** — function, line 2599  
+- **`click_refine(sam, computed, band)`** — function, line 2624  
   Edge of the clicked object: the computed cut-out where it agrees with Segment Anything (within
   
   `band` pixels of its edge), Segment Anything elsewhere (object missed by the computed cut-out).
@@ -407,170 +410,170 @@ Usage:
 
 #### Layers and compositing
 
-- **`Layer`** — class, line 2622  
+- **`Layer`** — class, line 2647  
   One layer of the output files: name, position on the canvas, pixels, mask (or None),
   
   visible or hidden.
 
-- **`extract(rgb, x0, y0, x1, y1)`** — function, line 2633  
+- **`extract(rgb, x0, y0, x1, y1)`** — function, line 2658  
   Crop, filled with white where the area goes beyond the image.
 
-- **`composite(layers, W, H)`** — function, line 2643  
+- **`composite(layers, W, H)`** — function, line 2668  
   Merges the visible layers (non-premultiplied rgb + alpha) over a transparent background.
 
-- **`decontaminate_edge(rgb, mask, band)`** — function, line 2667  
+- **`decontaminate_edge(rgb, mask, band)`** — function, line 2692  
   Dark background: the pixels of the edge (the half-transparent ones and the last `band` pixels
   
   inside) mix the colour of the object with the dark background: a thin dark line around the sherd, whatever the cut-out. Their colour is replaced by the colour of the object just inside (normalised Gaussian average of the inner pixels), where it is lighter - the outline (mask) is not changed.
 
-- **`layout(photo, cer, scale, opts)`** — function, line 2697  
+- **`layout(photo, cer, scale, opts)`** — function, line 2722  
   Builds the layers of the output files: the object with its mask, the scale (straightened under the object, or where it was photographed), the whole photo (hidden layer); sizes of the canvas with the margins. Returns the layers of the PSD and those of the TIFF alone.
 
 
 #### PSD writing (layers, layer masks, resolution, ICC profile, EXIF)
 
-- **`_packbits_block(a)`** — function, line 2782  
+- **`_packbits_block(a)`** — function, line 2807  
   PackBits compression (the RLE of Photoshop) of a block of rows, vectorised with numpy.
 
-- **`packbits(a, block)`** — function, line 2822  
+- **`packbits(a, block)`** — function, line 2847  
   PackBits compression of a whole channel, block by block; returns the row lengths and data.
 
-- **`rle_channel(a)`** — function, line 2833  
+- **`rle_channel(a)`** — function, line 2858  
   A channel as Photoshop stores it: compression flag 1 (RLE), row lengths, data.
 
-- **`_pascal(b, multiple)`** — function, line 2839  
+- **`_pascal(b, multiple)`** — function, line 2864  
   Pascal string (length byte + text), padded, as in the PSD format.
 
-- **`_resource(rid, data)`** — function, line 2845  
+- **`_resource(rid, data)`** — function, line 2870  
   PSD image resource block ("8BIM", id, data padded to an even length).
 
-- **`_unicode(s)`** — function, line 2851  
+- **`_unicode(s)`** — function, line 2876  
   Unicode string of the PSD format (length + UTF-16 big-endian).
 
-- **`_xml(s)`** — function, line 2856  
+- **`_xml(s)`** — function, line 2881  
   Escapes &, < and > for XML.
 
-- **`iptc_values(pr, values, name)`** — function, line 2886  
+- **`iptc_values(pr, values, name)`** — function, line 2911  
   IPTC fields of a photo: the mapping of the project (else DEFAULT_IPTC) filled with its values.
 
-- **`_iptc_prop(prop, kind, value)`** — function, line 2906  
+- **`_iptc_prop(prop, kind, value)`** — function, line 2931  
   One XMP property as RDF: plain text, one-language alternative (Alt) or list (Bag/Seq).
 
-- **`make_xmp(description, fields, meta, title, iptc, packet)`** — function, line 2916  
+- **`make_xmp(description, fields, meta, title, iptc, packet)`** — function, line 2941  
   XMP packet: description of the scale + shooting information of the original photo + information of
   
   the project (title = output name; each field as gerbil:Name, and all of them as keywords) + the IPTC fields of the project (iptc_values), which take precedence. packet=False: no xpacket wrapper (sidecar .xmp file).
 
-- **`embed_xmp_jpeg(path, xmp)`** — function, line 2966  
+- **`embed_xmp_jpeg(path, xmp)`** — function, line 2991  
   Puts the XMP packet into a JPEG file without touching the image: the APP1 XMP segment is replaced or added after the EXIF / JFIF segments. False when the file is not a plain JPEG.
 
-- **`write_sidecar(photo_path, xmp, folder)`** — function, line 2993  
+- **`write_sidecar(photo_path, xmp, folder)`** — function, line 3018  
   NAME.xmp beside a photo (Bridge, Lightroom, darktable read it, above all for RAW files). A sidecar written by another program (Lightroom: develop settings) is never replaced. Returns the path or None.
 
-- **`write_psd(path, W, H, layers, comp_rgb, comp_a, dpi, icc, exif, xmp)`** — function, line 3009  
+- **`write_psd(path, W, H, layers, comp_rgb, comp_a, dpi, icc, exif, xmp)`** — function, line 3034  
   Writes the layered Photoshop file byte by byte: header, resolution in cm, ICC profile, EXIF and XMP, layers with their masks (PackBits), flattened image. See PSEUDOCODE §13.
 
 
 #### TIFF writing
 
-- **`write_tiff(path, rgb, a, dpi, icc, xmp, fields, description, background, compression)`** — function, line 3094  
+- **`write_tiff(path, rgb, a, dpi, icc, xmp, fields, description, background, compression)`** — function, line 3119  
   Writes a TIFF (transparent or on white, LZW / ZIP / none) at the 1:1 resolution, with the ICC profile, the XMP and the main text tags.
 
 
 #### Control preview
 
-- **`font(size)`** — function, line 3124  
+- **`font(size)`** — function, line 3149  
   A TrueType font for the texts of the control preview (Arial, Segoe UI, DejaVu...).
 
-- **`control_image(path, photo, cer, scale, text_lines)`** — function, line 3134  
+- **`control_image(path, photo, cer, scale, text_lines)`** — function, line 3159  
   The control preview (to_control): reduced photo, outline of the cut-out in green, scale in magenta with its marks, what was discarded in red, removed by the AI in cyan, and the main information written on top.
 
 
 #### Processing of one photo
 
-- **`output_paths(folder, base, doubtful)`** — function, line 3219  
+- **`output_paths(folder, base, doubtful)`** — function, line 3244  
   Paths of the files of a photo (PSD, TIFF, preview), with _to_be_verified when doubtful.
 
-- **`remove_stale(folder, base, written)`** — function, line 3230  
+- **`remove_stale(folder, base, written)`** — function, line 3255  
   After a new run, deletes the obsolete variant (with / without "_to_be_verified") of the files that have just been rewritten.
 
-- **`copy_original(path, folder)`** — function, line 3241  
+- **`copy_original(path, folder)`** — function, line 3266  
   Copy of the original photo in the result folder; returns its path (None: same file).
 
 
 #### Project: fields, naming template, naming rule, values of the photos (gerbil_project.json)
 
-- **`load_project(folder)`** — function, line 3270  
+- **`load_project(folder)`** — function, line 3295  
   Project of a folder of photos, or None. Keys: fields (key, label, required, choices), template (e.g. "{site}_{us}_{number}"; empty: the names of the photos are kept), rule (regular expression the output names must match; empty: none), common (values of all the photos), photos (name -> values).
 
-- **`photo_values(project, name)`** — function, line 3293  
+- **`photo_values(project, name)`** — function, line 3318  
   Values of a photo: those common to the project, completed / replaced by its own.
 
-- **`project_name(project, name)`** — function, line 3301  
+- **`project_name(project, name)`** — function, line 3326  
   Output name (without extension) built from the template, or None (template empty or giving nothing). Forbidden characters and spaces become "_"; the separators left by empty fields are merged ("{site}_{us}_{number}" without US: "QSR25_12").
 
-- **`rule_regex(rule)`** — function, line 3315  
+- **`rule_regex(rule)`** — function, line 3340  
   The naming rule as PowerShell's -match reads it: .NET regular expression, case-insensitive, found anywhere in the name unless anchored with ^ and $. .NET named groups (?<name>...) are accepted, and (?-i) at the start makes the rule case-sensitive (as in PowerShell).
 
-- **`project_checks(project, name, out_name)`** — function, line 3325  
+- **`project_checks(project, name, out_name)`** — function, line 3350  
   Reasons for doubt about the information of a photo: required fields empty, name off the rule.
 
-- **`plan_names(tasks)`** — function, line 3346  
+- **`plan_names(tasks)`** — function, line 3371  
   Output name and information of every photo, decided before the processing: two photos of the same result folder cannot get the same name (a suffix _2, _3... is added, with a doubt).
 
 
 #### Review window: data written for it, corrections read back
 
-- **`edits_entry(path)`** — function, line 3382  
+- **`edits_entry(path)`** — function, line 3407  
   Corrections made by hand for this photo: (mask or None, angle in degrees). The mask (full photo, 0 / 255) replaces the computed cut-out; the angle turns the object (counterclockwise).
 
-- **`cutout_from_mask(mask, cer)`** — function, line 3405  
+- **`cutout_from_mask(mask, cer)`** — function, line 3430  
   Cut-out from a mask corrected by hand (photo size): same softened edge as outline_ceramic (Gaussian blur 0.8 px of the 0 / 255 mask). The other fields of `cer` are kept (or emptied).
 
-- **`write_review(out_dir, path, shape, cer, scale, status, doubts, angle, output)`** — function, line 3429  
+- **`write_review(out_dir, path, shape, cer, scale, status, doubts, angle, output)`** — function, line 3454  
   Mask (photo size) and scale outline of the photo, for the review window of the interface.
 
-- **`rotated_ceramic(rgb, cer, border, angle)`** — function, line 3449  
+- **`rotated_ceramic(rgb, cer, border, angle)`** — function, line 3474  
   The object turned by `angle` degrees (counterclockwise, as decided in the review window): pixels (bicubic) and layer mask (bilinear) resampled once. Returns rgb, mask (with `border` around the object), and the width and height of the turned object.
 
-- **`process_photo(path, opts, out_dir, plan)`** — function, line 3475  
+- **`process_photo(path, opts, out_dir, plan)`** — function, line 3500  
   plan: output name, doubts and information of the photo decided by plan_names (project).
 
-- **`_init_worker()`** — function, line 3651  
+- **`_init_worker()`** — function, line 3676  
   Each worker process limits OpenCV to 2 threads (photos are already processed in parallel).
 
-- **`list_photos(inputs)`** — function, line 3660  
+- **`list_photos(inputs)`** — function, line 3685  
   Photos of the folders / files given. Gerbil's own results (NAME_outlined.tif, _to_control.jpg…) lying among the photos (result folder = photo folder) are left out: never processed again.
 
-- **`_HelpFormatter`** — class, line 3682  
+- **`_HelpFormatter`** — class, line 3707  
   Shows the default value only when it is meaningful.
 
-  - **`_get_help_string(self, action)`** — method, line 3685  
+  - **`_get_help_string(self, action)`** — method, line 3710  
     Help of an option: its default value shown only when it means
     
     something.
 
-- **`main(argv)`** — function, line 3693  
+- **`main(argv)`** — function, line 3718  
   Command line: reads the options, lists the photos, plans their output names (batch
   
   renaming), processes them in parallel (process_photo), writes the report and prints the summary of the problems.
 
-- **`previous_output(path, out_dir)`** — function, line 3810  
+- **`previous_output(path, out_dir)`** — function, line 3835  
   Output name the photo had at its previous run (review data), or None.
 
-- **`remove_renamed(tasks, plan, previous)`** — function, line 3820  
+- **`remove_renamed(tasks, plan, previous)`** — function, line 3845  
   Files of a photo written under a former output name (the project name changed): removed, unless another photo now uses that name.
 
-- **`write_report(report, rows)`** — function, line 3834  
+- **`write_report(report, rows)`** — function, line 3859  
   CSV report (Excel: ";" separator, decimal comma). Rows already present for other photos are kept: the script can be run again on a few photos. The fields of the project come after the usual columns.
 
-- **`print_summary(rows)`** — function, line 3861  
+- **`print_summary(rows)`** — function, line 3886  
   What needs checking, grouped by problem, with the photos concerned (a photo may appear under several problems).
 
-- **`print_row(row, i, n)`** — function, line 3885  
+- **`print_row(row, i, n)`** — function, line 3910  
   One line of progress for a photo: [i/n] name: status (scale, time) | doubts and notes.
 
-- **`_own_console()`** — function, line 3894  
+- **`_own_console()`** — function, line 3919  
   True when the program has a visible console to itself: .exe double-clicked, or folders dropped on it (not when the interface runs it, with its output redirected).
 
 

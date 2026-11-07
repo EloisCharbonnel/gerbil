@@ -279,6 +279,10 @@ PARTS = [
     ("ul", ["The measurement is right only if the scale is **in the plane of the object**.",
             "The background must be plain and different from the object. An opaque white or cream support lodged "
             "in a hollow is not recognised: erase it in *Review…* or in Photoshop.",
+            "A very light object on a white background (white paste, flint cortex, chalk spindle whorl) cannot be "
+            "told from the background by its colour or its grain where it is almost white: parts may be lost. "
+            "Photograph such objects on a darker background (grey or black), or use *One click on the object* in "
+            "*Review…*, which is told which object to cut out.",
             "Another form of scale will most often be flagged to verify: learn it in a site profile, or give it by "
             "hand.",
             "For a precise colour rendering of RAW files, develop them yourself (Lightroom, darktable) and give "
