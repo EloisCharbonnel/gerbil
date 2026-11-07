@@ -36,6 +36,9 @@ if not exist "%VENV%\Scripts\python.exe" (
 "%VENV%\Scripts\python.exe" -m PyInstaller --noconfirm --clean --distpath build\dist --workpath build\pyinstaller gerbil.spec || goto failed
 copy /y README.md build\dist\Gerbil\ >nul
 copy /y docs\PSEUDOCODE.txt build\dist\Gerbil\ >nul
+if not exist build\dist\Gerbil\docs mkdir build\dist\Gerbil\docs
+copy /y docs\Gerbil_guide_FR.odt build\dist\Gerbil\docs\ >nul
+copy /y docs\Gerbil_guide_EN.odt build\dist\Gerbil\docs\ >nul
 copy /y packaging\Gerbil_drop.bat build\dist\Gerbil\ >nul
 
 REM replace the previous version only now
