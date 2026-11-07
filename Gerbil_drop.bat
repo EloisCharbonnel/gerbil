@@ -10,7 +10,7 @@ REM  (right-click this file > Edit), for example:
 REM    set OPTIONS=--open --background white
 REM    set OPTIONS=--open --no-original-layer
 REM    set OPTIONS=--open --remove-putty
-REM    set OPTIONS=--open --ai          (AI second opinion, see README.md)
+REM    set OPTIONS=--open --ai          (AI second opinion, see docs\MANUAL.md)
 REM  Full list of options: double-click this file.
 REM  First use on a computer: missing packages are installed (once).
 REM ==================================================================
