@@ -3,6 +3,9 @@
 **Outlining of archaeological finds photographed with a scale, at their real size (1:1).** Formerly *SherdCut*.
 © 2026 Eloïs CHARBONNEL
 
+**[⬇ Download Gerbil for Windows](https://github.com/EloisCharbonnel/gerbil/releases/latest)**: the installer
+(`Gerbil_Setup.exe`, no Python needed) and the user guide in French and English (PDF).
+
 Gerbil processes photos of sherds taken on a plain, light background with an archaeological scale
 (1 cm squares or a millimetre ruler, 5 or 10 cm long), in JPEG, TIFF, PNG or RAW (see "RAW photos"). For each photo it writes a layered Photoshop file
 and transparent TIFF files whose resolution is the real one: dropped into Illustrator, the sherd shows at
