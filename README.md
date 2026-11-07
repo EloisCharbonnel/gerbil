@@ -65,7 +65,11 @@ Columns: `file` (name of the photo), `output_name` (name of the output files), `
 `camera`, `lens`, `focal_mm`, `date_taken`, `notes`, `duration_s`. An older report with French column names
 is taken over and converted at the next run in the same folder.
 
-`docs\PSEUDOCODE.txt` describes the whole processing step by step (pseudocode, libraries, methods).
+`docs\PSEUDOCODE.txt` describes the whole processing step by step (pseudocode, libraries, methods);
+`docs\CODE_GUIDE.md` explains the Python code itself, file by file and function by function.
+`docs\Gerbil_guide_FR.odt` (French) and `docs\Gerbil_guide_EN.odt` gather everything in one illustrated
+document: using Gerbil, the processing explained in plain words, reading the code (real functions explained
+line by line) and the reference of every function (`py -3 docs/make_guide_odt.py` writes them again).
 `docs\ROADMAP.md` lists what is planned next, and `docs\REFERENCES.md` the sources behind
 the choices (drawing conventions, graphic documentation, archiving of 2D and 3D data).
 
@@ -210,6 +214,9 @@ their true size: 1 cm of the object = 1 cm / scale on the paper.
   (`{name}`), or whose name gives the same fields (`{site}_{number}`, leading zeros ignored), is placed
   on the left (or right) of its photo, at the same scale, **kept as vectors** (editable in Illustrator;
   layer *Drawings*). Drawings at 1:1 by default, or give their scale.
+- In the preview, the **mouse wheel zooms** on the point under the mouse, the middle button or the scroll
+  bars move the view, and a **right-click on an object** gives a menu of scales for it (1:1, 1:1.5, 1:2,
+  1:3…; "scale of the plates" goes back to the automatic one).
 - The preview shows the pages as they will be written (◀ ▶ to turn them); a warning appears when an
   object is larger than the page at that scale.
 
@@ -271,6 +278,16 @@ colour, are left alone: they are darker and run along the ceramic instead of sti
 their colour and texture look too much like a light ceramic. Remove them in Photoshop by painting black on
 the mask of the "Ceramic" layer.
 
+## Cast shadows
+
+Soft shadows are left out by the colour rule itself (the lightness counts for half in the distance to the
+background). A darker cast shadow (lamp from the side, museum photos) is recognised on a light background
+and removed: darker than the background by a shadow but of its colour, smooth, lying along the outline of
+the object and fading into the background (its outer edge is soft, the edge of an object is sharp). It is
+outlined in blue on the preview (note "cast shadow removed"). A dark, smooth part of the object itself
+(black gloss, obsidian, grey flint) does not fade into the background and stays. On 191 open photos of finds,
+22 shadows were removed, none on the objects. On a dark background a shadow does not show: nothing changes.
+
 ## Labels, bags
 
 What lies on the other side of the scale from the object (labels under the ruler) is discarded. Thin
@@ -281,6 +298,15 @@ These last ones are outlined in red on the preview, for checking.
 An object lying close to the scale, or against its card (coin, small bronze), is kept when it reaches at
 least 8 mm from the squares and clearly differs from the background (note "object(s) lying close to the
 scale kept"); a support or the edge of the card, near the squares or of the background colour, stays out.
+
+When no scale is measured (scale not found, a scale of an unknown kind, or `--no-scale`), the scale is
+still kept out of the cut-out, as well as rulers, labels and colour cards: they are recognised by their
+outline, made of long straight sides at right angles (even an L-shaped scale bar, or a ruler whose ticks
+make a comb), and by the content of a print (black and white, uncoloured, or a full rectangle). They are
+outlined in red on the preview (note "scale, label or card discarded"). On 191 open photos of finds from
+many museums and the Portable Antiquities Scheme, no object was discarded this way (a pin, a black blade
+or a long bone tool stays an object), and the photos where the object seemed cut by the photo edge
+(because the scale bar touching it was kept) went from 79 to 18. When a scale is found, nothing changes.
 
 On a dark background (black velvet, dark felt), a paper label is discarded wherever it lies, outlined in
 red on the preview (note "paper label discarded"): bright and rectangular, white, bluish white (paper with
@@ -293,7 +319,9 @@ sherd), it is kept and the photo is flagged *to be verified*. On a dark backgrou
 apart from the others are kept (the rule for isolated felt-pen letters applies to light backgrounds only).
 
 On a dark background the edge of a light object is a ramp several pixels wide (slight blur, shadow at its
-foot): the cut-out follows the middle of that ramp, so that no dark outline remains around the sherds.
+foot): the cut-out follows the middle of that ramp, and the colours of the last pixels of the edge are
+replaced by those of the sherd just inside (the outline itself does not move), so that no dark line
+remains around the sherds, also on cut-outs corrected by hand.
 
 ## Colour charts
 
@@ -518,6 +546,13 @@ To check a built version without touching your own settings:
 `Gerbil.exe --selftest FOLDER photo1.jpg photo2.jpg` processes the photos into FOLDER, writes
 `selftest.txt` there ("exit code: 0" when all is well) and closes.
 
+## Results folder
+
+Keep the results apart from the photos (the default: an `outlined_result` folder next to them). If the
+results are written in the folder of the photos, Gerbil's own files (`_outlined.tif`, `_to_control.jpg`…)
+are recognised and never processed again as photos; the interface warns when a folder of photos is
+chosen as the results folder.
+
 ## Folder layout
 
 ```
@@ -527,7 +562,7 @@ Gerbil.bat, Gerbil_drop.bat, Install.bat     launchers of the Python version
 build_exe.bat, gerbil.spec, packaging\       building the .exe version and the installer
 requirements.txt                             Python packages
 icons\                                       icon (draw_gerbil.py redraws it)
-docs\                                        PSEUDOCODE.txt, ROADMAP.md, REFERENCES.md
+docs\                                        PSEUDOCODE.txt, ROADMAP.md, REFERENCES.md, guides (.odt)
 tests\                                       automatic checks on synthetic photos (py -3 -m pytest tests)
 models\, build\, dist\                       downloaded or built: not in the repository
 ```

@@ -79,6 +79,8 @@ class ScaleBar:
 
 @dataclass
 class PlateSettings:
+    """All the settings of the plates (page, scale, captions, title, drawings, options) and the
+    scale bar; saved as JSON (interface settings, plates_settings.json)."""
     ratio: float = 1.0                 # 1:ratio
     page: str = "A4"
     width_mm: float = 210.0            # page "custom"
@@ -116,6 +118,8 @@ class PlateSettings:
 
     @staticmethod
     def from_dict(d):
+        """Settings rebuilt from a dictionary (saved settings); unknown keys
+        ignored, so that older files still load."""
         d = dict(d or {})
         bar = ScaleBar(**{k: v for k, v in (d.pop("bar", None) or {}).items()
                           if k in {f.name for f in dc_fields(ScaleBar)}})
@@ -124,9 +128,11 @@ class PlateSettings:
         return s
 
     def to_dict(self):
+        """Settings as a dictionary (to save them as JSON)."""
         return asdict(self)
 
     def page_size(self):
+        """Width and height of the page in mm, turned for landscape."""
         w, h = (self.width_mm, self.height_mm) if self.page == "custom" else PAGES.get(self.page, PAGES["A4"])
         return (max(w, h), min(w, h)) if self.landscape else (min(w, h), max(w, h))
 
@@ -137,6 +143,8 @@ class PlateSettings:
 
 @dataclass
 class Item:
+    """An outlined object of a results folder: output name, TIFF file, real size (cm), row of
+    the report, doubtful or not, box of the object in the TIFF, drawing found for it."""
     name: str                          # output name (file name without the suffix)
     path: str
     width_cm: float
@@ -148,10 +156,12 @@ class Item:
 
 
 def natural_key(text):
+    """Sort key where numbers count as numbers: "2" before "10"."""
     return [int(t) if t.isdigit() else t.lower() for t in re.split(r"(\d+)", str(text))]
 
 
 def read_report(folder):
+    """Rows of outlined_report.csv by output name (fields of the photos)."""
     try:
         with open(os.path.join(folder, REPORT), encoding="utf-8-sig", newline="") as fh:
             return {r.get("output_name") or os.path.splitext(r.get("file", ""))[0]: r
@@ -209,6 +219,7 @@ STANDARD_COLUMNS = 19                  # columns of the report written by Gerbil
 
 
 def caption_text(template, item):
+    """Caption of an object: the template with {field} replaced by its values."""
     if not template:
         return ""
     return re.sub(r"\{(\w+)\}", lambda m: field_value(item, m.group(1)), template).strip()
@@ -229,12 +240,16 @@ def report_fields(items):
 # --------------------------------------------------------------------------
 
 class Drawing:
+    """A page described as shapes in millimetres, by layer: written as SVG (write_svg) or drawn
+    with Pillow for the preview (render), so that both always show the same thing."""
     def __init__(self, width, height):
+        """An empty page of width x height mm."""
         self.width, self.height = width, height
         self.layers = {}               # name -> list of shapes, in drawing order
         self.hidden = set()            # layers written hidden (shown on demand in Illustrator / Inkscape)
 
     def add(self, layer, *shape):
+        """Adds a shape (a tuple: kind, coordinates in mm, style) to a layer."""
         self.layers.setdefault(layer, []).append(shape)
 
 
@@ -242,6 +257,8 @@ _font_cache = {}
 
 
 def pil_font(family, size_px, bold=False):
+    """A Pillow font of the family at a size in pixels (cached), for the preview and to
+    measure texts."""
     key = (family, round(size_px), bold)
     if key not in _font_cache:
         files = FONTS.get(family, FONTS["Arial"])
@@ -265,14 +282,18 @@ def text_width_mm(text, family, pt, bold=False):
 
 
 def svg_escape(s):
+    """Escapes a text for SVG / XML."""
     return (str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;"))
 
 
 def num(v):
+    """A number written short for SVG (3 decimals at most, no trailing zeros)."""
     return f"{v:.3f}".rstrip("0").rstrip(".")
 
 
 def write_svg(drawing, path, layer_names=None):
+    """Writes a Drawing as an SVG file in millimetres, one Inkscape / Illustrator layer per
+    layer of the drawing, hidden layers hidden."""
     w, h = drawing.width, drawing.height
     out = [f'<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n'
            f'<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" '
@@ -295,6 +316,8 @@ _svg_ids = itertools.count(1)
 
 
 def svg_shape(s):
+    """One shape of the drawing as SVG: rectangle, polygon / line, text, vertical text,
+    image (PNG embedded in base64) or drawing (nested SVG)."""
     kind = s[0]
     if kind == "rect":
         _, x, y, w, h, fill, stroke, sw = s
@@ -426,6 +449,7 @@ def bar_geometry(bar, ratio, max_mm):
 
 
 def fmt(v):
+    """A number written without useless decimals (3, 1.5)."""
     return str(int(round(v))) if abs(v - round(v)) < 1e-6 else f"{v:g}"
 
 
@@ -516,6 +540,7 @@ def draw_bar(dr, bar, ratio, x0, y0, max_mm, layer="Scale bar"):
 
 
 def bar_size(bar, ratio, max_mm):
+    """Width and height of a scale bar, measured by drawing it on an empty page."""
     probe = Drawing(1, 1)
     return draw_bar(probe, bar, ratio, 0, 0, max_mm)
 
@@ -540,6 +565,8 @@ def inkscape():
 
 
 def _cached(path, ext):
+    """Path of a file in the cache of drawings, named from the source path, size and date
+    (a changed drawing is converted again)."""
     st = os.stat(path)
     key = hashlib.sha1(f"{os.path.abspath(path)}|{st.st_size}|{st.st_mtime}".encode()).hexdigest()[:16]
     os.makedirs(_cache_dir, exist_ok=True)
@@ -574,6 +601,7 @@ def drawing_png(svg, px_per_mm=8.0):
 
 
 def _length_mm(value):
+    """An SVG length ("12.5mm", "300pt", "800") in mm (pixels at 96 per inch)."""
     m = re.match(r"\s*([0-9.]+)\s*([a-z%]*)", value or "")
     if not m or m.group(2) == "%":
         return None
@@ -603,6 +631,7 @@ def svg_size_mm(svg):
 
 
 def norm(text):
+    """A value compared without case, spaces, punctuation or leading zeros ("0187" = "187")."""
     return re.sub(r"[^0-9a-z]", "", str(text).lower()).lstrip("0") or "0"
 
 
@@ -649,6 +678,8 @@ def attach_drawings(items, s):
 
 @dataclass
 class Placed:
+    """An object placed on a plate: its photo (x, y, w, h in mm), caption, scale, drawing box
+    and the box of photo + drawing."""
     item: Item
     x: float                           # the photo
     y: float
@@ -661,6 +692,7 @@ class Placed:
 
 
 def sort_items(items, s):
+    """Objects sorted by group, then by the order field, then by name."""
     keys = [k for k in (s.group, s.order) if k]
     return sorted(items, key=lambda it: [natural_key(field_value(it, k)) for k in keys] + [natural_key(it.name)])
 
@@ -977,6 +1009,7 @@ def write_plates(folder, s, out_dir=None, progress=None):
 
 
 def main(argv=None):
+    """Command line of the plates: options or a settings file, then write_plates."""
     p = argparse.ArgumentParser(description="Gerbil plates: outlined objects laid out at a chosen scale (SVG).")
     p.add_argument("folder", help="results folder (outlined_result)")
     p.add_argument("-o", "--output", help="folder of the plates (default: FOLDER/plates)")

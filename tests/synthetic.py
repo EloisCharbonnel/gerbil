@@ -34,8 +34,9 @@ def scale_image(px_cm, n_cm=10):
     return card
 
 
-def photo(px_cm=100.0, dark=False, label=False, size=(2000, 3000), seed=1):
-    """(rgb image, sherd mask, px_cm) - the sherd in the upper middle, the scale below it."""
+def photo(px_cm=100.0, dark=False, label=False, size=(2000, 3000), seed=1, shadow=False):
+    """(rgb image, sherd mask, px_cm) - the sherd in the upper middle, the scale below it; with
+    shadow, the sherd casts a soft shadow down and to the right (light from the upper left)."""
     H, W = size
     rng = np.random.default_rng(seed)
     if dark:
@@ -46,6 +47,12 @@ def photo(px_cm=100.0, dark=False, label=False, size=(2000, 3000), seed=1):
     img += rng.normal(0, 2.0, img.shape)
     mask = np.zeros((H, W), np.uint8)
     cv2.fillPoly(mask, [sherd_polygon(W // 2, int(H * 0.38), int(H * 0.22), seed)], 1)
+    if shadow:                                  # darker background, soft edge (penumbra), offset by 0.6 cm
+        off = int(0.6 * px_cm)
+        sh = np.zeros((H, W), np.float32)
+        sh[off:, off:] = mask[:-off, :-off]
+        sh = cv2.GaussianBlur(sh, (0, 0), 0.25 * px_cm)
+        img *= (1 - 0.35 * sh)[..., None]
     tex = rng.normal(0, 6, (H, W, 1)) + np.array([176, 126, 92], np.float32)
     img = np.where(mask[..., None] > 0, tex, img)
     card = scale_image(px_cm).astype(np.float32)

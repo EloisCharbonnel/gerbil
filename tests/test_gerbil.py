@@ -73,6 +73,26 @@ def test_dark_background_label_discarded(tmp_path):
     assert abs(alpha.sum() - mask.sum()) / mask.sum() < 0.04          # no dark outline around the sherd
 
 
+def test_no_scale_still_discards_the_scale(tmp_path):
+    rgb, mask, _ = sy.photo(px_cm=100.0)
+    save(os.path.join(tmp_path, "sherd_B.jpg"), rgb)
+    out, rows = run(str(tmp_path), "--no-scale")
+    r = rows["sherd_B.jpg"]
+    assert r["pieces"] == "1" and "scale, label or card discarded" in r["notes"]
+    alpha = np.asarray(Image.open(os.path.join(out, "sherd_B_outlined.tif")))[..., 3] > 127
+    assert abs(alpha.sum() - mask.sum()) / mask.sum() < 0.03          # the sherd alone, not the scale
+
+
+def test_cast_shadow_removed(tmp_path):
+    rgb, mask, _ = sy.photo(px_cm=100.0, shadow=True)
+    save(os.path.join(tmp_path, "shadowed.jpg"), rgb)
+    out, rows = run(str(tmp_path))
+    r = rows["shadowed.jpg"]
+    assert "cast shadow removed" in r["notes"]
+    alpha = np.asarray(Image.open(os.path.join(out, "shadowed_outlined.tif")))[..., 3] > 127
+    assert abs(alpha.sum() - mask.sum()) / mask.sum() < 0.03          # the sherd, not its shadow
+
+
 def test_learned_scale(tmp_path):
     rgb, _, _ = sy.photo(px_cm=100.0)
     H, W = rgb.shape[:2]

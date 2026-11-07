@@ -81,6 +81,7 @@ foreach ($l in $links) {
 
 
 def version():
+    """Version of Gerbil, read from version.txt (built in) or gerbil.py."""
     for path in (os.path.join(HERE, "version.txt"), os.path.join(HERE, "..", "gerbil.py")):
         try:
             text = open(path, encoding="utf-8").read()
@@ -92,6 +93,7 @@ def version():
 
 
 def payload():
+    """The Gerbil.zip to install (inside the setup, or given with --zip for tests)."""
     if "--zip" in sys.argv:
         return os.path.abspath(sys.argv[sys.argv.index("--zip") + 1])
     return os.path.join(HERE, "Gerbil.zip")
@@ -134,6 +136,9 @@ def check_folder(folder):
 
 
 def install(folder, zip_path, desktop, progress):
+    """Installs: removes the files of the previous version (not the AI models),
+    extracts the archive with a progress, writes Uninstall.bat and the list of
+    files, creates the shortcuts and the Windows uninstall entry."""
     with zipfile.ZipFile(zip_path) as zf:
         files = members(zf)
         tops = {rel.split(os.sep)[0] for _, rel in files}
@@ -187,6 +192,7 @@ def register(folder, size):
 
 class Setup:
     def __init__(self, root):
+        """The setup window: folder, desktop shortcut, Install button, progress."""
         self.root = root
         root.title(f"Gerbil {version()} - Setup")
         root.configure(bg=WINDOW_BG)
@@ -252,6 +258,7 @@ class Setup:
             self.go.state(["disabled"])
 
     def browse(self):
+        """Chooses the folder; a parent folder gets a "Gerbil" folder inside."""
         d = filedialog.askdirectory(parent=self.root, initialdir=os.path.dirname(self.folder.get()) or None)
         if d:
             d = os.path.normpath(d)
@@ -259,6 +266,8 @@ class Setup:
             self.folder.set(d if os.path.basename(d).lower() == "gerbil" else os.path.join(d, APP))
 
     def start(self):
+        """Checks the folder and that Gerbil is closed, then installs in a thread
+        (the window stays responsive)."""
         folder = os.path.normpath(os.path.expandvars(self.folder.get().strip()))
         reason = check_folder(folder) if folder else "Choose a folder."
         if reason:
@@ -283,6 +292,7 @@ class Setup:
         threading.Thread(target=work, daemon=True).start()
 
     def finished(self, folder, error):
+        """End of the installation: error shown, or "Open Gerbil" offered."""
         self.quit.state(["!disabled"])
         if error:
             self.go.state(["!disabled"])
@@ -297,12 +307,14 @@ class Setup:
                             parent=self.root)
 
     def launch(self, folder):
+        """Starts the installed Gerbil (in a clean environment) and closes."""
         env = dict(os.environ, PYINSTALLER_RESET_ENVIRONMENT="1")   # Gerbil starts afresh, not as part of the setup
         subprocess.Popen([os.path.join(folder, "Gerbil.exe")], cwd=folder, env=env)
         self.root.destroy()
 
 
 def main():
+    """Starts the setup window (sharp on high-resolution screens)."""
     try:
         import ctypes
         ctypes.windll.shcore.SetProcessDpiAwareness(1)

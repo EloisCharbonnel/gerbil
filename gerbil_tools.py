@@ -40,6 +40,7 @@ SKIP_DIRS = {"gerbil_review", "gerbil_edits", "to_control", "thumbnails", "plate
 
 
 def kind_of(name):
+    """Kind of a file from its extension: photos, drawings, 3d or None."""
     ext = os.path.splitext(name)[1].lower()
     return next((k for k, exts in KINDS.items() if ext in exts), None)
 
@@ -60,6 +61,8 @@ def template_regex(template):
 
 
 def list_files(folders, kinds, recursive=True):
+    """Files of the chosen kinds in the folders (sub-folders if wanted, Gerbil's work
+    folders left out)."""
     out = []
     for folder in folders:
         if os.path.isfile(folder):
@@ -118,6 +121,7 @@ def inventory(folders, out_csv, kinds=("photos", "drawings", "3d"), template="",
 
 
 def ps_quote(s):
+    """A text between single quotes for PowerShell (quotes doubled)."""
     return "'" + str(s).replace("'", "''") + "'"
 
 
@@ -182,6 +186,7 @@ def thumbnails(folders, out_dir=None, size=512, fmt="png", only_outlined=False, 
 
 
 def main(argv=None):
+    """Command line: "inventory" or "thumbnails"."""
     p = argparse.ArgumentParser(description="Gerbil tools: CSV inventory, thumbnails.")
     sub = p.add_subparsers(dest="cmd", required=True)
     a = sub.add_parser("inventory", help="inventory of a folder as CSV")

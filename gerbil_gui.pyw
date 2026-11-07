@@ -24,6 +24,7 @@ import re
 import subprocess
 import sys
 import threading
+import time
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
@@ -111,6 +112,7 @@ def python_exe():
 
 
 def missing_packages():
+    """Python packages still to install (none in the .exe version, where all is inside)."""
     if FROZEN:                                        # everything is inside the .exe version
         return []
     importlib.invalidate_caches()
@@ -118,6 +120,7 @@ def missing_packages():
 
 
 def has_ai():
+    """True when onnxruntime (the AI engine) is available."""
     if FROZEN:
         return os.path.isdir(os.path.join(RESOURCES, "onnxruntime"))
     importlib.invalidate_caches()
@@ -125,6 +128,7 @@ def has_ai():
 
 
 def pip_command(packages):
+    """Command that installs packages with pip, for the Python found."""
     return [python_exe(), "-m", "pip", "install", "--disable-pip-version-check", *packages]
 
 
@@ -170,6 +174,7 @@ def console_install():
 
 
 def count_photos(folder):
+    """Number of photos (known extensions) in a folder."""
     try:
         return sum(1 for n in os.listdir(folder) if os.path.splitext(n)[1].lower() in EXTENSIONS)
     except OSError:
@@ -177,6 +182,8 @@ def count_photos(folder):
 
 
 def load_settings():
+    """Settings of the interface (~/.gerbil.json, or the files of older names), with the
+    defaults for what is missing."""
     s = dict(DEFAULTS)
     for path in [SETTINGS] + OLD_SETTINGS:           # (settings saved before the renaming are taken over)
         try:
@@ -189,18 +196,47 @@ def load_settings():
 
 
 class Tooltip:
-    """Help text shown when the mouse rests on a widget."""
+    """Help text shown when the mouse rests on a widget. It goes away when the mouse leaves the widget
+    (checked every 250 ms: a drop-down list or a window opened meanwhile can swallow the "leave" event),
+    on a click, and after 8 s at most; one bubble at a time."""
+
+    current = None                              # the bubble shown, whatever the widget
 
     def __init__(self, widget, text):
+        """Ties the bubble to the widget: shown when the mouse rests on it, hidden on leave,
+        click, focus lost or destruction."""
         self.widget, self.text, self.tip, self.job = widget, text, None, None
         widget.bind("<Enter>", self._schedule, add="+")
         widget.bind("<Leave>", self._hide, add="+")
         widget.bind("<ButtonPress>", self._hide, add="+")
+        widget.bind("<FocusOut>", self._hide, add="+")
+        widget.bind("<Destroy>", self._hide, add="+")
 
     def _schedule(self, _):
+        """The mouse enters: the bubble is shown after 450 ms."""
+        self._hide()
         self.job = self.widget.after(450, self._show)
 
+    def _pointer_inside(self):
+        """True when the mouse pointer is over the widget (or one of its children)."""
+        try:
+            x, y = self.widget.winfo_pointerxy()
+            w = self.widget.winfo_containing(x, y)
+        except (tk.TclError, KeyError):
+            return False
+        while w is not None:
+            if w == self.widget:
+                return True
+            w = getattr(w, "master", None)
+        return False
+
     def _show(self):
+        """Shows the bubble under the widget, if the mouse is still there; one bubble at a time."""
+        self.job = None
+        if not self._pointer_inside():
+            return
+        if Tooltip.current and Tooltip.current is not self:
+            Tooltip.current._hide()
         x = self.widget.winfo_rootx() + 12
         y = self.widget.winfo_rooty() + self.widget.winfo_height() + 4
         self.tip = tk.Toplevel(self.widget)
@@ -208,14 +244,34 @@ class Tooltip:
         self.tip.wm_geometry(f"+{x}+{y}")
         tk.Label(self.tip, text=self.text, justify="left", wraplength=340, bg=TEXT, fg="white",
                  font=("Segoe UI", 9), padx=8, pady=5).pack()
+        Tooltip.current = self
+        self.shown_at = time.time()
+        self.job = self.widget.after(250, self._watch)
+
+    def _watch(self):
+        """Every 250 ms: hides the bubble when the mouse has left, or after 8 s."""
+        self.job = None
+        if self.tip and (not self._pointer_inside() or time.time() - self.shown_at > 8):
+            self._hide()
+        elif self.tip:
+            self.job = self.widget.after(250, self._watch)
 
     def _hide(self, _=None):
+        """Hides the bubble and cancels what was planned."""
         if self.job:
-            self.widget.after_cancel(self.job)
+            try:
+                self.widget.after_cancel(self.job)
+            except tk.TclError:
+                pass
             self.job = None
         if self.tip:
-            self.tip.destroy()
+            try:
+                self.tip.destroy()
+            except tk.TclError:
+                pass
             self.tip = None
+        if Tooltip.current is self:
+            Tooltip.current = None
 
 
 MANUAL_SCALES = "gerbil_scales.json"        # next to the photos; read by gerbil.py (manual_scale_entry)
@@ -312,6 +368,7 @@ class ScaleWindow:
 
     # view: screen = (image - offset) * zoom
     def fit(self):
+        """Whole photo in the window."""
         cw, ch = max(1, self.canvas.winfo_width()), max(1, self.canvas.winfo_height())
         self.zoom = min(cw / self.W, ch / self.H)
         self.ox = (self.W - cw / self.zoom) / 2
@@ -319,12 +376,16 @@ class ScaleWindow:
         self.redraw()
 
     def to_screen(self, x, y):
+        """Photo pixel -> window position (zoom and offset of the view)."""
         return (x - self.ox) * self.zoom, (y - self.oy) * self.zoom
 
     def to_image(self, sx, sy):
+        """Window position -> photo pixel."""
         return sx / self.zoom + self.ox, sy / self.zoom + self.oy
 
     def redraw(self):
+        """Draws the visible part of the photo, the two points, the line between them and
+        the band of the scale."""
         if not hasattr(self, "zoom"):
             return
         c = self.canvas
@@ -375,6 +436,7 @@ class ScaleWindow:
         return math.dist(*self.points) / cm, width
 
     def update_readout(self):
+        """Text under the fields: distance in pixels, px/cm and ppi."""
         px_cm, _ = self.values()
         if len(self.points) < 2:
             self.readout.set("Click the first point." if not self.points else "Click the second point.")
@@ -384,6 +446,7 @@ class ScaleWindow:
             self.readout.set("Give the length in cm.")
 
     def press(self, e):
+        """Click: grabs a point near the click, or places a new point."""
         for i, p in enumerate(self.points):
             sx, sy = self.to_screen(*p)
             if math.hypot(e.x - sx, e.y - sy) <= 2 * self.HANDLE:
@@ -396,24 +459,28 @@ class ScaleWindow:
             self.redraw()
 
     def move(self, e):
+        """Drag: moves the grabbed point."""
         if self.drag is not None:
             x, y = self.to_image(e.x, e.y)
             self.points[self.drag] = [min(max(x, 0), self.W - 1), min(max(y, 0), self.H - 1)]
             self.redraw()
 
     def pan_move(self, e):
+        """Right button held: moves the view."""
         if self.pan:
             x0, y0, ox, oy = self.pan
             self.ox, self.oy = ox - (e.x - x0) / self.zoom, oy - (e.y - y0) / self.zoom
             self.redraw()
 
     def wheel(self, e):
+        """Wheel: zoom on the point under the mouse."""
         x, y = self.to_image(e.x, e.y)
         self.zoom = min(8.0, max(0.02, self.zoom * (1.25 if e.delta > 0 else 0.8)))
         self.ox, self.oy = x - e.x / self.zoom, y - e.y / self.zoom
         self.redraw()
 
     def _load(self):
+        """Manual scales of the folder (gerbil_scales.json)."""
         try:
             with open(self.file if os.path.exists(self.file) else self.old_file, encoding="utf-8") as fh:
                 data = json.load(fh)
@@ -422,6 +489,7 @@ class ScaleWindow:
             return {}
 
     def _write(self, data):
+        """Writes the manual scales (aside, then swapped); the file of the old name goes."""
         tmp = self.file + ".tmp"
         with open(tmp, "w", encoding="utf-8") as fh:
             json.dump(data, fh, indent=1)
@@ -430,6 +498,8 @@ class ScaleWindow:
             os.remove(self.old_file)
 
     def save(self):
+        """Saves the scale of the photo (or gives it to the profile when learning), then next
+        photo of the series or offer to process it again."""
         px_cm, width = self.values()
         if not px_cm:
             messagebox.showwarning("Gerbil", "Click two points and give the length between them (cm).",
@@ -465,6 +535,7 @@ class ScaleWindow:
             self.app.run([self.path])
 
     def skip(self):
+        """Series: leaves this photo without a scale and goes to the next one."""
         self.win.destroy()
         self.app.next_scale(self.seq)
 
@@ -476,6 +547,7 @@ class ScaleWindow:
             self.app.next_scale(self.seq)
 
     def remove(self):
+        """Removes the manual scale of the photo (the detection is used again)."""
         data = self._load()
         if data.pop(os.path.basename(self.path), None) is not None:
             try:
@@ -524,6 +596,7 @@ def load_project_file(folder):
 
 
 def save_project_file(folder, pr):
+    """Writes gerbil_project.json (written aside, then swapped: never half-written)."""
     path = os.path.join(folder, PROJECT_FILE)
     tmp = path + ".tmp"
     with open(tmp, "w", encoding="utf-8") as fh:
@@ -532,6 +605,7 @@ def save_project_file(folder, pr):
 
 
 def project_values(pr, name):
+    """Values of a photo: the common ones, replaced by its own."""
     vals = {k: str(v).strip() for k, v in (pr.get("common") or {}).items() if str(v).strip()}
     vals.update({k: str(v).strip() for k, v in ((pr.get("photos") or {}).get(name) or {}).items() if str(v).strip()})
     return vals
@@ -647,6 +721,7 @@ class FieldDialog:
     """Adds or edits a field of the project: label, key (name used in the template), required, choices."""
 
     def __init__(self, parent, field=None):
+        """Small window to create or edit a field: label, key, required, choices."""
         self.result = None
         f = dict(field or {})
         self.win = win = tk.Toplevel(parent)
@@ -676,6 +751,7 @@ class FieldDialog:
         parent.wait_window(win)
 
     def ok(self):
+        """Checks and returns the field (key made of letters, digits and _)."""
         label, key = self.label.get().strip(), re.sub(r"\W+", "_", self.key.get().strip().lower()).strip("_")
         if not label or not key:
             messagebox.showwarning("Gerbil", "Give a label and a key.", parent=self.win)
@@ -696,6 +772,8 @@ class ProjectWindow:
     The output files of the photos take the names built from the template (the photos keep theirs)."""
 
     def __init__(self, app, folder):
+        """The batch renaming window: fields, template, naming rule with its helper,
+        common values, table of the photos with preview, buttons."""
         if os.path.basename(os.path.normpath(folder)).lower() == "outlined_result":
             folder = os.path.dirname(os.path.normpath(folder))      # the photos, not the copies of the results
         self.app, self.folder = app, folder
@@ -859,6 +937,7 @@ class ProjectWindow:
 
     # ------------------------------------------------------------ display
     def fields(self):
+        """Fields of the project."""
         return self.pr["fields"]
 
     def rebuild(self):
@@ -902,6 +981,7 @@ class ProjectWindow:
         self.fill()
 
     def fill(self):
+        """Fills the table: one row per photo, its values and its output name."""
         sel = self.tree.selection()
         self.tree.delete(*self.tree.get_children())
         for name in self.photos:
@@ -913,6 +993,7 @@ class ProjectWindow:
         self.place_handle()
 
     def update_preview(self):
+        """Example of output name, and warning when names are used twice."""
         if not self.photos:
             self.preview.set("No photo in this folder.")
             return
@@ -922,6 +1003,7 @@ class ProjectWindow:
                          + (f"     ({dup} name(s) used twice: a suffix _2… will be added)" if dup else ""))
 
     def changes(self):
+        """The template changed: output names computed again."""
         self.pr["template"] = self.template.get()
         self.changed = True
         for name in self.photos:
@@ -930,6 +1012,7 @@ class ProjectWindow:
         self.update_preview()
 
     def set_common(self, key, value):
+        """Sets a value common to all the photos."""
         self.pr.setdefault("common", {})
         if value.strip():
             self.pr["common"][key] = value.strip()
@@ -951,6 +1034,7 @@ class ProjectWindow:
                     self.tree.column(f["key"], width=max(self._wid(text), self._wid("0000000")))
 
     def set_value(self, name, key, value):
+        """Sets the value of a field for one photo (table and project)."""
         own = self.pr["photos"].setdefault(name, {})
         if value.strip():
             own[key] = value.strip()
@@ -965,11 +1049,13 @@ class ProjectWindow:
         self.update_preview()
 
     def ext_changed(self):
+        """"Extension in lowercase" ticked or not."""
         self.pr["photo_ext_lower"] = bool(self.ext_lower.get())
         self.changed = True
         self.ext_feedback()
 
     def ext_feedback(self):
+        """Number of photos whose extension has capitals."""
         bad = [n for n in self.photos if os.path.splitext(n)[1] != os.path.splitext(n)[1].lower()]
         if not self.ext_lower.get():
             self.ext_info.set("")
@@ -1038,19 +1124,23 @@ class ProjectWindow:
         self.thumb_lbl.configure(image=self.thumb_img)
 
     def after_resize(self):
+        """Preview redrawn a moment after the window is resized."""
         if getattr(self, "_resize_job", None):
             self.win.after_cancel(self._resize_job)
         self._resize_job = self.win.after(80, self.render_thumb)
 
     def open_photo(self):
+        """Opens the selected photo in the Windows viewer."""
         sel = self.tree.selection()
         if sel:
             os.startfile(os.path.join(self.folder, sel[0]))
 
     def select_all(self):
+        """Selects all the rows (Ctrl+A)."""
         self.tree.selection_set(self.tree.get_children())
 
     def cell_clicked(self, e):
+        """Click in the table: the cell becomes the active one (fill handle)."""
         row, col = self.tree.identify_row(e.y), self.tree.identify_column(e.x)
         if row and col and getattr(self, "fill", None) is None:
             key = self.tree["columns"][int(col[1:]) - 1]
@@ -1073,9 +1163,11 @@ class ProjectWindow:
         self.handle.lift()
 
     def fill_start(self, e):
+        """The fill handle is grabbed (Ctrl: numbering)."""
         self.fill = {"rows": [self.active[0]], "ctrl": bool(e.state & 0x4)}
 
     def fill_move(self, e):
+        """Dragging the fill handle: rows covered, table scrolled at its edges."""
         if not getattr(self, "fill", None):
             return
         y = e.y_root - self.tree.winfo_rooty()
@@ -1092,6 +1184,7 @@ class ProjectWindow:
         self.tree.selection_set(self.fill["rows"])
 
     def fill_end(self, e):
+        """Handle released: the value copied (or numbered) into the rows covered."""
         f, self.fill = getattr(self, "fill", None), None
         if not f or len(f["rows"]) < 2:
             return
@@ -1125,6 +1218,7 @@ class ProjectWindow:
 
     # ------------------------------------------------------------ editing
     def edit_cell(self, e):
+        """Double-click: edits the cell in place (entry or list of choices)."""
         row, col = self.tree.identify_row(e.y), self.tree.identify_column(e.x)
         if not row or not col:
             return
@@ -1187,6 +1281,7 @@ class ProjectWindow:
         return out if out.get("field") else None
 
     def set_selected(self):
+        """Same value for the selected photos."""
         rows = self.tree.selection()
         if not rows:
             messagebox.showinfo("Gerbil", "Select the rows first (Ctrl / Shift + click).", parent=self.win)
@@ -1198,6 +1293,7 @@ class ProjectWindow:
             self.update_preview()
 
     def number_selected(self):
+        """Numbers the selected photos (start, step, zeros)."""
         rows = self.tree.selection()
         if not rows:
             messagebox.showinfo("Gerbil", "Select the rows first (Ctrl / Shift + click).", parent=self.win)
@@ -1216,6 +1312,7 @@ class ProjectWindow:
         self.update_preview()
 
     def add_field(self):
+        """Adds a field."""
         d = FieldDialog(self.win)
         if d.result:
             if any(f["key"] == d.result["key"] for f in self.fields()):
@@ -1226,10 +1323,12 @@ class ProjectWindow:
             self.rebuild()
 
     def _pick_field(self, title):
+        """Asks which field to act on."""
         a = self._ask_field(title, with_value=False)
         return next((f for f in self.fields() if a and f["key"] == a["field"]), None)
 
     def edit_field(self):
+        """Edits a field (its values follow a key change)."""
         f = self._pick_field("Field to edit")
         if f:
             d = FieldDialog(self.win, f)
@@ -1245,6 +1344,7 @@ class ProjectWindow:
                 self.rebuild()
 
     def remove_field(self):
+        """Removes a field and its values."""
         f = self._pick_field("Field to remove")
         if f and messagebox.askyesno("Gerbil", f"Remove the field '{f['label']}' and its values?", parent=self.win):
             self.fields().remove(f)
@@ -1254,6 +1354,8 @@ class ProjectWindow:
             self.rebuild()
 
     def import_table(self):
+        """Imports values from a CSV or Excel inventory: matched with the photos
+        by name, columns matched with the fields."""
         path = filedialog.askopenfilename(title="Inventory (CSV or Excel)", parent=self.win,
                                           filetypes=[("CSV or Excel", "*.csv *.txt *.xlsx *.xlsm"), ("All files", "*.*")])
         if not path:
@@ -1302,6 +1404,7 @@ class ProjectWindow:
 
     # ------------------------------------------------------------ saving
     def save(self, run=False):
+        """Checks the rule and saves gerbil_project.json (then processes, if asked)."""
         self.pr["template"], self.pr["rule"] = self.template.get().strip(), self.rule.get().strip()
         if self.pr["rule"]:
             try:
@@ -1321,6 +1424,7 @@ class ProjectWindow:
         return True
 
     def close(self):
+        """Closes, offering to save the changes."""
         if self.changed:
             ans = messagebox.askyesnocancel("Gerbil", "Save the changes of the batch renaming?", parent=self.win)
             if ans is None or (ans and not self.save()):
@@ -1345,6 +1449,8 @@ class ReviewWindow:
              ("lasso_add", "Add (lasso)"), ("piece", "Remove a piece (click)"), ("orient", "Orient (line along the rim)"))
 
     def __init__(self, app, items):
+        """The review window: list of photos, view, tools, orientation, information,
+        buttons; keyboard and mouse bindings."""
         import numpy as np
         import cv2
         from PIL import Image, ImageOps, ImageTk
@@ -1449,6 +1555,8 @@ class ReviewWindow:
 
     # ------------------------------------------------------------ photo
     def goto(self, i):
+        """Shows photo i: its cut-out (or the corrections saved before), its angle, its
+        information; resets the undo history."""
         if i >= len(self.items):
             self.close()
             return
@@ -1565,9 +1673,11 @@ class ReviewWindow:
         self.redraw()
 
     def to_screen(self, x, y):
+        """Photo pixel -> window position."""
         return (x - self.ox) * self.zoom, (y - self.oy) * self.zoom
 
     def to_image(self, sx, sy):
+        """Window position -> photo pixel."""
         return sx / self.zoom + self.ox, sy / self.zoom + self.oy
 
     def view_base(self):
@@ -1643,12 +1753,14 @@ class ReviewWindow:
             self.win.after(30, lambda: self.redraw(fast=True))
 
     def wheel(self, e):
+        """Wheel: zoom on the point under the mouse."""
         x, y = self.to_image(e.x, e.y)
         self.zoom = min(8.0, max(0.02, self.zoom * (1.25 if e.delta > 0 else 0.8)))
         self.ox, self.oy = x - e.x / self.zoom, y - e.y / self.zoom
         self.redraw()
 
     def pan_move(self, e):
+        """Moves the view while a button is held."""
         if self.pan:
             x0, y0, ox, oy = self.pan
             self.ox, self.oy = ox - (e.x - x0) / self.zoom, oy - (e.y - y0) / self.zoom
@@ -1677,17 +1789,20 @@ class ReviewWindow:
         self.redraw()
 
     def nudge(self, dx, dy):
+        """Arrow keys: moves the view."""
         if dx:
             self.scroll_view(0, "scroll", dx, "units")
         if dy:
             self.scroll_view(1, "scroll", dy, "units")
 
     def update_bars(self):
+        """Scroll bars set to the visible part of the photo."""
         for axis, bar, size in ((0, self.hbar, self.W), (1, self.vbar, self.H)):
             start, span = self.view_span(axis)
             bar.set(max(0.0, start / size), min(1.0, (start + span) / size))
 
     def hover(self, e):
+        """Circle of the brush under the mouse."""
         self.canvas.delete("cursor")
         if self.tool.get() in ("erase", "add"):
             r = self.brush.get()
@@ -1696,6 +1811,7 @@ class ReviewWindow:
     # ------------------------------------------------------------ editing
     # ------------------------------------------------------------ one click
     def tool_changed(self):
+        """Tool chosen: the one-click model is prepared when it is chosen."""
         if self.tool.get() == "click":
             self.prepare_click()
         else:
@@ -1727,6 +1843,7 @@ class ReviewWindow:
         threading.Thread(target=work, daemon=True).start()
 
     def click_prepared(self, index, error):
+        """The photo is ready for one-click (or the error is shown)."""
         st = self.click_state
         st["busy"] = False
         if error:
@@ -1741,10 +1858,13 @@ class ReviewWindow:
         self.show_click_hint()
 
     def show_click_hint(self):
+        """How the one-click tool is used."""
         self.click_hint.set("Click each object to keep: the computed cut-out is replaced by the objects "
                             "clicked. Shift + click: remove an object. Ctrl+Z: undo.")
 
     def click_object(self, x, y, keep=True):
+        """One click: the object under the click (Segment Anything, edge of the
+        computed cut-out where it agrees) is added (or removed with Shift)."""
         st = self.click_state
         if not (st["ready"] and st["index"] == self.index):
             self.prepare_click()
@@ -1768,6 +1888,7 @@ class ReviewWindow:
         self.update_thumb()
 
     def _save_patch(self, x0, y0, x1, y1, before=None):
+        """Keeps the part of the mask about to change, for Undo (30 steps)."""
         x0, y0, x1, y1 = max(0, int(x0)), max(0, int(y0)), min(self.W, int(x1)), min(self.H, int(y1))
         if x1 > x0 and y1 > y0:
             src = self.mask if before is None else before
@@ -1780,6 +1901,8 @@ class ReviewWindow:
         return isinstance(w, (tk.Entry, ttk.Entry, ttk.Combobox, tk.Text))
 
     def press(self, e):
+        """Mouse pressed: starts the brush, the lasso, the line, or acts at once (piece,
+        one click); Space held: moves the view."""
         if self.space:                                  # Space + drag: move the view
             self.pan = (e.x, e.y, self.ox, self.oy)
             return
@@ -1803,6 +1926,7 @@ class ReviewWindow:
             self.line = [(x, y), (x, y)]
 
     def drag(self, e):
+        """Mouse moved with the button held: paints, extends the lasso or the line."""
         if self.space:
             self.pan_move(e)
             return
@@ -1824,6 +1948,7 @@ class ReviewWindow:
         self.hover(e)
 
     def _paint(self, ax, ay, bx, by):
+        """Paints (or erases) a stroke of the brush in the mask."""
         r = max(1, int(round(self.brush.get() / self.zoom)))
         v = 0 if self.tool.get() == "erase" else 255
         self.cv2.line(self.mask, (int(round(ax)), int(round(ay))), (int(round(bx)), int(round(by))), v, 2 * r)
@@ -1831,6 +1956,8 @@ class ReviewWindow:
         self.schedule_redraw()
 
     def release(self, e):
+        """Button released: ends the stroke, fills the lasso, or turns the object along
+        the line drawn."""
         np = self.np
         if self.space:
             return
@@ -1872,11 +1999,13 @@ class ReviewWindow:
         return round(theta % 360, 2)
 
     def turn(self, step):
+        """Quarter turn of the object (or back to 0)."""
         self.history.append(("angle", self.angle))
         self.angle = 0.0 if step is None else (self.angle + step) % 360
         self.update_thumb()
 
     def undo(self):
+        """Undoes the last change of the mask or of the angle."""
         if not self.history:
             return
         kind, *data = self.history.pop()
@@ -1910,6 +2039,7 @@ class ReviewWindow:
         self.update_thumb()
 
     def remove_saved(self, photo):
+        """Removes the corrections saved for a photo."""
         folder = os.path.join(os.path.dirname(photo), EDITS_DIR)
         name = os.path.basename(photo)
         mask_file = os.path.join(folder, os.path.splitext(name)[0] + "_mask.png")
@@ -1949,11 +2079,13 @@ class ReviewWindow:
 
     # ------------------------------------------------------------ saving
     def list_text(self, it):
+        """Text of a photo in the list: status mark, name, export state."""
         mark = {"ok": "  ", "to verify": "! ", "failed": "x "}.get(it.get("status"), "? ")
         state = {"queued": "  (export waiting)", "running": "  (exporting…)", "done": "  ✓ exported"}
         return mark + os.path.basename(it["photo"]) + state.get(it.get("export"), "")
 
     def mark(self, photo, state):
+        """Changes the export state shown for a photo."""
         for i, it in enumerate(self.items):
             if it["photo"] == photo:
                 it["export"] = state
@@ -1965,10 +2097,12 @@ class ReviewWindow:
 
     @staticmethod
     def saved_mask_file(photo):
+        """Path of the corrected mask of a photo (gerbil_edits)."""
         return os.path.join(os.path.dirname(photo), EDITS_DIR, os.path.splitext(os.path.basename(photo))[0] + "_mask.png")
 
     @staticmethod
     def saved_entry(photo):
+        """Corrections saved for a photo (mask corrected?, angle)."""
         try:
             with open(os.path.join(os.path.dirname(photo), EDITS_DIR, EDITS_FILE), encoding="utf-8") as fh:
                 return dict(json.load(fh).get(os.path.basename(photo)) or {})
@@ -2033,6 +2167,7 @@ class ReviewWindow:
         return True
 
     def accept(self):
+        """Saves the corrections of the photo, exports it again, shows the next one."""
         try:
             changed = self.save_current()
             changed = self.save_info() or changed
@@ -2044,6 +2179,7 @@ class ReviewWindow:
         self.goto(self.index + 1)
 
     def fix_scale(self):
+        """Opens the manual scale of the photo."""
         photo = self.items[self.index]["photo"]
         try:
             ScaleWindow(self.app, photo, on_saved=lambda: self.export(photo))
@@ -2051,6 +2187,7 @@ class ReviewWindow:
             messagebox.showerror("Gerbil", f"Could not open the scale window:\n{e}", parent=self.win)
 
     def close(self):
+        """Closes, offering to keep the corrections of the photo shown."""
         if getattr(self, "closed", False):
             return
         self.closed = True
@@ -2075,6 +2212,8 @@ class PlatesWindow:
     The settings are remembered (house style of the scale bar)."""
 
     def __init__(self, app, folder):
+        """The plates window: three tabs of settings (plate, scale bar, scales and
+        drawings), live preview with zoom, buttons."""
         import gerbil_plates as gp
         self.gp, self.app, self.folder = gp, app, folder
         self.st = gp.PlateSettings.from_dict(app.s.get("plates") or {})
@@ -2284,9 +2423,25 @@ class PlatesWindow:
         ttk.Button(nav, text="▶", width=3, command=lambda: self.turn(1)).pack(side="left")
         self.warn = tk.StringVar()
         ttk.Label(nav, textvariable=self.warn, style="Footer.TLabel").pack(side="left", padx=12)
-        self.canvas = tk.Canvas(view, bg="#E6E2F2", highlightthickness=0)
-        self.canvas.pack(fill="both", expand=True, pady=(6, 0))
+        ttk.Label(nav, text="Wheel: zoom · middle button: move · right-click an object: its scale",
+                  style="Footer.TLabel").pack(side="right")
+        cv = ttk.Frame(view, style="Window.TFrame")
+        cv.pack(fill="both", expand=True, pady=(6, 0))
+        cv.rowconfigure(0, weight=1)
+        cv.columnconfigure(0, weight=1)
+        self.canvas = tk.Canvas(cv, bg="#E6E2F2", highlightthickness=0)
+        self.canvas.grid(row=0, column=0, sticky="nsew")
+        xs = ttk.Scrollbar(cv, orient="horizontal", command=self.canvas.xview)
+        ys = ttk.Scrollbar(cv, orient="vertical", command=self.canvas.yview)
+        xs.grid(row=1, column=0, sticky="ew")
+        ys.grid(row=0, column=1, sticky="ns")
+        self.canvas.configure(xscrollcommand=xs.set, yscrollcommand=ys.set)
+        self.zoom, self.view = 1.0, None
         self.canvas.bind("<Configure>", lambda _: self.changed())
+        self.canvas.bind("<MouseWheel>", self.wheel)
+        self.canvas.bind("<ButtonPress-2>", lambda e: self.canvas.scan_mark(e.x, e.y))
+        self.canvas.bind("<B2-Motion>", lambda e: self.canvas.scan_dragto(e.x, e.y, gain=1))
+        self.canvas.bind("<ButtonPress-3>", self.object_menu)
         win.protocol("WM_DELETE_WINDOW", self.close)
         self.changed()
 
@@ -2345,13 +2500,64 @@ class PlatesWindow:
         ttk.Button(bar, text="Close", command=top.destroy).pack(side="right")
         fill()
 
+    def wheel(self, e):
+        """Zoom on the point under the mouse (1 = whole page, up to 8)."""
+        if not self.view:
+            return
+        k, x0, y0 = self.view
+        mx = (self.canvas.canvasx(e.x) - x0) / k                 # point of the page (mm)
+        my = (self.canvas.canvasy(e.y) - y0) / k
+        self.zoom = min(8.0, max(1.0, self.zoom * (1.25 if e.delta > 0 else 0.8)))
+        self.refresh()
+        k, x0, y0 = self.view
+        sr = [float(v) for v in str(self.canvas.cget("scrollregion")).split()]
+        if len(sr) == 4 and sr[2] > 0 and sr[3] > 0:          # the same point stays under the mouse
+            self.canvas.xview_moveto(max(0.0, (x0 + mx * k - e.x) / sr[2]))
+            self.canvas.yview_moveto(max(0.0, (y0 + my * k - e.y) / sr[3]))
+
+    def object_menu(self, e):
+        """Right-click on an object of the preview: a menu of scales for it (kept in the plate settings)."""
+        if not self.view or not self.pages:
+            return
+        k, x0, y0 = self.view
+        mx, my = (self.canvas.canvasx(e.x) - x0) / k, (self.canvas.canvasy(e.y) - y0) / k
+        hit = None
+        for p in self.pages[self.page_no][1]:
+            bx0, by0, bx1, by1 = p.box or (p.x, p.y, p.x + p.w, p.y + p.h)
+            if bx0 <= mx <= bx1 and by0 <= my <= by1:
+                hit = p
+                break
+        if hit is None:
+            return
+        gp, name = self.gp, hit.item.name
+        chosen = dict(self.st.object_ratios or {})
+        menu = tk.Menu(self.win, tearoff=False)
+        menu.add_command(label=f"{name}  (now 1:{gp.fmt(hit.ratio)})", state="disabled")
+        menu.add_separator()
+
+        def choose(r):
+            if r is None:
+                chosen.pop(name, None)
+            else:
+                chosen[name] = r
+            self.vars["object_ratios"].set(json.dumps(chosen))
+        menu.add_command(label="Scale of the plates (automatic)", command=lambda: choose(None))
+        for r in gp.RATIOS[:9]:
+            menu.add_command(label=f"1:{gp.fmt(r)}", command=lambda r=r: choose(float(r)))
+        try:
+            menu.tk_popup(e.x_root, e.y_root)
+        finally:
+            menu.grab_release()
+
     def pick_drawings(self):
+        """Chooses the folder of the drawings."""
         d = filedialog.askdirectory(parent=self.win, title="Folder of the drawings",
                                     initialdir=self.vars["drawings_folder"].get() or self.folder)
         if d:
             self.vars["drawings_folder"].set(os.path.normpath(d))
 
     def colour_button(self, parent, key, value, text):
+        """A colour swatch that opens the colour chooser."""
         from tkinter import colorchooser
         v = tk.StringVar(value=value)
         v.trace_add("write", lambda *_: self.changed())
@@ -2405,11 +2611,13 @@ class PlatesWindow:
         return st
 
     def changed(self):
+        """A setting changed: preview drawn again a moment later."""
         if self.job:
             self.win.after_cancel(self.job)
         self.job = self.win.after(250, self.refresh)
 
     def thumb(self, item, w_mm, h_mm):
+        """Reduced image of an object for the preview (cached)."""
         im = self.thumbs.get(item.path)
         if im is None:
             from PIL import Image
@@ -2417,11 +2625,12 @@ class PlatesWindow:
                 im = src.convert("RGBA")
                 if item.bbox:
                     im = im.crop(item.bbox)
-                im.thumbnail((800, 800))
+                im.thumbnail((1600, 1600))                  # (sharp enough when zooming in)
             self.thumbs[item.path] = im
         return im
 
     def refresh(self):
+        """Lays out the plates with the current settings and draws the page shown."""
         self.job = None
         gp = self.gp
         self.st = st = self.settings()
@@ -2435,10 +2644,14 @@ class PlatesWindow:
         from PIL import ImageTk
         if self.pages:
             W, H = st.page_size()
-            k = min((cw - 20) / W, (ch - 20) / H)
+            k = min((cw - 20) / W, (ch - 20) / H) * self.zoom
             dr = gp.page_drawing(st, self.pages[self.page_no], self.page_no + 1, len(self.pages), images=self.thumb)
-            self.page_img = ImageTk.PhotoImage(gp.render(dr, k, show_hidden=self.show_measures.get()))
-            self.canvas.create_image(cw // 2, ch // 2, image=self.page_img)
+            img = gp.render(dr, k, show_hidden=self.show_measures.get())
+            self.page_img = ImageTk.PhotoImage(img)
+            x0, y0 = max(10, (cw - img.width) // 2), max(10, (ch - img.height) // 2)
+            self.canvas.create_image(x0, y0, image=self.page_img, anchor="nw")
+            self.canvas.configure(scrollregion=(0, 0, max(cw, img.width + 20), max(ch, img.height + 20)))
+            self.view = (k, x0, y0)
             self.page_lbl.set(f"Plate {self.page_no + 1} / {len(self.pages)}  ·  {sum(len(p[1]) for p in self.pages)} "
                               f"object(s) at 1:{gp.fmt(st.ratio)}")
         else:
@@ -2461,11 +2674,13 @@ class PlatesWindow:
         self.app.s["plates"] = st.to_dict()
 
     def turn(self, step):
+        """Previous / next plate."""
         if self.pages:
             self.page_no = (self.page_no + step) % len(self.pages)
             self.refresh()
 
     def write(self):
+        """Writes the SVG plates in a thread."""
         st = self.settings()
         self.write_btn.state(["disabled"])
         self.msg.set("Writing the plates…")
@@ -2482,17 +2697,20 @@ class PlatesWindow:
         threading.Thread(target=work, daemon=True).start()
 
     def written(self, text):
+        """Plates written: message, settings saved."""
         self.msg.set(text)
         self.write_btn.state(["!disabled"])
         self.open_btn.state(["!disabled"])
         self.app.save_settings()
 
     def open_folder(self):
+        """Opens the folder of the plates."""
         d = os.path.join(self.folder, "plates")
         if os.path.isdir(d):
             os.startfile(d)
 
     def close(self):
+        """Closes, saving the plate settings (house style)."""
         self.app.s["plates"] = self.settings().to_dict()
         self.app.save_settings()
         self.win.destroy()
@@ -2505,6 +2723,7 @@ PROFILE_SETTINGS = ("background", "compression", "psd", "original_layer", "origi
 
 
 def profile_names():
+    """Names of the site profiles of the library."""
     try:
         return sorted(os.path.splitext(f)[0] for f in os.listdir(PROFILES_DIR) if f.lower().endswith(".json"))
     except OSError:
@@ -2512,10 +2731,12 @@ def profile_names():
 
 
 def profile_path(name):
+    """File of a profile of the library."""
     return os.path.join(PROFILES_DIR, name + ".json")
 
 
 def safe_name(name):
+    """A name usable as a Windows file name."""
     return "".join("_" if c in '<>:"/\\|?*' else c for c in name).strip(" .")
 
 
@@ -2526,6 +2747,7 @@ class ProfileWindow:
     engine uses it by itself (and the team can share it)."""
 
     def __init__(self, app, name=None):
+        """The site profile window: name, background, learned scales, options."""
         self.app = app
         self.pr = {"name": name or "", "background": "auto", "learned_first": False, "scales": [], "settings": {}}
         if name:
@@ -2594,6 +2816,7 @@ class ProfileWindow:
         self.fill()
 
     def fill(self):
+        """List of the learned scales and summary of the options kept."""
         self.lb.delete(0, "end")
         for m in self.pr["scales"]:
             self.lb.insert("end", f"{m.get('name', '')}   ({m.get('cm', 0):g} cm)")
@@ -2602,6 +2825,7 @@ class ProfileWindow:
                           "No options kept: the main window keeps its own.")
 
     def learn(self):
+        """Chooses a photo showing the scale and opens the scale window in learning mode."""
         path = filedialog.askopenfilename(parent=self.win, title="A photo showing the scale",
                                           initialdir=self.app.s["last_dir"] or None,
                                           filetypes=[("Photos", " ".join("*" + e for e in sorted(EXTENSIONS))),
@@ -2610,6 +2834,7 @@ class ProfileWindow:
             ScaleWindow(self.app, path, learn=lambda entry: self.learned(path, entry))
 
     def learned(self, path, entry):
+        """Learns the scale from the two points given (engine.learn_scale)."""
         try:
             import gerbil as engine
             model = engine.learn_scale(engine.load_photo(path).rgb, entry,
@@ -2621,22 +2846,26 @@ class ProfileWindow:
         self.fill()
 
     def remove_scale(self):
+        """Removes a learned scale."""
         sel = self.lb.curselection()
         if sel:
             del self.pr["scales"][sel[0]]
             self.fill()
 
     def take_options(self):
+        """Keeps the options of the main window in the profile."""
         self.app._collect()
         self.pr["settings"] = {k: self.app.s[k] for k in PROFILE_SETTINGS}
         self.fill()
 
     def data(self):
+        """The profile as saved."""
         pr = dict(self.pr, name=self.name.get().strip(), learned_first=self.first.get(),
                   background={"light (white, grey…)": "light", "dark (velvet, felt…)": "dark"}.get(self.bg.get(), "auto"))
         return pr
 
     def save(self):
+        """Saves the profile in the library and chooses it."""
         pr = self.data()
         if not safe_name(pr["name"]):
             messagebox.showwarning("Gerbil", "Give the profile a name.", parent=self.win)
@@ -2648,6 +2877,7 @@ class ProfileWindow:
         self.win.destroy()
 
     def export(self):
+        """Writes the profile as gerbil_profile.json in a folder of photos."""
         folder = filedialog.askdirectory(parent=self.win, title="Folder of photos that use this profile",
                                          initialdir=self.app.s["last_dir"] or None)
         if folder:
@@ -2665,6 +2895,7 @@ class IptcWindow:
     next to each original photo."""
 
     def __init__(self, project):
+        """The IPTC window: one text per IPTC field, sidecar option, example."""
         import gerbil as engine
         self.engine, self.project = engine, project
         pr = project.pr
@@ -2704,9 +2935,11 @@ class IptcWindow:
         self.preview()
 
     def mapping(self):
+        """The IPTC fields filled in."""
         return {k: v.get().strip() for k, v in self.vars.items() if v.get().strip()}
 
     def preview(self):
+        """Example of the IPTC values of the selected photo."""
         pj = self.project
         sel = pj.tree.selection() or pj.tree.get_children()
         if not sel:
@@ -2719,10 +2952,12 @@ class IptcWindow:
             f"{labels[k]}: {', '.join(v) if isinstance(v, list) else v}" for k, v in out.items()))
 
     def default(self):
+        """Default model."""
         for k, v in self.vars.items():
             v.set(self.engine.DEFAULT_IPTC.get(k, ""))
 
     def ok(self):
+        """Keeps the IPTC settings in the project."""
         self.project.pr["iptc"] = self.mapping()
         self.project.pr["xmp_sidecar"] = self.sidecar.get()
         self.project.changed = True
@@ -2734,6 +2969,8 @@ class InventoryWindow:
     does the same, shown for learning."""
 
     def __init__(self, app):
+        """The inventory window: folders, kinds of files, fields of the names,
+        PowerShell line."""
         import gerbil_tools as tools
         self.tools, self.app = tools, app
         self.win = win = tk.Toplevel(app.root)
@@ -2802,19 +3039,23 @@ class InventoryWindow:
         self.update_line()
 
     def add(self):
+        """Adds a folder."""
         d = filedialog.askdirectory(parent=self.win, initialdir=self.app.s["last_dir"] or None)
         if d:
             self.folders.insert("end", os.path.normpath(d))
             self.update_line()
 
     def chosen(self):
+        """Folders and kinds of files chosen."""
         return list(self.folders.get(0, "end")), [k for k, v in self.kinds.items() if v.get()]
 
     def out_path(self):
+        """Default path of the CSV."""
         folders, _ = self.chosen()
         return os.path.join(folders[0], "inventory.csv") if folders else "inventory.csv"
 
     def update_line(self):
+        """PowerShell line updated."""
         folders, kinds = self.chosen()
         self.line.delete("1.0", "end")
         if folders and kinds:
@@ -2822,6 +3063,7 @@ class InventoryWindow:
                                                                self.sub.get()))
 
     def write(self):
+        """Writes the inventory and opens it."""
         folders, kinds = self.chosen()
         if not folders or not kinds:
             self.msg.set("Add a folder and tick a kind of file.")
@@ -2844,6 +3086,7 @@ class ThumbnailsWindow:
     """Thumbnails in batch (gerbil_tools.thumbnails) for databases."""
 
     def __init__(self, app):
+        """The thumbnails window: folder, size, format."""
         import gerbil_tools as tools
         self.tools, self.app = tools, app
         self.win = win = tk.Toplevel(app.root)
@@ -2881,11 +3124,13 @@ class ThumbnailsWindow:
         ttk.Button(foot, text="Close", command=win.destroy).pack(side="right")
 
     def browse(self):
+        """Chooses the folder."""
         d = filedialog.askdirectory(parent=self.win, initialdir=self.folder.get() or self.app.s["last_dir"] or None)
         if d:
             self.folder.set(os.path.normpath(d))
 
     def run(self):
+        """Makes the thumbnails in a thread."""
         folder = self.folder.get().strip()
         try:
             size = max(16, int(self.size.get()))
@@ -2904,13 +3149,17 @@ class ThumbnailsWindow:
         threading.Thread(target=work, daemon=True).start()
 
     def done(self, folder, n):
+        """Thumbnails made: message, folder opened."""
         self.msg.set(f"{n} thumbnail(s) written.")
         if n:
             os.startfile(os.path.join(folder, "thumbnails"))
 
 
 class App:
+    """The main window: list of photos, options, Run, log; it starts the engine and opens the
+    other windows (batch renaming, scale, review, plates, profiles, tools)."""
     def __init__(self, root, paths=(), selftest=None):
+        """The main window: settings, styles, widgets, checks of the packages."""
         self.root = root
         self.selftest = selftest
         # self-test: default settings, results in the given folder, the user's settings untouched
@@ -2958,6 +3207,7 @@ class App:
             self._icon_img = img
 
     def _style(self):
+        """Colours and fonts of the widgets (ttk styles)."""
         st = ttk.Style(self.root)
         st.theme_use("clam")
         base = ("Segoe UI", 10)
@@ -3009,6 +3259,7 @@ class App:
 
     # ---------------------------------------------------------------- layout
     def _build(self):
+        """Builds the main window: header, photos, options, Run, log."""
         root = self.root
         header = tk.Frame(root, bg=LAVENDER, height=86)
         header.pack(fill="x")
@@ -3094,6 +3345,7 @@ class App:
                   style="Footer.TLabel").pack(side="right")
 
     def _photos_card(self, parent):
+        """Card of the photos: buttons, list, results folder, site profile."""
         card = ttk.Labelframe(parent, text="  Photos  ", style="Card.TLabelframe", padding=12)
         card.columnconfigure(0, weight=1)
         card.rowconfigure(1, weight=1)
@@ -3174,11 +3426,13 @@ class App:
         self._sync()
 
     def profiles_changed(self, name):
+        """List of profiles updated, the profile saved chosen."""
         self.profile_cb.configure(values=["(none)"] + profile_names())
         self.profile.set(name)
         self.apply_profile()
 
     def _options_card(self, parent):
+        """Card of the options (files, run, scale and layout, cleaning, AI)."""
         card = ttk.Labelframe(parent, text="  Options  ", style="Card.TLabelframe", padding=12)
         cols = [ttk.Frame(card, style="Card.TFrame"), ttk.Frame(card, style="Card.TFrame")]
         for i, c in enumerate(cols):
@@ -3263,6 +3517,7 @@ class App:
         return card
 
     def _ai_ticked(self):
+        """AI ticked: offers to install onnxruntime when missing."""
         if self.v["ai"].get() and not self.ai_ok:
             self.v["ai"].set(False)
             if FROZEN:
@@ -3290,6 +3545,7 @@ class App:
         return not missing
 
     def install_required(self):
+        """Installs the missing packages (pip, in the background)."""
         if self.proc is None:
             self._start(pip_command(missing_packages()), "pip")
 
@@ -3307,6 +3563,7 @@ class App:
 
     # ---------------------------------------------------------------- photos
     def add_paths(self, paths):
+        """Adds folders / photos to the list (with their number of photos)."""
         known = set(self.tree.get_children())
         for p in paths:
             p = os.path.normpath(os.path.abspath(p))
@@ -3325,11 +3582,13 @@ class App:
         self.total_lbl.configure(text=f"{n} photo(s) to process." if n else "No photo yet.")
 
     def add_folder(self):
+        """Adds a folder of photos."""
         d = filedialog.askdirectory(title="Folder of photos", initialdir=self.s["last_dir"] or None)
         if d:
             self.add_paths([d])
 
     def add_files(self):
+        """Adds photos."""
         fs = filedialog.askopenfilenames(title="Photos", initialdir=self.s["last_dir"] or None,
                                          filetypes=[("Photos", " ".join("*" + e for e in sorted(EXTENSIONS))),
                                                     ("All files", "*.*")])
@@ -3378,6 +3637,7 @@ class App:
         self.next_scale({"todo": list(paths), "saved": [], "total": len(paths), "cm": None, "width_cm": None})
 
     def next_scale(self, seq):
+        """Series of manual scales: opens the next photo."""
         while seq["todo"]:
             path = seq["todo"].pop(0)
             try:
@@ -3394,18 +3654,28 @@ class App:
             self.run(seq["saved"])
 
     def remove(self):
+        """Removes the selected rows of the list."""
         for i in self.tree.selection():
             self.tree.delete(i)
         self.add_paths([])
 
     def clear(self):
+        """Empties the list."""
         self.tree.delete(*self.tree.get_children())
         self.add_paths([])
 
     def pick_output(self):
+        """Chooses the results folder (not a folder of photos)."""
         d = filedialog.askdirectory(title="Result folder", initialdir=self.out_dir.get() or None)
         if d:
-            self.out_dir.set(os.path.normpath(d))
+            d = os.path.normpath(d)
+            photos = {os.path.normcase(os.path.normpath(p)) for p in self.tree.get_children() if os.path.isdir(p)}
+            if os.path.normcase(d) in photos:
+                messagebox.showwarning("Gerbil", "This is a folder of photos: the results would be mixed with the "
+                                                 "photos. Choose another folder (or keep 'outlined_result next to "
+                                                 "the photos').")
+                return
+            self.out_dir.set(d)
 
     # ---------------------------------------------------------------- run
     def _collect(self):
@@ -3466,6 +3736,7 @@ class App:
         return a
 
     def save_settings(self):
+        """Saves the settings of the interface."""
         if self.selftest:
             return
         try:
@@ -3532,17 +3803,20 @@ class App:
         self.root.after(100, self._poll)
 
     def _stop_bar(self):
+        """Stops the moving progress bar."""
         if str(self.bar["mode"]) == "indeterminate":
             self.bar.stop()
             self.bar.configure(mode="determinate", value=0)
 
     def _reader(self, proc):
+        """Thread reading the output of the engine line by line (into a queue)."""
         for line in proc.stdout:
             self.lines.put(line.rstrip("\n"))
         proc.wait()
         self.lines.put(None)
 
     def _poll(self):
+        """Every 100 ms: handles the lines received; end of the process detected."""
         done = False
         try:
             while True:
@@ -3559,6 +3833,7 @@ class App:
             self.root.after(100, self._poll)
 
     def _handle(self, line):
+        """One line of the engine: progress, coloured log, results folder, photos to set by hand."""
         if self.kind != "script":                          # pip output
             if line.strip():
                 self._log(line + "\n", "cmd" if not line.startswith(("ERROR", "error")) else "failed")
@@ -3597,6 +3872,7 @@ class App:
         self._log(line + "\n", tag)
 
     def _summary(self):
+        """"12 ok, 3 to verify, 1 failed"."""
         c = self.counts
         parts = [f"{c.get('ok', 0)} ok", f"{c.get('to verify', 0)} to verify"]
         bad = c.get("failed", 0) + c.get("error", 0)
@@ -3605,6 +3881,7 @@ class App:
         return ", ".join(parts)
 
     def _finished(self):
+        """End of a run: status, offers (manual scales), self-test file."""
         code = self.proc.returncode if self.proc else None
         cancelled = getattr(self, "_cancelled", False)
         self.proc, self._cancelled = None, False
@@ -3654,6 +3931,7 @@ class App:
             self.root.destroy()
 
     def cancel(self):
+        """Stops the processing (the whole process tree)."""
         if self.proc and self.proc.poll() is None:
             self._cancelled = True
             # the whole process tree (the script runs the photos in worker processes)
@@ -3713,15 +3991,18 @@ class App:
                                              "(banner at the top).")
 
     def open_results(self):
+        """Opens the results folders."""
         for d in self.results:
             if os.path.isdir(d):
                 os.startfile(d)
 
     def help(self):
+        """Opens the README."""
         if os.path.exists(README):
             os.startfile(README)
 
     def close(self):
+        """Closes (stops a run first, if wanted) and saves the settings."""
         if self.proc and self.proc.poll() is None:
             if not messagebox.askyesno("Gerbil", "A processing is running. Stop it and quit?"):
                 return
@@ -3735,18 +4016,21 @@ class App:
 
     # ---------------------------------------------------------------- log
     def _log(self, text, tag=None):
+        """Adds a text to the log, in a colour."""
         self.log.configure(state="normal")
         self.log.insert("end", text, tag or ())
         self.log.see("end")
         self.log.configure(state="disabled")
 
     def _clear_log(self):
+        """Empties the log."""
         self.log.configure(state="normal")
         self.log.delete("1.0", "end")
         self.log.configure(state="disabled")
 
 
 def main():
+    """Entry of the interface: --install / --check for Install.bat, --selftest, or the window."""
     if "--install" in sys.argv[1:]:
         sys.exit(console_install())
     if "--check" in sys.argv[1:]:

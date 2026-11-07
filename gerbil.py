@@ -76,6 +76,8 @@ L_WEIGHT = 0.5                 # weight of lightness: keeps soft shadows out of 
 
 @dataclass
 class Photo:
+    """A photo as the engine uses it: path, RGB pixels (upright), ICC profile, EXIF, shooting
+    information (camera, lens, date) kept for the report and the metadata."""
     path: str
     rgb: np.ndarray
     icc: bytes
@@ -84,6 +86,7 @@ class Photo:
 
 
 def _txt(v):
+    """EXIF value as clean text: bytes decoded (Latin-1), trailing zeros and spaces removed."""
     if v is None:
         return ""
     if isinstance(v, bytes):
@@ -92,6 +95,7 @@ def _txt(v):
 
 
 def _rational(v):
+    """EXIF number written as an XMP fraction ("1/125"), as XMP expects."""
     try:
         fr = Fraction(float(v)).limit_denominator(100000)
         return f"{fr.numerator}/{fr.denominator}"
@@ -100,6 +104,7 @@ def _rational(v):
 
 
 def _xmp_date(v):
+    """EXIF date "2025:12:01 21:03:55" turned into the XMP form "2025-12-01T21:03:55"."""
     v = _txt(v)
     if len(v) >= 19 and v[4] == ":" and v[7] == ":":
         return v[:4] + "-" + v[5:7] + "-" + v[8:10] + "T" + v[11:19]
@@ -118,6 +123,9 @@ def develop_raw(path, half=False):
 
 
 def load_photo(path):
+    """Opens a photo as the engine needs it: RGB pixels (8 bits, turned upright by the EXIF
+    orientation; RAW files developed by develop_raw), EXIF, ICC colour profile, and the
+    shooting information kept for the report and the XMP. Returns a Photo."""
     if os.path.splitext(path)[1].lower() in RAW_EXTENSIONS:
         rgb = np.ascontiguousarray(develop_raw(path))
         try:                                       # metadata: most RAW files are TIFF-based
@@ -164,6 +172,7 @@ def load_photo(path):
 
 
 def srgb_profile():
+    """Standard sRGB colour profile (ICC), embedded when the photo has none."""
     return ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB")).tobytes()
 
 
@@ -192,6 +201,8 @@ def output_exif(exif, dpi):
 # --------------------------------------------------------------------------
 
 def to_lab(rgb):
+    """RGB image -> CIELAB (L* 0-100, a* and b* around 0): colour differences in Lab match
+    what the eye sees, which makes "different from the background" measurable."""
     lab = cv2.cvtColor(rgb, cv2.COLOR_RGB2LAB).astype(np.float32)
     lab[..., 0] *= 100.0 / 255.0
     lab[..., 1:] -= 128.0
@@ -199,6 +210,8 @@ def to_lab(rgb):
 
 
 def distance(lab, ref, l_weight=L_WEIGHT):
+    """Colour distance of every pixel to the background model (Lab), lightness weighted by
+    l_weight (shadows change the lightness more than the colour)."""
     dl = (lab[..., 0] - ref[..., 0]) * l_weight
     da = lab[..., 1] - ref[..., 1]
     db = lab[..., 2] - ref[..., 2]
@@ -206,6 +219,8 @@ def distance(lab, ref, l_weight=L_WEIGHT):
 
 
 def poly_terms(x, y, deg=BG_DEGREE):
+    """Terms x^i * y^j of a 2D polynomial of degree deg: the background model is such a
+    polynomial fitted on the background, so that a lighting gradient is followed."""
     return np.stack([(x ** i) * (y ** j) for i in range(deg + 1) for j in range(deg + 1 - i)], -1)
 
 
@@ -213,6 +228,9 @@ class BackgroundModel:
     """Background colour (Lab) modelled by a polynomial in x, y (lighting gradient)."""
 
     def __init__(self, lab):
+        """Fits the background colour of the photo: a polynomial surface per Lab channel,
+        fitted by least squares on the pixels that look like background (iterated, the
+        object and the scale left out); decides whether the background is dark."""
         h, w = lab.shape[:2]
         yy, xx = np.mgrid[0:h, 0:w].astype(np.float32)
         T = poly_terms((xx + 0.5) / w, (yy + 0.5) / h)
@@ -250,6 +268,8 @@ class BackgroundModel:
 
 
 def hysteresis(d, low, high):
+    """Hysteresis threshold: keeps the regions above `low` that contain at least one pixel
+    above `high` (a faint edge is kept when it belongs to a clear object)."""
     weak = (d > low).astype(np.uint8)
     n, lab = cv2.connectedComponents(weak, connectivity=8)
     keep = np.zeros(n, bool)
@@ -280,7 +300,55 @@ def fill_holes(m, d=None, min_true_hole_area=None, keep_open=None):
     return m | fill[lab]
 
 
+SHADOW_K = (0.3, 0.92)  # cast shadow: lightness between these fractions of the background lightness
+SHADOW_CD = 6.0         # ... and the colour of the darkened background (distance to it, a* b*)
+SHADOW_TEX = 2.5        # ... smooth: local spread of L* under this many times that of the background
+SHADOW_TOUCH, SHADOW_SOFT = 0.15, 0.5
+# a shadow lies along the outline (at least SHADOW_TOUCH of its own outline against the background) and
+# fades into the background (gradient on that edge under SHADOW_SOFT of the object's own edge): on open
+# photos of finds, shadows 0.21-0.66 and 0.07-0.40; dark smooth patches of objects (black gloss,
+# obsidian, grey flint) touch the background on 0-5 % of their outline
+
+
+def cast_shadows(obj, lab, model):
+    """Light background: the cast shadows kept by the colour rule (darker than the background by a
+    shadow, of its colour, smooth, along the outline, fading into the background). Returns their mask,
+    or None."""
+    L = lab[..., 0]
+    k = (L + 1) / (model[..., 0] + 1)
+    cd = np.hypot(lab[..., 1] - k * model[..., 1], lab[..., 2] - k * model[..., 2])
+    mu = cv2.blur(L, (5, 5))
+    tex = np.sqrt(np.maximum(cv2.blur(L * L, (5, 5)) - mu * mu, 0))
+    around = cv2.dilate(obj.astype(np.uint8), disk(5)) > 0
+    if around.all():
+        return None
+    limit = max(1.5, SHADOW_TEX * float(np.median(tex[~around])))
+    cand = obj & (k > SHADOW_K[0]) & (k < SHADOW_K[1]) & (cd < SHADOW_CD) & (tex < limit)
+    cand = cv2.morphologyEx(cand.astype(np.uint8), cv2.MORPH_OPEN, disk(2))
+    n, lab_c, stats, _ = cv2.connectedComponentsWithStats(cand, connectivity=8)
+    if n <= 1:
+        return None
+    grad = np.hypot(cv2.Sobel(L, cv2.CV_32F, 1, 0, ksize=3), cv2.Sobel(L, cv2.CV_32F, 0, 1, ksize=3)) / 8
+    edge_bg = ~obj & (cv2.dilate(obj.astype(np.uint8), disk(1)) > 0)       # background touching the mask
+    shadows = np.zeros(obj.shape, bool)
+    min_area = max(50, 0.002 * obj.sum())
+    for i in range(1, n):
+        x, y, w, h, a = stats[i]
+        if a < min_area:
+            continue
+        r = lab_c == i
+        contact = edge_bg & (cv2.dilate(r.astype(np.uint8), disk(2)) > 0)      # its edge on the background
+        ring = (cv2.dilate(r.astype(np.uint8), disk(1)) > 0) & ~r
+        if not contact.any() or contact.sum() < SHADOW_TOUCH * ring.sum():
+            continue
+        rest = edge_bg & ~(cv2.dilate(r.astype(np.uint8), disk(6)) > 0)        # the object's own edge
+        if rest.any() and grad[contact].mean() < SHADOW_SOFT * np.median(grad[rest]):
+            shadows |= r
+    return shadows if shadows.any() else None
+
+
 def disk(r):
+    """Disc-shaped structuring element of radius r for the morphology (erosion, dilation...)."""
     r = max(1, int(round(r)))
     return cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * r + 1, 2 * r + 1))
 
@@ -313,11 +381,13 @@ def straighten(img, center, theta, size, interp=cv2.INTER_LINEAR):
 
 
 def apply_affine(M, pts):
+    """Applies the 2 x 3 affine matrix M to points (N x 2): rotation / scale / translation."""
     pts = np.asarray(pts, np.float64)
     return pts @ M[:, :2].T + M[:, 2]
 
 
 def _runs(state):
+    """Runs of equal values in a 1D array: [[value, start, end], ...] (reading the squares)."""
     chg = np.flatnonzero(np.diff(state)) + 1
     start = np.r_[0, chg]
     end = np.r_[chg, len(state)]
@@ -325,6 +395,7 @@ def _runs(state):
 
 
 def _merge_runs(R):
+    """Joins consecutive runs of the same value."""
     out = []
     for r in R:
         if out and out[-1][0] == r[0]:
@@ -335,6 +406,7 @@ def _merge_runs(R):
 
 
 def _clean_runs(R, min_len):
+    """Removes the shortest inner runs (noise, digits) until all are at least min_len long."""
     R = _merge_runs(R)
     while len(R) > 2:
         lengths = [r[2] - r[1] for r in R]
@@ -686,6 +758,9 @@ def analyze_comb(crop, valid=None):
 
 @dataclass
 class Scale:
+    """A scale found (or given): px/cm, number of squares, length, angle, outline in the photo
+    (poly), enlarged zone (holder, putty), straightened crop and its matrix M, reading details
+    (pattern), note, doubts and kind (checkerboard, ruler, manual, learned)."""
     found: bool = False
     px_cm: float = 0.0
     n_squares: int = 0
@@ -705,6 +780,8 @@ class Scale:
 
 
 def _rect_axis(rect):
+    """Angle of the long side of a rotated rectangle (radians, -pi/2..pi/2), and its long and
+    short sides."""
     pts = cv2.boxPoints(rect)
     e1, e2 = pts[1] - pts[0], pts[2] - pts[1]
     L, S = (e1, e2) if np.hypot(*e1) >= np.hypot(*e2) else (e2, e1)
@@ -1662,6 +1739,7 @@ def detect_ruler(rgb, robust=False):
 # --------------------------------------------------------------------------
 
 def poly_mask(shape, poly, aa=True):
+    """Mask of a polygon (sub-pixel coordinates), anti-aliased or not."""
     m = np.zeros(shape, np.uint8)
     pts = np.round((np.asarray(poly) + 0.5) * 16 - 8).astype(np.int32)  # sub-pixel (shift = 4)
     cv2.fillPoly(m, [pts], 255, lineType=cv2.LINE_AA if aa else cv2.LINE_8, shift=4)
@@ -1866,6 +1944,18 @@ LABEL_BLUE_C, LABEL_BLUE_L = 30.0, 72.0   # bluish white paper (optical brighten
                                           # chroma up to LABEL_BLUE_C, from L* LABEL_BLUE_L (a turquoise glaze has a* << 0)
 LABEL_BRIGHT_L, LABEL_BRIGHT_C = 90.0, 25.0   # very bright paper (pale yellow note): chroma up to this
 LABEL_SQUARE_FILL, LABEL_SQUARE_L = 0.95, 70.0  # very rectangular and light: a label whatever its colour
+PRINT_RECT, PRINT_C, PRINT_FILL, PRINT_INKS = 0.6, 15.0, 0.9, 0.3
+# printed element (no scale measured): an outline mostly of long straight sides parallel or perpendicular
+# to each other (at least PRINT_RECT of it) and the content of a print - uncoloured (median chroma up to
+# PRINT_C), a near-perfect rectangle (PRINT_FILL), or black and white (PRINT_INKS of the pixels)
+PRINT_RECT_LOW, PRINT_PALE_C, PRINT_LIGHT, PRINT_TWO_TONE = 0.4, 8.0, 0.6, 0.15
+# ... or less straight but plainly a print: uncoloured (PRINT_PALE_C) and white (PRINT_LIGHT: label,
+# ruler card) or black AND white (PRINT_TWO_TONE of each: checkerboard). On 191 open photos of finds
+# (562 pieces), objects reach 0.74 of straight outline at most (a pin); a black blade (all dark, no
+# white) stays an object
+PRINT_STRAIGHT = 0.85
+# ... or, whatever its colours (wooden or yellow ruler), straight (PRINT_STRAIGHT of the outline) and a
+# full rectangle once closed (PRINT_STRAIGHT of it): a pin or an awl is straight but tapers
 NEAR_SCALE_CM, NEAR_SCALE_D = 0.8, 18.0
 # object in the scale zone, kept: reaches at least NEAR_SCALE_CM from the printed face and its mean
 # background distance is at least NEAR_SCALE_D (on 1,764 reference photos, what the zone discards
@@ -1893,6 +1983,60 @@ def label_card(lab_small, m, origin):
     if not bluish and (L < LABEL_L or not (c <= LABEL_C or (L >= LABEL_BRIGHT_L and c <= LABEL_BRIGHT_C))):
         return False
     return fill >= LABEL_FILL
+
+
+def straight_outline(m, origin, size):
+    """Share of the outline of a piece (away from the photo border) made of long straight sides parallel
+    or perpendicular to its main direction: near 1 for a scale bar, a ruler, a label or a chart (even
+    L-shaped), lower for a broken sherd, a coin or a tool. The outline is closed first, so that the
+    ticks of a ruler or the squares of a scale make a straight side. Returns (that share, how much of
+    its minimum-area rectangle the closed outline fills)."""
+    m = m.astype(np.uint8)
+    root = math.sqrt(max(int(m.sum()), 1))
+    r = max(2, round(0.012 * root))
+    m = cv2.morphologyEx(cv2.copyMakeBorder(m, r, r, r, r, cv2.BORDER_CONSTANT, value=0), cv2.MORPH_CLOSE,
+                         disk(r))[r:-r, r:-r]
+    cs, _ = cv2.findContours(m, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+    c = max(cs, key=cv2.contourArea)
+    root = math.sqrt(max(cv2.contourArea(c), 1.0))
+    poly = cv2.approxPolyDP(c, max(1.5, 0.006 * root), True).reshape(-1, 2).astype(float) + origin
+    _, (rw, rh), angle = cv2.minAreaRect(c)
+    fill = root ** 2 / max(rw * rh, 1.0)
+    W, H = size
+    total = straight = 0.0
+    for p, q in zip(poly, np.roll(poly, -1, axis=0)):
+        if (max(p[0], q[0]) <= 1 or max(p[1], q[1]) <= 1 or min(p[0], q[0]) >= W - 2
+                or min(p[1], q[1]) >= H - 2):
+            continue                                    # along the photo border: says nothing
+        length = float(np.hypot(*(q - p)))
+        total += length
+        dev = abs(((math.degrees(math.atan2(q[1] - p[1], q[0] - p[0])) - angle) % 90 + 45) % 90 - 45)
+        if length >= 0.08 * root and dev <= 4:
+            straight += length
+    return (straight / total if total else 0.0), fill
+
+
+def printed_element(lab_small, m, origin, size):
+    """A scale bar, ruler, label or colour card, recognised without measuring it (no scale found):
+    straight-sided, and the content of a print (see PRINT_*)."""
+    ys, xs = np.nonzero(m)
+    if len(xs) < 50:
+        return False
+    rect, fill = straight_outline(m, origin, size)
+    if rect < PRINT_RECT_LOW:
+        return False
+    if rect >= PRINT_STRAIGHT and fill >= PRINT_STRAIGHT:
+        return True                                     # a straight, full rectangle: a ruler of any colour
+    px = lab_small[ys + origin[1], xs + origin[0]]
+    L, chroma = px[:, 0], np.hypot(px[:, 1], px[:, 2])
+    c = float(np.median(chroma))
+    dark = float(((L < 35) & (chroma < 12)).mean())
+    light = float(((L > 80) & (chroma < 12)).mean())
+    if rect >= PRINT_RECT:
+        w, h = cv2.minAreaRect(np.column_stack([xs, ys]).astype(np.float32))[1]
+        if c <= PRINT_C or len(xs) / max(w * h, 1.0) >= PRINT_FILL or dark + light >= PRINT_INKS:
+            return True
+    return c <= PRINT_PALE_C and (light >= PRINT_LIGHT or min(dark, light) >= PRINT_TWO_TONE)
 
 
 def split_labels(obj, lab_small, f):
@@ -1951,6 +2095,10 @@ def edge_at_half_contrast(m, d, depth):
 
 
 def outline_ceramic(photo, small, f, background, scale, ai=None):
+    """The cut-out of the object(s): first mask on the reduced photo (colour distance to the
+    background, hysteresis, holes filled), sorting of the pieces (scale zone, labels,
+    supports, colour charts, isolated elements), refinement at full resolution, edge
+    softened. Returns the alpha mask and what was discarded (see PSEUDOCODE §10)."""
     rgb = photo.rgb
     H, W = rgb.shape[:2]
     hp, wp = small.shape[:2]
@@ -1972,6 +2120,9 @@ def outline_ceramic(photo, small, f, background, scale, ai=None):
                 if scale.found else None)
     if supports is not None:
         obj[supports] = 0
+    shadows = None if background.dark else cast_shadows(obj > 0, lab_small, background.small_model)
+    if shadows is not None:
+        obj[shadows] = 0
     charts, chart_discs, chart_attached = remove_charts(obj, lab_small, background.small_model, f,
                                                         (scale.px_cm if scale.found else 300 / 2.54) * f)
 
@@ -1984,6 +2135,7 @@ def outline_ceramic(photo, small, f, background, scale, ai=None):
     areas = stats[1:, cv2.CC_STAT_AREA].astype(float)
     keep = np.zeros(n, bool)
     label_ids = []                            # components taken for paper labels
+    printed, printed_ids = [], []             # scales, labels, cards recognised without a scale (outlines)
     face_dist, near_scale = None, 0           # distance to the printed face; objects kept near the scale
     px_cm_small = scale.px_cm * f if scale.found else None
     for i in range(1, n):
@@ -2006,6 +2158,13 @@ def outline_ceramic(photo, small, f, background, scale, ai=None):
             continue
         if px_cm_small and a < 0.25 * px_cm_small ** 2:
             continue
+        if not scale.found and printed_element(lab_small, lab[y:y + h, x:x + w] == i, (x, y), (wp, hp)):
+            # no scale measured: the scale itself, a ruler, a label or a card is still not the object
+            cs, _ = cv2.findContours((lab[y:y + h, x:x + w] == i).astype(np.uint8), cv2.RETR_EXTERNAL,
+                                     cv2.CHAIN_APPROX_SIMPLE)
+            printed += [(c.reshape(-1, 2) + [x, y] + 0.5) / f - 0.5 for c in cs]
+            printed_ids.append(i)
+            continue
         if background.dark and label_card(lab_small, lab[y:y + h, x:x + w] == i, (x, y)):
             # paper label on black velvet: white, uncoloured and rectangular
             cs, _ = cv2.findContours((lab[y:y + h, x:x + w] == i).astype(np.uint8), cv2.RETR_EXTERNAL,
@@ -2015,6 +2174,10 @@ def outline_ceramic(photo, small, f, background, scale, ai=None):
             continue
         keep[i] = True
     label_kept = False
+    if keep.sum() == 0 and printed_ids:
+        # everything looks printed: rather a straight-sided object alone on the photo - kept, to check
+        keep[printed_ids] = True
+        printed, label_kept = [], True
     if keep.sum() == 0 and label_ids:
         # everything looks like a label: rather a small pale sherd alone on the photo - kept, to check
         keep[label_ids] = True
@@ -2038,6 +2201,15 @@ def outline_ceramic(photo, small, f, background, scale, ai=None):
             if (z & near).any():
                 cs, _ = cv2.findContours(z.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
                 support_outlines += [(c.reshape(-1, 2) + 0.5) / f - 0.5 for c in cs]
+    shadow_outlines = []                      # cast shadows removed along the kept objects (idem)
+    if shadows is not None:
+        near = cv2.dilate(obj.astype(np.uint8), disk(3)) > 0
+        ns, ls = cv2.connectedComponents(shadows.astype(np.uint8), connectivity=8)
+        for i in range(1, ns):
+            z = ls == i
+            if (z & near).any():
+                cs, _ = cv2.findContours(z.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                shadow_outlines += [(c.reshape(-1, 2) + 0.5) / f - 0.5 for c in cs]
 
     # Refinement at full resolution over the useful area
     ys, xs = np.nonzero(obj)
@@ -2051,6 +2223,12 @@ def outline_ceramic(photo, small, f, background, scale, ai=None):
     lab_roi = to_lab(cv2.GaussianBlur(roi, (3, 3), 0))
     model = background.evaluate(X0, Y0, w, h, W, H)
     d = distance(lab_roi, model)
+    shade = None
+    if shadows is not None:                   # pixels of the colour of a shadow on this background
+        kr = (lab_roi[..., 0] + 1) / (model[..., 0] + 1)
+        shade = ((kr > SHADOW_K[0]) & (kr < SHADOW_K[1])
+                 & (np.hypot(lab_roi[..., 1] - kr * model[..., 1], lab_roi[..., 2] - kr * model[..., 2]) < SHADOW_CD))
+        del kr
     del lab_roi, model
     gx0, gy0 = (X0 + 0.5) * f - 0.5, (Y0 + 0.5) * f - 0.5
     Mup = np.array([[f, 0, gx0], [0, f, gy0]], np.float64)
@@ -2076,7 +2254,12 @@ def outline_ceramic(photo, small, f, background, scale, ai=None):
         sup_big = cv2.warpAffine(cv2.dilate(supports.astype(np.uint8), disk(2)).astype(np.float32), Mup, (w, h),
                                  flags=cv2.INTER_LINEAR | cv2.WARP_INVERSE_MAP) > 0.5
         m &= ~(sup_big & (d < SUPPORT_T + 3))
-    hole_area = 0.02 * scale.px_cm ** 2 if scale.found else 300
+    if shade is not None:                     # the shadows removed stay out at full resolution
+        sh_big = cv2.warpAffine(cv2.dilate(shadows.astype(np.uint8), disk(2)).astype(np.float32), Mup, (w, h),
+                                flags=cv2.INTER_LINEAR | cv2.WARP_INVERSE_MAP) > 0.5
+        m &= ~(sh_big & shade)
+        del sh_big, shade
+    hole_area =0.02 * scale.px_cm ** 2 if scale.found else 300
     m = fill_holes(m, d, hole_area, keep_open=sup_big)
     m &= ~chart_cut                                                 # (a ring of shadow may enclose it)
     if background.dark:
@@ -2120,9 +2303,12 @@ def outline_ceramic(photo, small, f, background, scale, ai=None):
         "pieces": n_pieces,
         "isolated": isolated,                   # small isolated elements discarded (outlines, image frame)
         "labels": labels,                       # paper labels discarded on a dark background (idem)
+        "printed": printed,                     # scales, labels, cards discarded without a scale (idem)
+        "dark": bool(background.dark),          # dark background: the colours of the edge are cleaned
         "label_kept": label_kept,               # the only object looked like a label: kept, to check
         "near_scale": near_scale,               # objects kept although lying in the scale zone
         "supports": support_outlines,           # translucent supports removed (outlines, image frame)
+        "shadows": shadow_outlines,             # cast shadows removed (idem)
         "charts": charts,                       # colour charts discarded (outlines, image frame)
         "chart_attached": chart_attached,       # a colour chart seems to touch the kept ceramic
         "ai_removed": ai_removed,               # background removed on the AI's advice (outlines, image frame)
@@ -2153,7 +2339,7 @@ def find_putty(rgb, cer, px_cm):
     m = cv2.copyMakeBorder(m, pad, pad, pad, pad, cv2.BORDER_CONSTANT, value=0)
     g = cv2.cvtColor(r, cv2.COLOR_RGB2GRAY).astype(np.float32)
     hp = g - cv2.GaussianBlur(g, (0, 0), 1.2)
-    tex = np.sqrt(cv2.blur(hp * hp, (7, 7)))             # surface grain (shading excluded)
+    tex = np.sqrt(np.maximum(cv2.blur(hp * hp, (7, 7)), 0))   # surface grain (shading excluded; >= 0: rounding)
     lab = to_lab(cv2.GaussianBlur(r, (5, 5), 0))
 
     parts = []
@@ -2289,6 +2475,8 @@ def ai_providers(device, model):
 
 
 def _ai_open(model, providers, jobs):
+    """Opens an ONNX model with onnxruntime (graphics card or processor), threads shared by the
+    photos processed in parallel."""
     import onnxruntime as ort
     so = ort.SessionOptions()
     so.log_severity_level = 3
@@ -2371,6 +2559,8 @@ class ClickCutout:
     computed cut-out agrees with it, the edge of the computed cut-out is kept."""
 
     def __init__(self, progress=None):
+        """Loads the two parts of MobileSAM (image encoder, mask decoder); downloads them
+        the first time."""
         import onnxruntime as ort
         so = ort.SessionOptions()
         so.log_severity_level = 3
@@ -2430,6 +2620,8 @@ def click_refine(sam, computed, band):
 
 @dataclass
 class Layer:
+    """One layer of the output files: name, position on the canvas, pixels, mask (or None),
+    visible or hidden."""
     name: str
     x: int
     y: int
@@ -2469,7 +2661,43 @@ def composite(layers, W, H):
     return np.clip(rgb + 0.5, 0, 255).astype(np.uint8), np.clip(a_acc * 255 + 0.5, 0, 255).astype(np.uint8)
 
 
+EDGE_BAND = 3          # px: edge of a cut-out on a dark background whose colours are cleaned
+
+
+def decontaminate_edge(rgb, mask, band=EDGE_BAND):
+    """Dark background: the pixels of the edge (the half-transparent ones and the last `band` pixels
+    inside) mix the colour of the object with the dark background: a thin dark line around the sherd,
+    whatever the cut-out. Their colour is replaced by the colour of the object just inside (normalised
+    Gaussian average of the inner pixels), where it is lighter - the outline (mask) is not changed."""
+    solid = (mask >= 250).astype(np.uint8)
+    core = cv2.distanceTransform(solid, cv2.DIST_L2, 3) > band
+    edge = (mask > 0) & ~core
+    if not edge.any() or not core.any():
+        return rgb
+    w = core.astype(np.float32)
+    sig = max(1.5, band)
+    num = cv2.GaussianBlur(rgb.astype(np.float32) * w[..., None], (0, 0), sig)
+    den = cv2.GaussianBlur(w, (0, 0), sig)
+    for _ in range(3):                         # thin parts: a wider average where the first one is empty
+        if (den[edge] > 0.02).all():
+            break
+        sig *= 2
+        num2 = cv2.GaussianBlur(rgb.astype(np.float32) * w[..., None], (0, 0), sig)
+        den2 = cv2.GaussianBlur(w, (0, 0), sig)
+        low = den <= 0.02
+        num[low], den[low] = num2[low], den2[low]
+    fill = num / np.maximum(den, 1e-6)[..., None]
+    darker = rgb.astype(np.float32).mean(axis=2) < fill.mean(axis=2)
+    out = rgb.copy()
+    sel = edge & darker & (den > 0.02)
+    out[sel] = np.clip(fill[sel] + 0.5, 0, 255).astype(np.uint8)
+    return out
+
+
 def layout(photo, cer, scale, opts):
+    """Builds the layers of the output files: the object with its mask, the scale (straightened
+    under the object, or where it was photographed), the whole photo (hidden layer); sizes of
+    the canvas with the margins. Returns the layers of the PSD and those of the TIFF alone."""
     rgb = photo.rgb
     H, W = rgb.shape[:2]
     px_cm = scale.px_cm if scale.found else None
@@ -2528,6 +2756,9 @@ def layout(photo, cer, scale, opts):
         cer_mask = np.zeros(cer_rgb.shape[:2], np.uint8)
         cer_mask[border:border + ch, border:border + cw] = cer["alpha"]
 
+    if cer.get("dark"):
+        cer_rgb = decontaminate_edge(cer_rgb, cer_mask)
+
     layers = []
     if not opts.no_original_layer:
         # the whole photo, placed where it falls on the canvas: what lies beyond the canvas (the scale
@@ -2549,6 +2780,7 @@ def layout(photo, cer, scale, opts):
 # --------------------------------------------------------------------------
 
 def _packbits_block(a):
+    """PackBits compression (the RLE of Photoshop) of a block of rows, vectorised with numpy."""
     h, w = a.shape
     flat = a.ravel()
     n = flat.size
@@ -2588,6 +2820,7 @@ def _packbits_block(a):
 
 
 def packbits(a, block=256):
+    """PackBits compression of a whole channel, block by block; returns the row lengths and data."""
     a = np.ascontiguousarray(a, np.uint8)
     cs, ds = [], []
     for y in range(0, a.shape[0], block):
@@ -2598,25 +2831,30 @@ def packbits(a, block=256):
 
 
 def rle_channel(a):
+    """A channel as Photoshop stores it: compression flag 1 (RLE), row lengths, data."""
     c, d = packbits(a)
     return struct.pack(">H", 1) + c.astype(">u2").tobytes() + d.tobytes()
 
 
 def _pascal(b, multiple):
+    """Pascal string (length byte + text), padded, as in the PSD format."""
     s = bytes([len(b)]) + b
     return s + b"\x00" * ((-len(s)) % multiple)
 
 
 def _resource(rid, data):
+    """PSD image resource block ("8BIM", id, data padded to an even length)."""
     return (b"8BIM" + struct.pack(">H", rid) + b"\x00\x00" + struct.pack(">I", len(data)) + data
             + (b"\x00" if len(data) % 2 else b""))
 
 
 def _unicode(s):
+    """Unicode string of the PSD format (length + UTF-16 big-endian)."""
     return struct.pack(">I", len(s)) + s.encode("utf-16-be")
 
 
 def _xml(s):
+    """Escapes &, < and > for XML."""
     return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
@@ -2666,6 +2904,7 @@ def iptc_values(pr, values, name):
 
 
 def _iptc_prop(prop, kind, value):
+    """One XMP property as RDF: plain text, one-language alternative (Alt) or list (Bag/Seq)."""
     if kind == "alt":
         return f'<{prop}><rdf:Alt><rdf:li xml:lang="x-default">{_xml(value)}</rdf:li></rdf:Alt></{prop}>'
     if kind in ("bag", "seq"):
@@ -2768,6 +3007,8 @@ def write_sidecar(photo_path, xmp, folder=None):
 
 
 def write_psd(path, W, H, layers, comp_rgb, comp_a, dpi, icc, exif, xmp):
+    """Writes the layered Photoshop file byte by byte: header, resolution in cm, ICC profile,
+    EXIF and XMP, layers with their masks (PackBits), flattened image. See PSEUDOCODE §13."""
     res = b""
     fx = int(round(dpi * 65536))
     res += _resource(0x03ED, struct.pack(">IHHIHH", fx, 1, 2, fx, 1, 2))   # resolution, units in cm
@@ -2851,6 +3092,8 @@ TIFF_COMPRESSIONS = {"lzw": "tiff_lzw", "zip": "tiff_adobe_deflate", "none": Non
 
 
 def write_tiff(path, rgb, a, dpi, icc, xmp, fields, description, background, compression):
+    """Writes a TIFF (transparent or on white, LZW / ZIP / none) at the 1:1 resolution, with
+    the ICC profile, the XMP and the main text tags."""
     if background == "white":
         al = a.astype(np.float32)[..., None] / 255.0
         img = Image.fromarray(np.clip(rgb * al + 255 * (1 - al) + 0.5, 0, 255).astype(np.uint8), "RGB")
@@ -2879,6 +3122,7 @@ def write_tiff(path, rgb, a, dpi, icc, xmp, fields, description, background, com
 # --------------------------------------------------------------------------
 
 def font(size):
+    """A TrueType font for the texts of the control preview (Arial, Segoe UI, DejaVu...)."""
     for name in ("arial.ttf", "segoeui.ttf", "DejaVuSans.ttf"):
         try:
             return ImageFont.truetype(name, size)
@@ -2888,6 +3132,9 @@ def font(size):
 
 
 def control_image(path, photo, cer, scale, text_lines):
+    """The control preview (to_control): reduced photo, outline of the cut-out in green,
+    scale in magenta with its marks, what was discarded in red, removed by the AI in cyan,
+    and the main information written on top."""
     rgb = photo.rgb
     H, W = rgb.shape[:2]
     k = 1600 / max(H, W)
@@ -2899,9 +3146,10 @@ def control_image(path, photo, cer, scale, text_lines):
         cs, _ = cv2.findContours(m, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
         cs = [np.round((c.astype(np.float32) + [x0, y0] + 0.5) * k - 0.5).astype(np.int32) for c in cs]
         cv2.drawContours(vis, cs, -1, (0, 200, 0), 2, cv2.LINE_AA)
-        for pf in cer.get("supports", []):                            # removed supports: blue outline
+        for pf in cer.get("supports", []) + cer.get("shadows", []):   # removed supports, shadows: blue
             cv2.polylines(vis, [np.round((pf + 0.5) * k - 0.5).astype(np.int32)], True, (30, 90, 255), 2, cv2.LINE_AA)
-        for pf in cer.get("isolated", []) + cer.get("charts", []) + cer.get("labels", []):   # discarded: red
+        for pf in (cer.get("isolated", []) + cer.get("charts", []) + cer.get("labels", [])
+                   + cer.get("printed", [])):                                             # discarded: red
             cv2.polylines(vis, [np.round((pf + 0.5) * k - 0.5).astype(np.int32)], True, (230, 40, 40), 2, cv2.LINE_AA)
         for pf in cer.get("ai_removed", []):                          # background removed by the AI: cyan
             cv2.polylines(vis, [np.round((pf + 0.5) * k - 0.5).astype(np.int32)], True, (0, 220, 255), 2, cv2.LINE_AA)
@@ -2969,6 +3217,7 @@ PROBLEMS = [
 
 
 def output_paths(folder, base, doubtful):
+    """Paths of the files of a photo (PSD, TIFF, preview), with _to_be_verified when doubtful."""
     s = DOUBT_SUFFIX if doubtful else ""
     return {
         "psd": os.path.join(folder, f"{base}{s}.psd"),
@@ -3167,9 +3416,10 @@ def cutout_from_mask(mask, cer):
     alpha = np.clip(alpha + 0.5, 0, 255).astype(np.uint8)
     ys, xs = np.nonzero(alpha > 0)
     bx0, by0, bx1, by1 = xs.min(), ys.min(), xs.max() + 1, ys.max() + 1
-    out = {"isolated": [], "labels": [], "near_scale": 0, "supports": [], "charts": [], "chart_attached": False,
-           "ai_removed": [], "ai_area": 0.0, "removed": []}
-    out.update({k: v for k, v in (cer or {}).items() if k in ("isolated", "labels", "supports", "charts")})
+    out = {"isolated": [], "labels": [], "printed": [], "near_scale": 0, "supports": [], "shadows": [],
+           "charts": [], "chart_attached": False, "ai_removed": [], "ai_area": 0.0, "removed": []}
+    out.update({k: v for k, v in (cer or {}).items()
+                if k in ("isolated", "labels", "printed", "supports", "shadows", "charts", "dark")})
     n, _ = cv2.connectedComponents(m[y0:y1, x0:x1], connectivity=8)
     out.update({"alpha": alpha[by0:by1, bx0:bx1], "box": (x0 + bx0, y0 + by0, x0 + bx1, y0 + by1),
                 "pieces": n - 1, "edited": True})
@@ -3305,12 +3555,16 @@ def process_photo(path, opts, out_dir, plan=None):
             notes.append("small isolated element discarded (red outline in preview)")
         if cer is not None and cer.get("labels"):
             notes.append("paper label discarded (red outline in preview)")
+        if cer is not None and cer.get("printed"):
+            notes.append("scale, label or card discarded (red outline in preview)")
         if cer is not None and cer.get("label_kept"):
             doubts.append("the only object looks like a paper label (kept: check it)")
         if cer is not None and cer.get("near_scale"):
             notes.append(f"{cer['near_scale']} object(s) lying close to the scale kept")
         if cer is not None and cer.get("supports"):
             notes.append("translucent support removed (blue outline in preview)")
+        if cer is not None and cer.get("shadows"):
+            notes.append("cast shadow removed (blue outline in preview)")
         if cer is not None and cer.get("charts"):
             notes.append("colour chart discarded (red outline in preview)")
         if cer is not None and cer.get("chart_attached"):
@@ -3395,20 +3649,33 @@ def process_photo(path, opts, out_dir, plan=None):
 
 
 def _init_worker():
+    """Each worker process limits OpenCV to 2 threads (photos are already processed in
+    parallel)."""
     cv2.setNumThreads(2)
 
 
+GERBIL_OUTPUT = re.compile(r"_(outlined(_scale)?|to_control)(_to_be_verified)?\.[a-z]+$|_thumb\.[a-z]+$", re.I)
+
+
 def list_photos(inputs):
-    files = []
+    """Photos of the folders / files given. Gerbil's own results (NAME_outlined.tif, _to_control.jpg…)
+    lying among the photos (result folder = photo folder) are left out: never processed again."""
+    files, skipped = [], 0
     for e in inputs:
         if os.path.isdir(e):
             for name in sorted(os.listdir(e)):
                 if os.path.splitext(name)[1].lower() in EXTENSIONS:
+                    if GERBIL_OUTPUT.search(name):
+                        skipped += 1
+                        continue
                     files.append(os.path.join(e, name))
         elif os.path.isfile(e):
             files.append(e)
         else:
             print(f"Not found: {e}")
+    if skipped:
+        print(f"{skipped} result file(s) of Gerbil among the photos left out (choose a result folder other "
+              "than the photo folder)")
     return files
 
 
@@ -3416,14 +3683,22 @@ class _HelpFormatter(argparse.ArgumentDefaultsHelpFormatter):
     """Shows the default value only when it is meaningful."""
 
     def _get_help_string(self, action):
+        """Help of an option: its default value shown only when it means
+        something."""
         if action.default in (None, False):
             return action.help
         return super()._get_help_string(action)
 
 
 def main(argv=None):
+    """Command line: reads the options, lists the photos, plans their output names (batch
+    renaming), processes them in parallel (process_photo), writes the report and prints the
+    summary of the problems."""
     try:
-        sys.stdout.reconfigure(errors="replace")
+        if sys.stdout.isatty():
+            sys.stdout.reconfigure(errors="replace")
+        else:                       # read by the interface: UTF-8 (the .exe ignores PYTHONIOENCODING: cm²)
+            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     except Exception:
         pass
     p = argparse.ArgumentParser(
@@ -3608,6 +3883,7 @@ def print_summary(rows):
 
 
 def print_row(row, i, n):
+    """One line of progress for a photo: [i/n] name: status (scale, time) | doubts and notes."""
     info = (f"{row['scale_type']} {row['scale_length_cm']} cm, {row['px_per_cm']} px/cm"
             if row["scale_found"] == "yes" else "no scale")
     det = " | ".join(x for x in (row["to_verify"], row["notes"]) if x)

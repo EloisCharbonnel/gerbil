@@ -704,6 +704,24 @@ Python standard library
       -> a reflection of the background on a black gloss is excluded: it runs
          along the ceramic, it is darker and of the same hue
       -> these areas are removed from the object
+  cast_shadows (light background only; a shadow does not show on velvet):
+      k = L / L_background; cd = sqrt((a - k a_bg)² + (b - k b_bg)²) (distance
+      to the colour of the darkened background); texture = standard deviation
+      of L over 5 x 5 px
+      candidate pixels of the object: 0.3 < k < 0.92, cd < 6, texture under
+          max(1.5; 2.5 x the median texture of the background); opening
+          (disc 2); regions of at least max(50 px; 0.2 % of the object)
+      a region is a cast shadow IF it lies along the outline: at least 15 % of
+          its own outline against the background, AND it fades into the
+          background: mean gradient of L on that edge < 0.5 x the median
+          gradient on the rest of the object's outline (penumbra; the edge of
+          an object is sharp)
+      (open photos of finds: shadows touch 21-66 %, gradient ratio 0.07-0.40;
+       dark smooth patches of objects - black gloss, obsidian, grey flint -
+       touch the background on 0-5 % of their outline)
+      -> removed from the object; at full resolution, the pixels of the
+         colour of a shadow (same k and cd) in these regions (dilated 2 px)
+         stay out; blue outline in the preview, note "cast shadow removed"
   remove_charts (colour charts), for each component ≥ 0.25 cm²:
       colour_chart:
           saturated pixels = chroma C* > 30 (§3.1)
@@ -744,6 +762,25 @@ Python standard library
         13.2 at most; the card edge stays within 0.35 cm of the face)
       - not stuck to the edge of the photo with less than 30 % of the largest;
       - at least 0.25 cm²
+      - when no scale is measured (not found, or --no-scale), not a printed
+        element (printed_element: scale bar, ruler, label, colour card):
+          straight_outline: the outline is closed (disc of 1.2 % of the square
+          root of the area: ruler ticks and scale squares make a straight side),
+          simplified (Douglas-Peucker), and the share of its length (sides lying
+          along the photo border left out) in long sides (≥ 8 % of the square
+          root of the area) within 4° of the directions of its minimum-area
+          rectangle is measured (scale bar, even L-shaped: ~1; objects: 0.74 at
+          most, a pin, on 562 pieces of 191 open photos)
+          printed IF straight ≥ 0.85 and the closed outline fills ≥ 85 % of its
+               rectangle (a ruler of any colour; a pin or an awl tapers)
+             OR straight ≥ 0.6 and (median chroma ≤ 15, or filling ≥ 90 %, or
+               ≥ 30 % of black (L* < 35) or white (L* > 80) uncoloured pixels)
+             OR straight ≥ 0.4 and median chroma ≤ 8 and (≥ 60 % white, or
+               ≥ 15 % black AND ≥ 15 % white: checkerboard)
+          (a black blade, all dark, no white, stays an object); red outline,
+          note "scale, label or card discarded". If every object is "printed",
+          they are kept and the photo flagged. Never used when a scale is found:
+          those results do not change
       - on a dark background only, not a paper label (label_card): median
         L* ≥ 78 and filling ≥ 85 % of its minimum-area rectangle, and
         chroma ≤ 12, or b* < 0 and chroma ≤ 30 (bluish white: optical
@@ -792,6 +829,10 @@ Python standard library
   opening (disc 2); closing (disc 2); 5x5 median filter
   1 px erosion (avoids a thin line of background colour)
   alpha <- Gaussian blur σ = 0.8 px of the mask (softened edge, anti-aliasing)
+  (dark background, at the layout: decontaminate_edge - in the half-transparent
+   pixels and the last 3 px inside, the colour is replaced by the normalised
+   Gaussian average of the inner pixels where it is lighter: no dark line;
+   the mask is unchanged; also on masks corrected by hand)
   RETURN alpha, bounding rectangle, number of pieces, outlines of the
          discarded elements, of the removed supports, of the colour charts and
          of the areas removed by the AI (and their area)

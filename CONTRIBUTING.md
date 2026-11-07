@@ -24,7 +24,9 @@ owner agrees.
 
 - `gerbil.py`: engine and command line (scale, cut-out, PSD / TIFF, report, metadata).
 - `gerbil_gui.pyw`: interface (tkinter); `gerbil_plates.py`: plates (SVG); `gerbil_tools.py`: inventory and
-  thumbnails; `packaging/`: installer; `docs/PSEUDOCODE.txt` explains every step of the processing.
+  thumbnails; `packaging/`: installer; `docs/PSEUDOCODE.txt` explains every step of the processing and
+  `docs/CODE_GUIDE.md` the code itself (regenerate it with `py -3 docs/make_code_guide.py`: every function
+  needs a docstring saying what it does).
 - Python 3.10 or later; packages in `requirements.txt`. Code, messages and documents in English
   (interface translations welcome); comments explain *why*, in the style of the surrounding code.
 - Tests: `tests/`, on synthetic photos made by `tests/synthetic.py` (the repository holds no real photo).
