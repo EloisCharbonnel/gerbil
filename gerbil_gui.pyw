@@ -58,16 +58,189 @@ def open_photo_image(path, small=False):
 
 
 CREDITS = "© 2026 Eloïs CHARBONNEL"
+VERSION = "2.1"
 REQUIRED = {"numpy": "numpy", "cv2": "opencv-python-headless", "PIL": "pillow",
             "rawpy": "rawpy"}   # module: pip package
 AI_PACKAGE = "onnxruntime-directml" if sys.platform == "win32" else "onnxruntime"
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
-# palette
-LAVENDER, MINT, TERRACOTTA = "#A596D6", "#ABD6B4", "#D69E89"
-LAVENDER_DARK, LAVENDER_PALE, LAVENDER_LINE = "#5B4D96", "#ECE8F7", "#DCD5F0"
-MINT_DARK, TERRACOTTA_DARK = "#2E7D4F", "#A85A3E"
-WINDOW_BG, CARD_BG, TEXT, MUTED, RED = "#F6F4FB", "#FFFFFF", "#231C3A", "#6E6888", "#B03A3A"
+# palette: violet ink, ITINERA blue-green, light grey squared paper
+VIOLET, VIOLET_2, LILAS, LILAS_2, LILAS_PALE = "#34245A", "#5B4794", "#DCD5EC", "#C9BFE3", "#F1EEF7"
+TEAL, TERRA = "#215353", "#B5582F"
+PAPER, GRID, GRID_2, LINE = "#F3F3F4", "#E5E5E8", "#D5D5DA", "#D3CEDC"
+# the earlier names, used by the other windows
+LAVENDER, MINT, TERRACOTTA = "#B5A8DA", "#9FD3CF", "#D9A58C"
+LAVENDER_DARK, LAVENDER_PALE, LAVENDER_LINE = VIOLET, LILAS_PALE, LINE
+MINT_DARK, TERRACOTTA_DARK = TEAL, TERRA
+WINDOW_BG, CARD_BG, TEXT, MUTED, RED = PAPER, "#FFFFFF", "#1F1D24", "#66626E", "#A8322B"
+
+# fonts: serif only (titles, text, typewriter numbers); the ones of the fonts folder when shipped, else the
+# closest ones of the system
+FONTS = os.path.join(RESOURCES, "fonts")
+FONT_DISPLAY, FONT_SERIF, FONT_MONO = "Georgia", "Georgia", "Courier New"
+
+
+def load_fonts(root):
+    """The fonts of the interface: those shipped in the fonts folder (loaded for this program only), else
+    the closest ones installed (Garamond, Cambria, Georgia, Courier New)."""
+    global FONT_DISPLAY, FONT_SERIF, FONT_MONO
+    if sys.platform == "win32" and os.path.isdir(FONTS):
+        try:
+            import ctypes
+            for f in os.listdir(FONTS):
+                if f.lower().endswith((".ttf", ".otf")):
+                    ctypes.windll.gdi32.AddFontResourceExW(os.path.join(FONTS, f), 0x10, 0)   # FR_PRIVATE
+        except (OSError, AttributeError):
+            pass
+    from tkinter import font as tkfont
+    have = set(tkfont.families(root))
+    pick = lambda names: next((n for n in names if n in have), names[-1])
+    FONT_DISPLAY = pick(["Cormorant Garamond", "Garamond", "Georgia"])
+    FONT_SERIF = pick(["Source Serif 4", "Source Serif Pro", "Cambria", "Georgia"])
+    FONT_MONO = pick(["Courier Prime", "Courier New"])
+
+
+# languages of the interface (main window): French or English
+LANG = "fr"
+
+
+def system_lang():
+    """fr when Windows (or the locale) is in French, else en."""
+    try:
+        if sys.platform == "win32":
+            import ctypes
+            return "fr" if ctypes.windll.kernel32.GetUserDefaultUILanguage() & 0xFF == 0x0C else "en"
+        import locale
+        return "fr" if (locale.getlocale()[0] or "").lower().startswith("fr") else "en"
+    except Exception:
+        return "en"
+
+
+def T(fr, en):
+    """The text in the language of the interface."""
+    return fr if LANG == "fr" else en
+
+
+STEPS = [("Photographies sources", "Source photographs"), ("Nommage et métadonnées", "Naming and metadata"),
+         ("Traitement", "Processing"), ("Vérification", "Review"), ("Publication", "Publication")]
+
+# settings of the processing: kind, label (fr, en), choices or (min, max, step)
+OPTION_SPECS = {
+    "psd": ("check", ("Fichier Photoshop (.psd)", "Photoshop file (.psd)"), None),
+    "original_layer": ("check", ("Calque caché de la photographie entière", "Hidden layer of the whole photo"), None),
+    "original_copy": ("check", ("Copie de la photographie originale", "Copy of the original photo"), None),
+    "control": ("check", ("Aperçus de contrôle (to_control)", "Control previews (to_control)"), None),
+    "background": ("choice", ("Fond des TIFF", "TIFF background"), ["transparent", "white"]),
+    "compression": ("choice", ("Compression des TIFF", "TIFF compression"), ["lzw", "zip", "none"]),
+    "jobs": ("number", ("Photographies en parallèle", "Photos in parallel"), (1, 64, 1)),
+    "open": ("check", ("Ouvrir les résultats à la fin", "Open the results at the end"), None),
+    "scale": ("check", ("Chercher l'échelle", "Look for the scale"), None),
+    "scale_cm": ("choice", ("Longueur de l'échelle (cm)", "Scale length (cm)"), ["auto", "5", "10"]),
+    "default_ppi": ("number", ("Sans échelle (ppp)", "Without scale (ppi)"), (50, 2400, 50)),
+    "layout": ("choice", ("Place de l'échelle", "Scale placement"), ["recompose", "original"]),
+    "margin_cm": ("number", ("Marge (cm)", "Margin (cm)"), (0, 5, 0.1)),
+    "gap_cm": ("number", ("Écart objet / échelle (cm)", "Object / scale gap (cm)"), (0, 5, 0.1)),
+    "remove_putty": ("check", ("Retirer la pâte à fixe", "Remove mounting putty"), None),
+    "ai": ("check", ("Second avis de l'IA", "AI second opinion"), None),
+    "ai_model": ("choice", ("Modèle d'IA", "AI model"), ["isnet", "birefnet"]),
+    "ai_device": ("choice", ("Processeur de l'IA", "AI device"), ["auto", "cpu"]),
+}
+OPTION_KEYS = list(OPTION_SPECS)
+ESSENTIAL_OPTIONS = ["psd", "background", "scale"]
+ADVANCED_OPTIONS = [(("Fichiers", "Files"), ["original_layer", "original_copy", "control", "compression"]),
+                    (("Traitement", "Run"), ["jobs", "open"]),
+                    (("Échelle et mise en page", "Scale and layout"),
+                     ["scale_cm", "default_ppi", "layout", "margin_cm", "gap_cm"]),
+                    (("Nettoyage", "Cleaning"), ["remove_putty", "ai", "ai_model", "ai_device"])]
+
+
+def option_value(key, v):
+    """A setting in a comparable form (the fields give text)."""
+    kind = OPTION_SPECS[key][0]
+    if kind == "check":
+        return v in (True, 1, "1", "True", "true")
+    if kind == "number":
+        return round(float(str(v).replace(",", ".")), 3)
+    return str(v)
+
+
+HELP_FR = {
+    "background": "Fond des fichiers TIFF : transparent, ou blanc.",
+    "compression": "Compression des TIFF, toutes sans perte : LZW (la plus compatible), ZIP (un peu plus petite), "
+                   "aucune.",
+    "psd": "Écrire NOM.psd avec les calques « Scale » et « Ceramic » (masques de fusion modifiables).",
+    "original_layer": "Garder dans le PSD un calque caché de la photographie entière (décoché : PSD 2 à 4 fois "
+                      "plus léger).",
+    "original_copy": "Copier la photographie originale dans le dossier des résultats.",
+    "control": "Écrire les aperçus de contrôle (dossier to_control).",
+    "layout": "recompose : échelle redressée et centrée sous l'objet. original : échelle laissée où elle a été "
+              "photographiée.",
+    "margin_cm": "Marge autour des objets, en cm.",
+    "gap_cm": "Écart entre l'objet et l'échelle, en cm.",
+    "scale": "Chercher l'échelle (cases de 1 cm ou réglet millimétré) pour fixer la résolution 1:1.",
+    "scale_cm": "Imposer la longueur de l'échelle si le compte des cases ne convient pas (auto : cases comptées).",
+    "default_ppi": "Résolution utilisée quand aucune échelle n'est trouvée.",
+    "remove_putty": "Retirer automatiquement la pâte à fixe soupçonnée (sinon elle est seulement signalée, zone "
+                    "rouge sur l'aperçu).",
+    "ai": "Second avis de l'IA : le réseau peut seulement retirer du fond que le script a gardé (perforations, "
+          "écarts entre tessons, halos), jamais ajouter. Nécessite onnxruntime.",
+    "ai_model": "IS-Net : rapide, utilise la carte graphique. BiRefNet : plus précis sur les perforations, "
+                "beaucoup plus lent (processeur).",
+    "ai_device": "auto : carte graphique si possible. cpu : processeur seulement.",
+    "jobs": "Nombre de photographies traitées en même temps.",
+    "open": "Ouvrir le ou les dossiers de résultats à la fin.",
+}
+
+
+def help_text(key):
+    """Help bubble of a setting, in the language of the interface."""
+    return HELP_FR[key] if LANG == "fr" else HELP[key]
+
+
+def scale_text(s):
+    """The scale part of an engine line ('checkerboard 10 cm, 100.00 px/cm, 1.3 s') in a few words."""
+    first = s.split(",")[0].strip()
+    if not first or first.startswith("no scale"):
+        return ""
+    for en, fr in (("checkerboard", "damier"), ("ruler", "réglet"), ("manual", "manuelle"), ("learned", "apprise")):
+        if first.startswith(en):
+            return T(fr, en) + first[len(en):]
+    return first
+
+
+DOUBTS = [("scale not detected", "Échelle non trouvée", "Scale not found"),
+          ("scale spotted but unreadable", "Échelle illisible", "Scale unreadable"),
+          ("squares detected (not", "Longueur d'échelle inhabituelle", "Unusual scale length"),
+          ("neither 5 nor 10", "Longueur d'échelle inhabituelle", "Unusual scale length"),
+          ("irregular", "Échelle irrégulière", "Irregular scale"),
+          ("ceramic cut by the photo edge", "Objet coupé par le bord", "Object cut by the edge"),
+          ("possible mounting putty", "Pâte à fixe possible", "Possible mounting putty"),
+          ("mounting putty removed", "Pâte à fixe retirée", "Mounting putty removed"),
+          ("colour chart touching", "Charte couleur contre l'objet", "Colour chart against the object"),
+          ("missing information", "Information manquante", "Missing information"),
+          ("name does not match", "Nom hors de la règle", "Name off the rule"),
+          ("output name already used", "Nom déjà utilisé", "Name already used"),
+          ("looks like a paper label", "Objet pris pour une étiquette", "Object taken for a label"),
+          ("no object detected", "Aucun objet trouvé", "No object found"),
+          ("no ceramic kept", "Aucun objet trouvé", "No object found"),
+          ("cast shadow removed", "Ombre retirée", "Shadow removed"),
+          ("translucent support removed", "Support retiré", "Support removed"),
+          ("scale, label or card discarded", "Échelle ou étiquette écartée", "Scale or label set aside"),
+          ("paper label discarded", "Étiquette écartée", "Label set aside"),
+          ("colour chart discarded", "Charte couleur écartée", "Colour chart set aside"),
+          ("lying close to the scale kept", "Objet près de l'échelle gardé", "Object near the scale kept"),
+          ("small isolated element discarded", "Petit élément isolé écarté", "Small isolated element set aside"),
+          ("squares read by their boundaries", "Échelle lue par ses limites", "Scale read by its boundaries"),
+          ("scale turned by reading its digits", "Échelle retournée", "Scale turned upright")]
+
+
+def doubt_text(s):
+    """A doubt or a note of the engine in a few words, in the language of the interface."""
+    low = s.lower()
+    for key, fr, en in DOUBTS:
+        if key in low:
+            return T(fr, en)
+    return s[:1].upper() + s[1:]
 
 DEFAULTS = {
     "output_mode": "next", "output_dir": "", "background": "transparent", "compression": "lzw",
@@ -76,7 +249,7 @@ DEFAULTS = {
     "scale": True, "scale_cm": "auto", "default_ppi": 300, "remove_putty": False,
     "ai": False, "ai_model": "isnet", "ai_device": "auto",
     "jobs": max(1, min(4, (os.cpu_count() or 2) // 2)), "open": True, "last_dir": "",
-    "plates": {}, "profile": "",
+    "plates": {}, "profile": "", "lang": "",
 }
 
 HELP = {
@@ -243,7 +416,7 @@ class Tooltip:
         self.tip.wm_overrideredirect(True)
         self.tip.wm_geometry(f"+{x}+{y}")
         tk.Label(self.tip, text=self.text, justify="left", wraplength=340, bg=TEXT, fg="white",
-                 font=("Segoe UI", 9), padx=8, pady=5).pack()
+                 font=(FONT_SERIF, 9), padx=8, pady=5).pack()
         Tooltip.current = self
         self.shown_at = time.time()
         self.job = self.widget.after(250, self._watch)
@@ -846,7 +1019,7 @@ class ProjectWindow:
             v.trace_add("write", lambda *_: self.helper_changed())
         ttk.Label(helper, text="In PowerShell:", style="Section.TLabel").grid(row=r + 2, column=0, sticky="w", pady=(8, 0))
         self.ps_code = tk.StringVar()
-        code = tk.Entry(helper, textvariable=self.ps_code, state="readonly", font=("Consolas", 9), width=46,
+        code = tk.Entry(helper, textvariable=self.ps_code, state="readonly", font=(FONT_MONO, 9), width=46,
                         readonlybackground="#F3F1FA", relief="flat")
         code.grid(row=r + 3, column=0, columnspan=2, sticky="ew")
         ttk.Button(helper, text="Copy the PowerShell line", style="Small.TButton",
@@ -966,7 +1139,7 @@ class ProjectWindow:
         cols = ["photo"] + [f["key"] for f in self.fields()] + ["output"]
         self.tree.configure(columns=cols)
         import tkinter.font as tkfont
-        fnt = tkfont.Font(font=("Segoe UI", 10))           # the font of the table (Treeview style)
+        fnt = tkfont.Font(font=(FONT_SERIF, 10))           # the font of the table (Treeview style)
         wid = lambda text: fnt.measure(text) + 26
         self._wid = wid
         self.tree.heading("photo", text="Photo", anchor="w")
@@ -1467,7 +1640,7 @@ class ReviewWindow:
         left = ttk.Frame(win, style="Card.TFrame", padding=8)
         left.pack(side="left", fill="y")
         ttk.Label(left, text="PHOTOS", style="Section.TLabel").pack(anchor="w")
-        self.listbox = tk.Listbox(left, width=34, activestyle="none", font=("Segoe UI", 9),
+        self.listbox = tk.Listbox(left, width=34, activestyle="none", font=(FONT_SERIF, 9),
                                   selectbackground=LAVENDER, highlightthickness=0, relief="flat")
         self.listbox.pack(fill="y", expand=True, pady=(4, 0))
         for it in items:
@@ -2379,7 +2552,7 @@ class PlatesWindow:
             "Each object at the reduction of its material (publication conventions, DMS Bruxelles 2009): "
             "ceramics and glass 1/3, iron 2/3, stone 1/3… The scale per object still prevails.")
         row(drawf, "Material column", combo(drawf, "material_field", st.material_field, fields, 16, "normal"))
-        rules = tk.Text(drawf, width=34, height=4, wrap="word", font=("Segoe UI", 9), relief="flat",
+        rules = tk.Text(drawf, width=34, height=4, wrap="word", font=(FONT_SERIF, 9), relief="flat",
                         highlightthickness=1, highlightbackground=LAVENDER_LINE)
         rules.insert("1.0", st.material_ratios)
         rules_var = var("material_ratios", st.material_ratios)
@@ -2784,7 +2957,7 @@ class ProfileWindow:
             "the same model may differ by 1 %). It is then found on the photos where the usual "
             "reading fails.")).grid(row=r, column=0, columnspan=2, sticky="w")
         r += 1
-        self.lb = tk.Listbox(card, height=5, activestyle="none", font=("Segoe UI", 9), relief="flat",
+        self.lb = tk.Listbox(card, height=5, activestyle="none", font=(FONT_SERIF, 9), relief="flat",
                              highlightthickness=1, highlightbackground=LAVENDER_LINE, selectbackground=LAVENDER)
         self.lb.grid(row=r, column=0, columnspan=2, sticky="ew", pady=4)
         r += 1
@@ -3024,7 +3197,7 @@ class InventoryWindow:
         ttk.Label(card, style="Muted.TLabel", wraplength=560, justify="left", text=(
             "The same inventory with Windows only (without the image information): paste this line into "
             "PowerShell.")).grid(row=7, column=0, columnspan=2, sticky="w")
-        self.line = tk.Text(card, height=6, width=80, wrap="char", font=("Consolas", 9), relief="flat",
+        self.line = tk.Text(card, height=6, width=80, wrap="char", font=(FONT_MONO, 9), relief="flat",
                             highlightthickness=1, highlightbackground=LAVENDER_LINE)
         self.line.grid(row=8, column=0, columnspan=2, sticky="ew", pady=4)
         ttk.Button(card, text="Copy the line", style="Small.TButton",
@@ -3155,36 +3328,106 @@ class ThumbnailsWindow:
             os.startfile(os.path.join(folder, "thumbnails"))
 
 
+class Mire(tk.Canvas):
+    """Progress bar drawn as an archaeological scale: two rows of squares, inked as the photos are done.
+    Answers like a ttk.Progressbar: configure(maximum=, value=, mode=), ["mode"], start(), stop()."""
+    SQUARES = 20
+
+    def __init__(self, parent, bg):
+        """An empty scale (the canvas takes the width it is given)."""
+        self.k = parent.winfo_fpixels("1i") / 96.0
+        super().__init__(parent, height=int(14 * self.k), bg=bg, highlightthickness=0)
+        self._state = {"maximum": 1, "value": 0, "mode": "determinate"}
+        self._job, self._phase = None, 0
+        self.bind("<Configure>", lambda _: self._draw())
+
+    def configure(self, cnf=None, **kw):
+        """maximum, value and mode are the bar's own; the rest goes to the canvas."""
+        for k in ("maximum", "value", "mode"):
+            if k in kw:
+                self._state[k] = kw.pop(k)
+        if cnf or kw:
+            super().configure(cnf, **kw)
+        self._draw()
+
+    config = configure
+
+    def __getitem__(self, key):
+        return self._state[key] if key in self._state else super().__getitem__(key)
+
+    def start(self, interval=15):
+        """Moving scale while the length of the work is unknown (installation)."""
+        self.stop()
+        self._state["mode"] = "indeterminate"
+
+        def tick():
+            self._phase = (self._phase + 1) % self.SQUARES
+            self._draw()
+            self._job = self.after(max(60, interval * 6), tick)
+        tick()
+
+    def stop(self):
+        """Stops the moving scale."""
+        if self._job:
+            self.after_cancel(self._job)
+            self._job = None
+
+    def _draw(self):
+        """The squares: inked (violet / white) up to the value, light (white / lilac) beyond."""
+        self.delete("all")
+        w = self.winfo_width()
+        if w < 40:
+            return
+        n, top, h = self.SQUARES, int(2 * self.k), max(4, int(5 * self.k))
+        sq = (w - 2) / n
+        st = self._state
+        done = round(n * min(1.0, float(st["value"]) / max(float(st["maximum"]), 1e-9)))
+        for row in (0, 1):
+            for i in range(n):
+                ink = (i % 2 == 0) == (row == 0)
+                on = (abs(i - self._phase) <= 2) if st["mode"] == "indeterminate" else i < done
+                colour = (VIOLET if ink else "#FFFFFF") if on else ("#FFFFFF" if ink else LILAS)
+                x0 = 1 + i * sq
+                self.create_rectangle(x0, top + row * h, x0 + sq, top + (row + 1) * h, fill=colour, width=0)
+        self.create_rectangle(1, top, w - 1, top + 2 * h, outline=VIOLET, width=1)
+
+
 class App:
-    """The main window: list of photos, options, Run, log; it starts the engine and opens the
-    other windows (batch renaming, scale, review, plates, profiles, tools)."""
+    """The main window: a column of five steps (source photographs, naming and metadata, processing,
+    review, publication) and the page of the step chosen; it starts the engine and opens the other
+    windows (batch renaming, scale, review, plates, profiles, tools)."""
     def __init__(self, root, paths=(), selftest=None):
-        """The main window: settings, styles, widgets, checks of the packages."""
+        """The main window: settings, fonts, styles, widgets, checks of the packages."""
+        global LANG
         self.root = root
         self.selftest = selftest
         # self-test: default settings, results in the given folder, the user's settings untouched
         self.s = load_settings() if not selftest else dict(
             DEFAULTS, output_mode="other", output_dir=selftest, psd=False, open=False)
+        LANG = self.s.get("lang") or system_lang()
         self.proc = None
         self.lines = queue.Queue()
         self.results = []
         self.counts = {}
         self.total = 0
-        root.title("Gerbil - Archaeological photo toolkit")
-        root.configure(bg=WINDOW_BG)
+        self.rows = []                      # results of the last run: (photo, status, scale, todo, path)
+        self.index, self.no_scale = {}, []
+        self.page = 0
+        root.title("Gerbil")
+        root.configure(bg=PAPER)
+        load_fonts(root)
+        self.k = root.winfo_fpixels("1i") / 96.0           # screen scaling: pixel sizes follow it
         self._icon()
         self._style()
         self._build()
         self.add_paths(paths)
         self.kind = "script"
         self.check_packages()
-        # size from the content (screen scaling included), within the screen
-        root.update_idletasks()
-        w, h = root.winfo_reqwidth(), root.winfo_reqheight()
         sw, sh = root.winfo_screenwidth(), root.winfo_screenheight()
-        w, h = min(int(w * 1.12), int(sw * 0.95)), min(h + 20, int(sh * 0.9))
+        scale = root.winfo_fpixels("1i") / 96.0
+        w, h = min(int(1280 * scale), int(sw * 0.95)), min(int(800 * scale), int(sh * 0.9))
         root.geometry(f"{w}x{h}+{max(0, (sw - w) // 2)}+{max(0, (sh - h) // 3)}")
-        root.minsize(min(w, int(sw * 0.6)), min(h, int(sh * 0.6)))
+        root.minsize(min(int(1020 * scale), w), min(int(640 * scale), h))
         root.protocol("WM_DELETE_WINDOW", self.close)
         if selftest:
             root.iconify()                                  # stays in the taskbar
@@ -3192,7 +3435,7 @@ class App:
 
     # ---------------------------------------------------------------- look
     def _icon(self):
-        """The purple gerbil: window icon, and picture of the header (size following the screen scaling)."""
+        """The gerbil with its camera: window icon, and picture of the column of steps."""
         self.gerbil = None
         try:
             self.root.iconbitmap(default=os.path.join(ICONS, "gerbil.ico"))
@@ -3201,218 +3444,650 @@ class App:
             self.gerbil = tk.PhotoImage(file=os.path.join(ICONS, f"gerbil_{size}.png"))
         except (tk.TclError, OSError):
             img = tk.PhotoImage(width=32, height=32)            # icons folder missing: colour stripes
-            for x0, colour in ((0, LAVENDER), (11, MINT), (22, TERRACOTTA)):
+            for x0, colour in ((0, VIOLET), (11, TEAL), (22, TERRA)):
                 img.put(colour, to=(x0, 0, x0 + 10, 32))
             self.root.iconphoto(True, img)
             self._icon_img = img
 
     def _style(self):
-        """Colours and fonts of the widgets (ttk styles)."""
+        """Colours and fonts of the widgets (ttk styles), shared by every window."""
         st = ttk.Style(self.root)
         st.theme_use("clam")
-        base = ("Segoe UI", 10)
-        st.configure(".", background=CARD_BG, foreground=TEXT, font=base, bordercolor=LAVENDER_LINE,
-                     lightcolor=CARD_BG, darkcolor=CARD_BG, focuscolor=LAVENDER)
+        st.configure(".", background=CARD_BG, foreground=TEXT, font=(FONT_SERIF, 10), bordercolor=LINE,
+                     lightcolor=CARD_BG, darkcolor=CARD_BG, focuscolor=LILAS)
         st.configure("Window.TFrame", background=WINDOW_BG)
         st.configure("Card.TFrame", background=CARD_BG)
-        st.configure("Card.TLabelframe", background=CARD_BG, bordercolor=LAVENDER_LINE, relief="solid")
-        st.configure("Card.TLabelframe.Label", background=CARD_BG, foreground=LAVENDER_DARK,
-                     font=("Segoe UI Semibold", 11))
-        st.configure("Section.TLabel", background=CARD_BG, foreground=LAVENDER_DARK,
-                     font=("Segoe UI Semibold", 9))
-        st.configure("Muted.TLabel", background=CARD_BG, foreground=MUTED, font=("Segoe UI", 9))
-        st.configure("Status.TLabel", background=WINDOW_BG, foreground=TEXT, font=("Segoe UI", 10))
-        st.configure("Footer.TLabel", background=WINDOW_BG, foreground=MUTED, font=("Segoe UI", 9))
-        for name, bg, hover, fg in (("TButton", LAVENDER_PALE, LAVENDER_LINE, TEXT),
-                                    ("Run.TButton", MINT, "#97CBA2", "#1F3B27"),
-                                    ("Cancel.TButton", TERRACOTTA, "#CB8B73", "#3D2017")):
-            st.configure(name, background=bg, foreground=fg, borderwidth=0, padding=(12, 6),
-                         bordercolor=bg, lightcolor=bg, darkcolor=bg)
-            st.map(name, background=[("disabled", "#EEEDF2"), ("pressed", hover), ("active", hover)],
-                   foreground=[("disabled", "#A9A5B8")],
-                   bordercolor=[("active", hover)], lightcolor=[("active", hover)], darkcolor=[("active", hover)])
-        st.configure("Run.TButton", font=("Segoe UI Semibold", 12), padding=(26, 9))
-        st.configure("Small.TButton", font=("Segoe UI", 9), padding=(6, 2))
-        st.configure("Cancel.TButton", font=("Segoe UI Semibold", 10), padding=(16, 9))
+        st.configure("Card.TLabelframe", background=CARD_BG, bordercolor=LINE, relief="solid")
+        st.configure("Card.TLabelframe.Label", background=CARD_BG, foreground=VIOLET, font=(FONT_DISPLAY, 14, "bold"))
+        st.configure("Section.TLabel", background=CARD_BG, foreground=MUTED, font=(FONT_MONO, 9, "bold"))
+        st.configure("Muted.TLabel", background=CARD_BG, foreground=MUTED, font=(FONT_SERIF, 9))
+        st.configure("Status.TLabel", background=CARD_BG, foreground=VIOLET, font=(FONT_MONO, 10, "bold"))
+        st.configure("Footer.TLabel", background=WINDOW_BG, foreground=MUTED, font=(FONT_SERIF, 9))
+        for name, bg, hover, fg, border in (("TButton", "#FFFFFF", LILAS_PALE, VIOLET, VIOLET),
+                                            ("Run.TButton", VIOLET, VIOLET_2, "#FFFFFF", VIOLET),
+                                            ("Cancel.TButton", "#FFFFFF", "#FBEFE9", TERRA, TERRA),
+                                            ("Teal.TButton", "#FFFFFF", "#E6F0EF", TEAL, TEAL)):
+            st.configure(name, background=bg, foreground=fg, borderwidth=1, padding=(12, 5),
+                         bordercolor=border, lightcolor=bg, darkcolor=bg, font=(FONT_SERIF, 10, "bold"))
+            st.map(name, background=[("disabled", "#F1F0F3"), ("pressed", hover), ("active", hover)],
+                   foreground=[("disabled", "#A9A5B4")], bordercolor=[("disabled", LINE)],
+                   lightcolor=[("active", hover)], darkcolor=[("active", hover)])
+        st.configure("Run.TButton", font=(FONT_SERIF, 11, "bold"), padding=(24, 7))
+        st.configure("Small.TButton", font=(FONT_SERIF, 9), padding=(6, 1))
+        st.configure("Cancel.TButton", padding=(14, 7))
+        st.configure("Teal.TButton", padding=(14, 7))
+        st.configure("Link.TButton", background=CARD_BG, foreground=VIOLET_2, borderwidth=0, padding=(0, 2),
+                     bordercolor=CARD_BG, lightcolor=CARD_BG, darkcolor=CARD_BG, font=(FONT_SERIF, 10, "bold"))
+        st.map("Link.TButton", background=[("active", CARD_BG)], foreground=[("active", VIOLET)])
         for w in ("TCheckbutton", "TRadiobutton"):
             st.configure(w, background=CARD_BG, foreground=TEXT, indicatorbackground="white",
-                         indicatorforeground=LAVENDER_DARK, upperbordercolor=LAVENDER,
-                         lowerbordercolor=LAVENDER, indicatormargin=(0, 0, 6, 0))
+                         indicatorforeground=VIOLET_2, upperbordercolor=VIOLET, lowerbordercolor=VIOLET,
+                         indicatormargin=(0, 0, 6, 0))
             st.map(w, background=[("active", CARD_BG)],
-                   indicatorbackground=[("selected", LAVENDER_PALE), ("disabled", "#F2F1F5")],
-                   foreground=[("disabled", "#A9A5B8")])
-        st.configure("TCombobox", fieldbackground="white", background=LAVENDER_PALE, arrowcolor=LAVENDER_DARK,
-                     bordercolor=LAVENDER_LINE, padding=3)
+                   indicatorbackground=[("selected", LILAS_PALE), ("disabled", "#F2F1F5")],
+                   foreground=[("disabled", "#A9A5B4")])
+        st.configure("TCombobox", fieldbackground="white", background=LILAS_PALE, arrowcolor=VIOLET,
+                     bordercolor=LINE, padding=3)
         st.map("TCombobox", fieldbackground=[("readonly", "white"), ("disabled", "#F2F1F5")],
-               foreground=[("disabled", "#A9A5B8")])
-        st.configure("TSpinbox", fieldbackground="white", background=LAVENDER_PALE, arrowcolor=LAVENDER_DARK,
-                     bordercolor=LAVENDER_LINE, padding=3)
-        st.configure("TEntry", fieldbackground="white", bordercolor=LAVENDER_LINE, padding=4)
+               foreground=[("disabled", "#A9A5B4")])
+        self.root.option_add("*TCombobox*Listbox.font", (FONT_SERIF, 10))
+        st.configure("TSpinbox", fieldbackground="white", background=LILAS_PALE, arrowcolor=VIOLET,
+                     bordercolor=LINE, padding=3)
+        st.configure("TEntry", fieldbackground="white", bordercolor=LINE, padding=4)
         st.map("TEntry", fieldbackground=[("disabled", "#F2F1F5")])
-        st.configure("Treeview", background="white", fieldbackground="white", rowheight=26,
-                     bordercolor=LAVENDER_LINE, font=("Segoe UI", 10))
-        st.configure("Treeview.Heading", background=LAVENDER_PALE, foreground=LAVENDER_DARK,
-                     font=("Segoe UI Semibold", 9), relief="flat", padding=(6, 4))
-        st.map("Treeview", background=[("selected", LAVENDER)], foreground=[("selected", TEXT)])
-        st.configure("Lav.Horizontal.TProgressbar", troughcolor=LAVENDER_PALE, background=LAVENDER,
-                     bordercolor=LAVENDER_PALE, lightcolor=LAVENDER, darkcolor=LAVENDER, thickness=14)
+        st.configure("Treeview", background="white", fieldbackground="white",
+                     rowheight=int(27 * self.root.winfo_fpixels("1i") / 96.0),
+                     bordercolor=LINE, font=(FONT_SERIF, 10))
+        st.configure("Treeview.Heading", background="white", foreground=MUTED, font=(FONT_MONO, 9, "bold"),
+                     relief="flat", padding=(6, 5), bordercolor=VIOLET)
+        st.map("Treeview", background=[("selected", LILAS)], foreground=[("selected", VIOLET)])
+        st.configure("Lav.Horizontal.TProgressbar", troughcolor=LILAS_PALE, background=VIOLET_2,
+                     bordercolor=LILAS_PALE, lightcolor=VIOLET_2, darkcolor=VIOLET_2, thickness=10)
 
     # ---------------------------------------------------------------- layout
     def _build(self):
-        """Builds the main window: header, photos, options, Run, log."""
+        """The column of steps on the left, the page of the step on the squared paper."""
         root = self.root
-        header = tk.Frame(root, bg=LAVENDER, height=86)
-        header.pack(fill="x")
-        tk.Frame(header, bg=TERRACOTTA, width=8).pack(side="left", fill="y")
-        tk.Frame(header, bg=MINT, width=8).pack(side="left", fill="y")
-        if self.gerbil is not None:
-            tk.Label(header, image=self.gerbil, bg=LAVENDER).pack(side="left", padx=(14, 0), pady=8)
-        titles = tk.Frame(header, bg=LAVENDER)
-        titles.pack(side="left", padx=(12 if self.gerbil is not None else 18), pady=12)
-        tk.Label(titles, text="Gerbil", bg=LAVENDER, fg=TEXT,
-                 font=("Segoe UI Semibold", 20)).pack(anchor="w")
-        tk.Label(titles, text="Archaeological photo toolkit  ·  " + CREDITS, bg=LAVENDER, fg=TEXT,
-                 font=("Segoe UI", 10)).pack(anchor="w")
-        ttk.Button(header, text="Help", command=self.help).pack(side="right", padx=18)
-        tk.Frame(root, bg=TERRACOTTA, height=4).pack(fill="x")
+        self.rail = tk.Frame(root, bg=VIOLET, width=int(290 * self.k))
+        self.rail.pack(side="left", fill="y")
+        self.rail.pack_propagate(False)
+        self._rail()
+        right = tk.Frame(root, bg=PAPER)
+        right.pack(side="left", fill="both", expand=True)
 
         # banner shown while required Python packages are missing
-        self.banner = tk.Frame(root, bg="#F6E3DC")
-        self.banner_text = tk.Label(self.banner, bg="#F6E3DC", fg="#3D2017", font=("Segoe UI", 10),
+        self.banner_anchor = tk.Frame(right, bg=PAPER, height=0)
+        self.banner_anchor.pack(fill="x")
+        self.banner = tk.Frame(right, bg="#FBEFE9")
+        self.banner_text = tk.Label(self.banner, bg="#FBEFE9", fg="#3D2017", font=(FONT_SERIF, 10),
                                     justify="left", anchor="w")
         self.banner_text.pack(side="left", padx=18, pady=10, fill="x", expand=True)
-        self.install_btn = ttk.Button(self.banner, text="Install now", style="Cancel.TButton",
-                                      command=self.install_required)
+        self.install_btn = ttk.Button(self.banner, text=T("Installer maintenant", "Install now"),
+                                      style="Cancel.TButton", command=self.install_required)
         self.install_btn.pack(side="right", padx=18, pady=8)
-        self.banner_anchor = tk.Frame(root, bg=WINDOW_BG, height=0)
-        self.banner_anchor.pack(fill="x")
 
-        body = ttk.Frame(root, style="Window.TFrame", padding=(16, 14, 16, 6))
-        body.pack(fill="both", expand=True)
-        body.columnconfigure(0, weight=1)
-        body.columnconfigure(1, weight=0)
-        body.rowconfigure(0, weight=1)
-        self._photos_card(body).grid(row=0, column=0, sticky="nsew", padx=(0, 8))
-        self._options_card(body).grid(row=0, column=1, sticky="nsew", padx=(8, 0))
+        self.canvas = tk.Canvas(right, bg=PAPER, highlightthickness=0)
+        self.canvas.pack(fill="both", expand=True)
+        self.canvas.bind("<Configure>", lambda _: self._layout())
+        self.status = tk.StringVar(value=T("Ajoutez des dossiers ou des photographies.", "Add folders or photos."))
+        self.pages = []
+        self._page_sources()
+        self._page_naming()
+        self._page_processing()
+        self._page_review()
+        self._page_publication()
+        for r in self.rows:
+            self._add_row(*r)
+        self.show_page(self.page)
 
-        run = ttk.Frame(root, style="Window.TFrame", padding=(16, 4, 16, 4))
-        run.pack(fill="x")
-        self.run_btn = ttk.Button(run, text="Run", style="Run.TButton", command=self.run)
-        self.run_btn.pack(side="left")
-        self.cancel_btn = ttk.Button(run, text="Cancel", style="Cancel.TButton", command=self.cancel,
-                                     state="disabled")
-        self.cancel_btn.pack(side="left", padx=(10, 0))
-        self.open_btn = ttk.Button(run, text="Open results", command=self.open_results, state="disabled")
-        self.open_btn.pack(side="right")
-        tools = ttk.Menubutton(run, text="Tools")
-        menu = tk.Menu(tools, tearoff=False)
-        menu.add_command(label="Inventory (CSV)…", command=lambda: InventoryWindow(self))
-        menu.add_command(label="Thumbnails…", command=lambda: ThumbnailsWindow(self))
-        tools["menu"] = menu
-        tools.pack(side="right", padx=(0, 10))
-        b = ttk.Button(run, text="Plates…", command=self.plates)
-        b.pack(side="right", padx=(0, 10))
-        Tooltip(b, "Plates: the outlined objects of a results folder at a chosen scale (1:1, 1:2…), with captions "
-                   "and a graphic scale bar, written as SVG for Illustrator or Inkscape.")
-        b = ttk.Button(run, text="Review…", command=self.review)
-        b.pack(side="right", padx=(0, 10))
-        Tooltip(b, "Review the cut-outs photo by photo (doubtful ones first): erase / add, remove a piece, "
-                   "turn the object, fix the scale; the corrected photos are then processed again.")
-        mid = ttk.Frame(run, style="Window.TFrame")
-        mid.pack(side="left", fill="x", expand=True, padx=16)
-        self.status = tk.StringVar(value="Add folders or photos, then Run.")
-        ttk.Label(mid, textvariable=self.status, style="Status.TLabel").pack(anchor="w")
-        self.bar = ttk.Progressbar(mid, style="Lav.Horizontal.TProgressbar", mode="determinate")
-        self.bar.pack(fill="x", pady=(4, 0))
+    def _rail(self):
+        """The column of steps: the gerbil, the name, the five steps, the credits and the languages."""
+        rail = self.rail
+        brand = tk.Frame(rail, bg=VIOLET)
+        brand.pack(fill="x", padx=18, pady=(20, 14))
+        if self.gerbil is not None:
+            tk.Label(brand, image=self.gerbil, bg=VIOLET).pack(side="left")
+        names = tk.Frame(brand, bg=VIOLET)
+        names.pack(side="left", padx=(12, 0))
+        tk.Label(names, text="GERBIL", bg=VIOLET, fg="#EDE8F7", font=(FONT_DISPLAY, 24, "bold")).pack(anchor="w")
+        tk.Label(names, text=T("Gestionnaire de photographies\narchéologiques", "Archaeological\nphotography manager"),
+                 bg=VIOLET, fg="#D9D2EC", font=(FONT_DISPLAY, 11, "bold"), justify="left").pack(anchor="w")
+        tk.Frame(rail, bg="#4A3A72", height=1).pack(fill="x")
+        self.step_widgets, self.step_sub = [], []
+        for i, (fr, en) in enumerate(STEPS):
+            row = tk.Frame(rail, bg=VIOLET, cursor="hand2")
+            row.pack(fill="x", pady=(10 if i == 0 else 0, 0))
+            stripe = tk.Canvas(row, width=max(4, int(4 * self.k)), height=1, bg=VIOLET, highlightthickness=0)
+            stripe.pack(side="left", fill="y")
+            n = tk.Label(row, text=f"0{i + 1}", bg=VIOLET, fg=LILAS_2, font=(FONT_MONO, 11, "bold"))
+            n.pack(side="left", anchor="n", padx=(14, 10), pady=(10, 0))
+            texts = tk.Frame(row, bg=VIOLET)
+            texts.pack(side="left", fill="x", expand=True, pady=8)
+            head = tk.Frame(texts, bg=VIOLET)
+            head.pack(anchor="w")
+            title = tk.Label(head, text=T(fr, en), bg=VIOLET, fg="#EDE8F7", font=(FONT_SERIF, 11, "bold"))
+            title.pack(side="left")
+            badge = tk.Label(head, text="", bg=TERRA, fg="white", font=(FONT_MONO, 8, "bold"), padx=5)
+            sub = tk.StringVar(value="")
+            subl = tk.Label(texts, textvariable=sub, bg=VIOLET, fg="#C9C1DE", font=(FONT_SERIF, 9),
+                            justify="left", wraplength=int(200 * self.k), anchor="w")
+            subl.pack(anchor="w")
+            parts = (row, stripe, n, texts, head, title, subl)
+            for w in parts:
+                w.bind("<Button-1>", lambda _, k=i: self.show_page(k))
+            self.step_widgets.append({"parts": parts, "stripe": stripe, "n": n, "title": title, "sub": subl,
+                                      "badge": badge})
+            self.step_sub.append(sub)
+        foot = tk.Frame(rail, bg=VIOLET)
+        foot.pack(side="bottom", fill="x", padx=18, pady=14)
+        langs = tk.Frame(foot, bg=VIOLET)
+        langs.pack(anchor="w", pady=(0, 8))
+        for code in ("fr", "en"):
+            b = tk.Label(langs, text=code.upper(), bg=VIOLET, cursor="hand2",
+                         fg="#FFFFFF" if LANG == code else "#9C92BD", font=(FONT_MONO, 10, "bold"))
+            b.pack(side="left", padx=(0, 10))
+            b.bind("<Button-1>", lambda _, c=code: self.set_lang(c))
+        h = tk.Label(langs, text=T("Aide", "Help"), bg=VIOLET, fg="#D9D2EC", cursor="hand2", font=(FONT_SERIF, 10, "underline"))
+        h.pack(side="left", padx=(6, 0))
+        h.bind("<Button-1>", lambda _: self.help())
+        tk.Label(foot, text=T("version", "version") + f" {VERSION}, " + T("licence GPL v3", "GPL v3 licence"),
+                 bg=VIOLET, fg="#B9B0D3", font=(FONT_SERIF, 9)).pack(anchor="w")
+        tk.Label(foot, text="© 2026 Eloïs Charbonnel", bg=VIOLET, fg="#B9B0D3", font=(FONT_SERIF, 9)).pack(anchor="w")
+        tk.Label(foot, text="ITINERA", bg=VIOLET, fg="#EDE8F7", font=(FONT_DISPLAY, 12, "bold")).pack(anchor="w")
 
-        logf = ttk.Frame(root, style="Window.TFrame", padding=(16, 6, 16, 0))
-        logf.pack(fill="both")
-        self.log = tk.Text(logf, height=9, bg="white", fg=TEXT, relief="flat", wrap="word",
-                           font=("Consolas", 9), highlightthickness=1, highlightbackground=LAVENDER_LINE,
-                           padx=8, pady=6, state="disabled")
-        sb = ttk.Scrollbar(logf, orient="vertical", command=self.log.yview)
-        self.log.configure(yscrollcommand=sb.set)
-        self.log.pack(side="left", fill="both", expand=True)
-        sb.pack(side="right", fill="y")
-        for tag, colour in (("ok", MINT_DARK), ("verify", TERRACOTTA_DARK), ("failed", RED),
-                            ("info", LAVENDER_DARK), ("cmd", MUTED)):
-            self.log.tag_configure(tag, foreground=colour)
+    def show_page(self, i):
+        """Shows the page of step i and marks the step in the column."""
+        self.page = i
+        for k, w in enumerate(self.step_widgets):
+            on = k == i
+            bg = PAPER if on else VIOLET
+            for part in w["parts"]:
+                part.configure(bg=bg)
+            w["title"].configure(fg=VIOLET if on else "#EDE8F7")
+            w["n"].configure(fg=VIOLET if on else LILAS_2)
+            w["sub"].configure(fg=MUTED if on else "#C9C1DE")
+            s = w["stripe"]
+            s.delete("all")
+            if on:
+                s.update_idletasks()
+                u = max(7, int(7 * self.k))
+                for y in range(0, max(60, s.winfo_height()), 2 * u):
+                    s.create_rectangle(0, y, int(s["width"]), y + u, fill=VIOLET_2, width=0)
+        for k, p in enumerate(self.pages):
+            for item in p["items"]:
+                self.canvas.itemconfigure(item, state="normal" if k == i else "hidden")
+        if i == 1:
+            self._naming_summary()
+        self._layout()
 
-        foot = ttk.Frame(root, style="Window.TFrame", padding=(16, 6, 16, 8))
-        foot.pack(fill="x")
-        ttk.Label(foot, text=CREDITS, style="Footer.TLabel").pack(side="left")
-        ttk.Label(foot, text="archaeological photo toolkit  -  " + ("gerbil_cli.exe" if FROZEN else "gerbil.py"),
-                  style="Footer.TLabel").pack(side="right")
+    def _card(self):
+        """A white card with a thin border, on the squared paper."""
+        return tk.Frame(self.canvas, bg=CARD_BG, highlightthickness=1, highlightbackground=LINE, padx=16, pady=14)
 
-    def _photos_card(self, parent):
-        """Card of the photos: buttons, list, results folder, site profile."""
-        card = ttk.Labelframe(parent, text="  Photos  ", style="Card.TLabelframe", padding=12)
-        card.columnconfigure(0, weight=1)
-        card.rowconfigure(1, weight=1)
-        bar = ttk.Frame(card, style="Card.TFrame")
-        bar.grid(row=0, column=0, sticky="ew", pady=(0, 8))
-        ttk.Button(bar, text="Add folder…", command=self.add_folder).pack(side="left")
-        ttk.Button(bar, text="Add photos…", command=self.add_files).pack(side="left", padx=6)
-        b = ttk.Button(bar, text="Batch renaming…", command=self.project)
-        b.pack(side="left", padx=(0, 6))
-        Tooltip(b, "Batch renaming: fields (site, US, object number, material, view…), name template and values "
-                   "of the photos of a folder; the output files take the names built from the template "
-                   "(the photos keep theirs).")
-        b = ttk.Button(bar, text="Set scale…", command=self.set_scale)
-        b.pack(side="left")
-        Tooltip(b, "Give the scale of one photo by hand (two points of known distance), "
-                   "when it is not found or wrongly read.")
-        ttk.Button(bar, text="Clear", command=self.clear).pack(side="right")
-        ttk.Button(bar, text="Remove", command=self.remove).pack(side="right", padx=6)
-        self.tree = ttk.Treeview(card, columns=("name", "photos", "where"), show="headings", selectmode="extended",
-                                 height=8)
-        for col, title, width, anchor, stretch in (("name", "Folder / photo", 220, "w", True),
-                                                   ("photos", "Photos", 80, "center", False),
-                                                   ("where", "In", 260, "w", True)):
+    def _section(self, parent, text, top=0):
+        """A small heading in typewriter capitals."""
+        lbl = tk.Label(parent, text=text.upper(), bg=CARD_BG, fg=MUTED, font=(FONT_MONO, 9, "bold"), anchor="w")
+        lbl.pack(fill="x", pady=(top, 4))
+        return lbl
+
+    def _text(self, parent, text, wrap=310, muted=True, top=0):
+        lbl = tk.Label(parent, text=text, bg=CARD_BG, fg=MUTED if muted else TEXT, font=(FONT_SERIF, 10),
+                       justify="left", anchor="w", wraplength=int(wrap * self.k))
+        lbl.pack(fill="x", pady=(top, 0))
+        return lbl
+
+    def _page(self, kicker, title, desc, left=None, right=None, actions=(), hint=None):
+        """A page: its heading drawn on the paper, its cards and its action buttons."""
+        c = self.canvas
+        p = {"left": left, "right": right, "actions": list(actions), "items": []}
+        p["kicker"] = c.create_text(0, 0, text=kicker.upper(), anchor="nw", fill=TEAL, font=(FONT_MONO, 9, "bold"))
+        p["title"] = c.create_text(0, 0, text=title, anchor="nw", fill=VIOLET, font=(FONT_DISPLAY, 24, "bold"))
+        p["desc"] = c.create_text(0, 0, text=desc, anchor="nw", fill=MUTED, font=(FONT_SERIF, 10))
+        p["items"] += [p["kicker"], p["title"], p["desc"]]
+        for key in ("left", "right"):
+            if p[key] is not None:
+                p[key + "_win"] = c.create_window(0, 0, window=p[key], anchor="nw")
+                p["items"].append(p[key + "_win"])
+        p["action_wins"] = [c.create_window(0, 0, window=w, anchor="nw") for w in p["actions"]]
+        p["items"] += p["action_wins"]
+        p["hint"] = c.create_text(0, 0, text="", anchor="e", fill=MUTED, font=(FONT_SERIF, 10, "italic"))
+        p["items"].append(p["hint"])
+        p["hint_var"] = hint
+        if hint is not None:
+            hint.trace_add("write", lambda *_: c.itemconfigure(p["hint"], text=hint.get()))
+            c.itemconfigure(p["hint"], text=hint.get())
+        self.pages.append(p)
+        return p
+
+    def _layout(self):
+        """Squared paper and the page shown, fitted to the size of the window."""
+        c = self.canvas
+        W, H = c.winfo_width(), c.winfo_height()
+        if W < 50 or not self.pages:
+            return
+        c.delete("grid")
+        for x in range(0, W, 10):
+            c.create_line(x, 0, x, H, fill=GRID_2 if x % 50 == 0 else GRID, tags="grid")
+        for y in range(0, H, 10):
+            c.create_line(0, y, W, y, fill=GRID_2 if y % 50 == 0 else GRID, tags="grid")
+        c.tag_lower("grid")
+        p = self.pages[self.page]
+        k = self.k
+        m = int(28 * k)
+        c.coords(p["kicker"], m, int(20 * k))
+        c.coords(p["title"], m, (c.bbox(p["kicker"]) or (0, 0, 0, 40))[3] + int(4 * k))
+        c.coords(p["desc"], m, (c.bbox(p["title"]) or (0, 0, 0, 80))[3] + int(2 * k))
+        c.itemconfigure(p["desc"], width=W - 2 * m)
+        top = (c.bbox(p["desc"]) or (0, 0, 0, 104))[3] + int(16 * k)
+        x = m
+        bh = max([w.winfo_reqheight() for w in p["actions"]] or [0])
+        ya = H - int(18 * k) - bh
+        for w, win in zip(p["actions"], p["action_wins"]):
+            c.coords(win, x, ya + (bh - w.winfo_reqheight()) // 2)
+            x += w.winfo_reqwidth() + int(10 * k)
+        c.coords(p["hint"], W - m, ya + bh // 2)
+        bottom = ya - int(14 * k) if p["actions"] else H - int(18 * k)
+        rw = int(370 * k) if p["right"] is not None else 0
+        if p["left"] is not None:
+            c.coords(p["left_win"], m, top)
+            c.itemconfigure(p["left_win"], width=W - 2 * m - (rw + int(18 * k) if rw else 0), height=bottom - top)
+        if p["right"] is not None:
+            c.coords(p["right_win"], W - m - rw, top)
+            c.itemconfigure(p["right_win"], width=rw, height=bottom - top)
+
+    # ---------------------------------------------------------------- pages
+    def _page_sources(self):
+        """01: folders and photos to process, and the site profile."""
+        left = self._card()
+        bar = tk.Frame(left, bg=CARD_BG)
+        bar.pack(fill="x", pady=(0, 10))
+        ttk.Button(bar, text=T("Ajouter un dossier…", "Add folder…"), command=self.add_folder).pack(side="left")
+        ttk.Button(bar, text=T("Ajouter des photographies…", "Add photos…"), command=self.add_files).pack(side="left", padx=8)
+        ttk.Button(bar, text=T("Vider", "Clear"), command=self.clear).pack(side="right")
+        ttk.Button(bar, text=T("Retirer", "Remove"), command=self.remove).pack(side="right", padx=8)
+        tf = tk.Frame(left, bg=CARD_BG)
+        tf.pack(fill="both", expand=True)
+        self.tree = ttk.Treeview(tf, columns=("name", "photos", "where"), show="headings", selectmode="extended")
+        for col, title, width, anchor, stretch in (("name", T("DOSSIER OU PHOTOGRAPHIE", "FOLDER OR PHOTO"), 240, "w", True),
+                                                   ("photos", T("NOMBRE", "COUNT"), 80, "center", False),
+                                                   ("where", T("EMPLACEMENT", "LOCATION"), 260, "w", True)):
             self.tree.heading(col, text=title, anchor=anchor)
-            self.tree.column(col, width=width, minwidth=60, anchor=anchor, stretch=stretch)
-        self.tree.grid(row=1, column=0, sticky="nsew")
-        sb = ttk.Scrollbar(card, orient="vertical", command=self.tree.yview)
+            self.tree.column(col, width=int(width * self.k), minwidth=60, anchor=anchor, stretch=stretch)
+        sb = ttk.Scrollbar(tf, orient="vertical", command=self.tree.yview)
         self.tree.configure(yscrollcommand=sb.set)
-        sb.grid(row=1, column=1, sticky="ns")
+        self.tree.pack(side="left", fill="both", expand=True)
+        sb.pack(side="right", fill="y")
         self.tree.bind("<Delete>", lambda _: self.remove())
-        self.total_lbl = ttk.Label(card, text="No photo yet.", style="Muted.TLabel")
-        self.total_lbl.grid(row=2, column=0, sticky="w", pady=(6, 10))
+        self.total_lbl = tk.Label(left, text="", bg=CARD_BG, fg=MUTED, font=(FONT_SERIF, 10), anchor="w")
+        self.total_lbl.pack(fill="x", pady=(8, 0))
 
-        ttk.Label(card, text="RESULTS", style="Section.TLabel").grid(row=3, column=0, sticky="w")
-        self.out_mode = tk.StringVar(value=self.s["output_mode"])
-        ttk.Radiobutton(card, text="In an 'outlined_result' folder next to the photos", value="next",
-                        variable=self.out_mode, command=self._sync).grid(row=4, column=0, sticky="w", pady=2)
-        row = ttk.Frame(card, style="Card.TFrame")
-        row.grid(row=5, column=0, columnspan=2, sticky="ew")
-        row.columnconfigure(1, weight=1)
-        ttk.Radiobutton(row, text="In this folder:", value="other", variable=self.out_mode,
-                        command=self._sync).grid(row=0, column=0, sticky="w")
-        self.out_dir = tk.StringVar(value=self.s["output_dir"])
-        self.out_entry = ttk.Entry(row, textvariable=self.out_dir)
-        self.out_entry.grid(row=0, column=1, sticky="ew", padx=6)
-        self.out_btn = ttk.Button(row, text="Browse…", command=self.pick_output)
-        self.out_btn.grid(row=0, column=2)
-        ttk.Label(card, text="SITE PROFILE", style="Section.TLabel").grid(row=6, column=0, sticky="w", pady=(10, 0))
-        prow = ttk.Frame(card, style="Card.TFrame")
-        prow.grid(row=7, column=0, columnspan=2, sticky="w", pady=(2, 0))
-        self.profile = tk.StringVar(value=self.s.get("profile") if self.s.get("profile") in profile_names() else "(none)")
-        self.profile_cb = ttk.Combobox(prow, textvariable=self.profile, state="readonly", width=28,
-                                       values=["(none)"] + profile_names())
+        right = self._card()
+        self._section(right, T("Profil de site", "Site profile"))
+        prow = tk.Frame(right, bg=CARD_BG)
+        prow.pack(fill="x")
+        none = T("(aucun)", "(none)")
+        self.profile = tk.StringVar(value=self.s.get("profile") if self.s.get("profile") in profile_names() else none)
+        self.profile_cb = ttk.Combobox(prow, textvariable=self.profile, state="readonly", width=24,
+                                       values=[none] + profile_names())
         self.profile_cb.pack(side="left")
         self.profile_cb.bind("<<ComboboxSelected>>", lambda _: self.apply_profile())
-        Tooltip(self.profile_cb, "What is known of the photos of a site: background, learned scales, options. "
-                                 "A gerbil_profile.json placed next to the photos is used for them in any case.")
-        ttk.Button(prow, text="Edit…", style="Small.TButton",
-                   command=lambda: ProfileWindow(self, None if self.profile.get() == "(none)" else self.profile.get())
-                   ).pack(side="left", padx=(6, 0))
-        ttk.Button(prow, text="New…", style="Small.TButton", command=lambda: ProfileWindow(self)).pack(side="left", padx=4)
-        return card
+        tools = tk.Frame(right, bg=CARD_BG)
+        tools.pack(fill="x", pady=(6, 0))
+        ttk.Button(tools, text=T("Modifier…", "Edit…"), style="Small.TButton",
+                   command=lambda: ProfileWindow(self, None if self.profile.get() == none else self.profile.get())
+                   ).pack(side="left")
+        ttk.Button(tools, text=T("Nouveau…", "New…"), style="Small.TButton",
+                   command=lambda: ProfileWindow(self)).pack(side="left", padx=6)
+        self._text(right, T("Ce que l'on sait des photographies d'un site : le fond, les échelles apprises, "
+                            "les réglages. Un fichier gerbil_profile.json posé à côté des photographies "
+                            "s'applique à elles dans tous les cas.",
+                            "What is known of the photos of a site: background, learned scales, settings. "
+                            "A gerbil_profile.json placed next to the photos applies to them in any case."), top=10)
+        self._section(right, T("Astuce", "Tip"), top=18)
+        self._text(right, T("On peut aussi déposer des dossiers sur l'icône de Gerbil pour les ajouter.",
+                            "Folders can also be dropped on the Gerbil icon to add them."))
+        nxt = ttk.Button(self.canvas, text=T("Continuer", "Continue"), style="Run.TButton",
+                         command=lambda: self.show_page(1))
+        self.sources_hint = tk.StringVar(value="")
+        self._page(T("Étape 01", "Step 01"), T("Photographies sources", "Source photographs"),
+                   T("Les dossiers ou les photographies à traiter : JPEG, TIFF, PNG ou RAW, avec une échelle "
+                     "dans le plan de l'objet. Les photographies ne sont jamais modifiées.",
+                     "The folders or photos to process: JPEG, TIFF, PNG or RAW, with a scale in the plane of "
+                     "the object. The photos are never changed."),
+                   left, right, [nxt], self.sources_hint)
+
+    def _page_naming(self):
+        """02: names of the output files and information of the photos (batch renaming)."""
+        left = self._card()
+        self._section(left, T("Projet du dossier", "Project of the folder"))
+        self.naming_var = tk.StringVar(value="")
+        summary = tk.Label(left, textvariable=self.naming_var, bg=CARD_BG, fg=TEXT, font=(FONT_SERIF, 11),
+                           justify="left", anchor="nw", wraplength=int(600 * self.k))
+        summary.pack(fill="x")
+        left.bind("<Configure>", lambda e: summary.configure(wraplength=max(200, e.width - int(40 * self.k))))
+        self.naming_example = tk.StringVar(value="")
+        tk.Label(left, textvariable=self.naming_example, bg=CARD_BG, fg=VIOLET, font=(FONT_MONO, 11),
+                 justify="left", anchor="w").pack(fill="x", pady=(10, 0))
+        b = tk.Frame(left, bg=CARD_BG)
+        b.pack(fill="x", pady=(16, 0))
+        ttk.Button(b, text=T("Ouvrir le renommage en lot…", "Open the batch renaming…"), style="Run.TButton",
+                   command=self.project).pack(side="left")
+        ttk.Button(b, text=T("Actualiser", "Refresh"), command=self._naming_summary).pack(side="left", padx=10)
+
+        right = self._card()
+        self._section(right, T("À quoi ça sert", "What it is for"))
+        self._text(right, T("Des champs (site, US, numéro, matière…) et un modèle de nom, par exemple "
+                            "{site}_US{us}_{number} : les fichiers produits prennent ce nom, et les informations "
+                            "sont écrites dans les fichiers (XMP, IPTC) et dans le rapport.",
+                            "Fields (site, US, number, material…) and a name template, e.g. {site}_US{us}_{number}: "
+                            "the output files take this name, and the information is written into the files "
+                            "(XMP, IPTC) and the report."))
+        self._section(right, T("Bon à savoir", "Good to know"), top=16)
+        self._text(right, T("Les photographies originales ne sont jamais renommées. Tout est enregistré dans "
+                            "gerbil_project.json, à côté des photographies.",
+                            "The original photos are never renamed. Everything is saved in gerbil_project.json, "
+                            "next to the photos."))
+        nxt = ttk.Button(self.canvas, text=T("Continuer", "Continue"), style="Run.TButton",
+                         command=lambda: self.show_page(2))
+        self._page(T("Étape 02", "Step 02"), T("Nommage et métadonnées", "Naming and metadata"),
+                   T("Facultatif : nommer les fichiers produits d'après l'inventaire, et y inscrire les "
+                     "informations des objets.",
+                     "Optional: name the output files after the inventory, and write the information of "
+                     "the objects into them."),
+                   left, right, [nxt], tk.StringVar(value=T("Étape facultative", "Optional step")))
+
+    def _page_processing(self):
+        """03: settings, Run, progress on the scale bar, table of the results."""
+        left = self._card()
+        prog = tk.Frame(left, bg=CARD_BG)
+        prog.pack(fill="x", pady=(0, 10))
+        self.bar = Mire(prog, CARD_BG)
+        self.bar.pack(side="left", fill="x", expand=True)
+        tk.Label(prog, textvariable=self.status, bg=CARD_BG, fg=VIOLET, font=(FONT_MONO, 10, "bold")).pack(
+            side="left", padx=(14, 0))
+        tf = tk.Frame(left, bg=CARD_BG)
+        tf.pack(fill="both", expand=True)
+        self.table = ttk.Treeview(tf, columns=("photo", "state", "scale", "todo"), show="headings", selectmode="browse")
+        for col, title, width, stretch in (("photo", T("PHOTOGRAPHIE", "PHOTO"), 300, True),
+                                           ("state", T("ÉTAT", "STATE"), 115, False),
+                                           ("scale", T("ÉCHELLE", "SCALE"), 125, False),
+                                           ("todo", T("À FAIRE", "TO DO"), 280, True)):
+            self.table.heading(col, text=title, anchor="w")
+            self.table.column(col, width=int(width * self.k), minwidth=60, anchor="w", stretch=stretch)
+        for tag, colour in (("ok", TEAL), ("verify", TERRA), ("failed", RED)):
+            self.table.tag_configure(tag, foreground=colour)
+        sb = ttk.Scrollbar(tf, orient="vertical", command=self.table.yview)
+        self.table.configure(yscrollcommand=sb.set)
+        self.table.pack(side="left", fill="both", expand=True)
+        sb.pack(side="right", fill="y")
+        self.table.bind("<Double-1>", self._row_open)
+        foot = tk.Frame(left, bg=CARD_BG)
+        foot.pack(fill="x", pady=(8, 0))
+        self.log_btn = ttk.Button(foot, text=T("▸ Détails techniques", "▸ Technical details"), style="Link.TButton",
+                                  command=self._toggle_log)
+        self.log_btn.pack(side="left")
+        tk.Label(foot, text=T("Double-clic sur une ligne : la corriger.", "Double-click a row to fix it."),
+                 bg=CARD_BG, fg=MUTED, font=(FONT_SERIF, 9, "italic")).pack(side="right")
+        self.logf = tk.Frame(left, bg=CARD_BG)
+        self.log = tk.Text(self.logf, height=8, bg=PAPER, fg=TEXT, relief="flat", wrap="word",
+                           font=(FONT_MONO, 9), highlightthickness=1, highlightbackground=LINE,
+                           padx=8, pady=6, state="disabled")
+        lsb = ttk.Scrollbar(self.logf, orient="vertical", command=self.log.yview)
+        self.log.configure(yscrollcommand=lsb.set)
+        self.log.pack(side="left", fill="both", expand=True)
+        lsb.pack(side="right", fill="y")
+        for tag, colour in (("ok", TEAL), ("verify", TERRA), ("failed", RED), ("info", VIOLET_2), ("cmd", MUTED)):
+            self.log.tag_configure(tag, foreground=colour)
+
+        right = self._card()
+        self._options(right)
+        self.run_btn = ttk.Button(self.canvas, text=T("Lancer", "Run"), style="Run.TButton", command=self.run)
+        self.cancel_btn = ttk.Button(self.canvas, text=T("Arrêter", "Stop"), style="Cancel.TButton",
+                                     command=self.cancel, state="disabled")
+        self.open_btn = ttk.Button(self.canvas, text=T("Ouvrir les résultats", "Open results"), style="Teal.TButton",
+                                   command=self.open_results, state="disabled")
+        self.next_hint = tk.StringVar(value="")
+        self._page(T("Étape 03", "Step 03"), T("Détourer et mettre à l'échelle", "Outline and scale"),
+                   T("Gerbil trouve l'échelle de chaque photographie, détoure l'objet et écrit les fichiers à "
+                     "leur taille réelle (1:1).",
+                     "Gerbil finds the scale of each photo, outlines the object and writes the files at their "
+                     "real size (1:1)."),
+                   left, right, [self.run_btn, self.cancel_btn, self.open_btn], self.next_hint)
+
+    def _page_review(self):
+        """04: the photos to look at, grouped by problem, and the review window."""
+        left = self._card()
+        self._section(left, T("Photographies à revoir", "Photos to look at"))
+        tf = tk.Frame(left, bg=CARD_BG)
+        tf.pack(fill="both", expand=True)
+        self.todo_tree = ttk.Treeview(tf, columns=("photo", "problem"), show="headings", selectmode="extended")
+        for col, title, width in (("photo", T("PHOTOGRAPHIE", "PHOTO"), 280), ("problem", T("PROBLÈME", "PROBLEM"), 360)):
+            self.todo_tree.heading(col, text=title, anchor="w")
+            self.todo_tree.column(col, width=int(width * self.k), anchor="w", stretch=True)
+        self.todo_tree.tag_configure("verify", foreground=TERRA)
+        self.todo_tree.tag_configure("failed", foreground=RED)
+        sb = ttk.Scrollbar(tf, orient="vertical", command=self.todo_tree.yview)
+        self.todo_tree.configure(yscrollcommand=sb.set)
+        self.todo_tree.pack(side="left", fill="both", expand=True)
+        sb.pack(side="right", fill="y")
+        self.todo_tree.bind("<Double-1>", self._row_open)
+        b = tk.Frame(left, bg=CARD_BG)
+        b.pack(fill="x", pady=(10, 0))
+        ttk.Button(b, text=T("Régler l'échelle à la main…", "Set the scale by hand…"),
+                   command=self._scale_for_selection).pack(side="left")
+
+        right = self._card()
+        self._section(right, T("Les couleurs", "The colours"))
+        for colour, fr, en in ((TEAL, "ok : rien à faire", "ok: nothing to do"),
+                               (TERRA, "à vérifier : un doute, les fichiers portent _to_be_verified",
+                                "to verify: a doubt, the files carry _to_be_verified"),
+                               (RED, "échec : aucun objet trouvé", "failed: no object found")):
+            r = tk.Frame(right, bg=CARD_BG)
+            r.pack(fill="x", pady=2)
+            tk.Label(r, text="●", bg=CARD_BG, fg=colour, font=(FONT_SERIF, 11)).pack(side="left", anchor="n")
+            tk.Label(r, text=T(fr, en), bg=CARD_BG, fg=TEXT, font=(FONT_SERIF, 10), justify="left",
+                     wraplength=int(300 * self.k), anchor="w").pack(side="left", padx=(6, 0), fill="x")
+        self._section(right, T("Bon à savoir", "Good to know"), top=16)
+        self._text(right, T("Les corrections sont enregistrées à côté des photographies (dossier gerbil_edits) : "
+                            "les traitements suivants les gardent. Une photographie corrigée est retraitée "
+                            "aussitôt.",
+                            "The corrections are saved next to the photos (gerbil_edits folder): later runs keep "
+                            "them. A corrected photo is processed again at once."))
+        go = ttk.Button(self.canvas, text=T("Vérifier", "Review"), style="Run.TButton", command=self.review)
+        self.review_hint = tk.StringVar(value="")
+        self._page(T("Étape 04", "Step 04"), T("Vérification", "Review"),
+                   T("Les photographies douteuses d'abord : corriger le détourage, l'orientation ou l'échelle.",
+                     "Doubtful photos first: fix the cut-out, the orientation or the scale."),
+                   left, right, [go], self.review_hint)
+
+    def _page_publication(self):
+        """05: plates, inventory, thumbnails."""
+        left = self._card()
+        tiles = tk.Frame(left, bg=CARD_BG)
+        tiles.pack(fill="both", expand=True)
+        for k, (fr, en, dfr, den, cmd) in enumerate((
+                ("Planches", "Plates", "Les objets mis en page à une échelle choisie (1:1, 1:2…), avec légendes, "
+                 "barre d'échelle et dessins, en SVG pour Illustrator ou Inkscape.",
+                 "The objects laid out at a chosen scale (1:1, 1:2…), with captions, scale bar and drawings, "
+                 "as SVG for Illustrator or Inkscape.", self.plates),
+                ("Inventaire", "Inventory", "Un tableau CSV des fichiers d'un dossier (photographies, dessins, "
+                 "modèles 3D) et des informations lues dans leurs noms.",
+                 "A CSV table of the files of a folder (photos, drawings, 3D models) and of the information "
+                 "read from their names.", lambda: InventoryWindow(self)),
+                ("Vignettes", "Thumbnails", "Des copies réduites pour les bases de données, fond transparent ou "
+                 "blanc.", "Reduced copies for databases, transparent or white background.",
+                 lambda: ThumbnailsWindow(self)))):
+            t = tk.Frame(tiles, bg=CARD_BG, highlightthickness=1, highlightbackground=LINE, padx=14, pady=12)
+            t.grid(row=0, column=k, sticky="new", padx=(0 if k == 0 else 12, 0))
+            tiles.columnconfigure(k, weight=1, uniform="tiles")
+            tk.Label(t, text=f"0{k + 1}", bg=CARD_BG, fg=TEAL, font=(FONT_MONO, 10, "bold")).pack(anchor="w")
+            tk.Label(t, text=T(fr, en), bg=CARD_BG, fg=VIOLET, font=(FONT_DISPLAY, 18, "bold")).pack(anchor="w")
+            tk.Label(t, text=T(dfr, den), bg=CARD_BG, fg=MUTED, font=(FONT_SERIF, 10), justify="left",
+                     wraplength=int(230 * self.k), anchor="w").pack(fill="x", pady=(4, 12))
+            ttk.Button(t, text=T("Ouvrir…", "Open…"), command=cmd).pack(anchor="w")
+        opn = ttk.Button(self.canvas, text=T("Ouvrir les résultats", "Open results"), style="Teal.TButton",
+                         command=self.open_results)
+        self._page(T("Étape 05", "Step 05"), T("Publication", "Publication"),
+                   T("Ce que l'on fait des objets détourés : planches, inventaire, vignettes.",
+                     "What to do with the outlined objects: plates, inventory, thumbnails."),
+                   left, None, [opn], None)
+
+    # ---------------------------------------------------------------- settings
+    def _options(self, card):
+        """The essential settings, where the results go, and the settings changed from the defaults; the
+        others in the 'Advanced settings' window."""
+        self.v, self.w = {}, {}
+        for key in OPTION_KEYS:
+            v = self.s[key]
+            if isinstance(DEFAULTS[key], bool):
+                self.v[key] = tk.BooleanVar(value=v)
+            elif key in ("margin_cm", "gap_cm"):
+                self.v[key] = tk.StringVar(value="%.1f" % float(v))
+            elif key in ("default_ppi", "jobs"):
+                self.v[key] = tk.StringVar(value="%.0f" % float(v))
+            else:
+                self.v[key] = tk.StringVar(value=str(v))
+            self.v[key].trace_add("write", lambda *_: self._changed())
+        self.ai_ok = has_ai()
+        if not self.ai_ok:
+            self.v["ai"].set(False)
+        self._section(card, T("Réglages", "Settings"))
+        grid = tk.Frame(card, bg=CARD_BG)
+        grid.pack(fill="x")
+        grid.columnconfigure(1, weight=1)
+        self._option_widgets(grid, ESSENTIAL_OPTIONS)
+        ttk.Button(card, text=T("▸ Réglages avancés…", "▸ Advanced settings…"), style="Link.TButton",
+                   command=self.advanced).pack(anchor="w", pady=(8, 0))
+        self._section(card, T("Résultats", "Results"), top=14)
+        self.out_mode = tk.StringVar(value=self.s["output_mode"])
+        ttk.Radiobutton(card, text=T("À côté des photographies (outlined_result)",
+                                     "Next to the photos (outlined_result)"),
+                        value="next", variable=self.out_mode, command=self._sync).pack(anchor="w")
+        row = tk.Frame(card, bg=CARD_BG)
+        row.pack(fill="x", pady=(4, 0))
+        ttk.Radiobutton(row, text=T("Ici :", "Here:"), value="other", variable=self.out_mode,
+                        command=self._sync).pack(side="left")
+        self.out_dir = tk.StringVar(value=self.s["output_dir"])
+        self.out_entry = ttk.Entry(row, textvariable=self.out_dir, font=(FONT_MONO, 9))
+        self.out_entry.pack(side="left", fill="x", expand=True, padx=6)
+        self.out_btn = ttk.Button(row, text="…", style="Small.TButton", command=self.pick_output)
+        self.out_btn.pack(side="left")
+        self._section(card, T("Modifié par rapport au défaut", "Changed from the defaults"), top=14)
+        self.changed_var = tk.StringVar(value="")
+        tk.Label(card, textvariable=self.changed_var, bg=CARD_BG, fg=TERRA, font=(FONT_SERIF, 10), justify="left",
+                 anchor="w", wraplength=int(330 * self.k)).pack(fill="x")
+        ttk.Button(card, text=T("Revenir aux valeurs par défaut", "Back to the defaults"), style="Small.TButton",
+                   command=self.reset_options).pack(anchor="w", pady=(6, 0))
+        self._sync()
+
+    def _option_widgets(self, parent, keys):
+        """Check boxes, lists and number fields of the given settings, in two columns of a grid."""
+        r = parent.grid_size()[1]
+        for key in keys:
+            kind, label, extra = OPTION_SPECS[key]
+            text = T(*label)
+            if key == "ai" and not self.ai_ok:
+                text += T("  (à installer)", "  (to install)")
+            if kind == "check":
+                w = ttk.Checkbutton(parent, text=text, variable=self.v[key],
+                                    command=self._ai_ticked if key == "ai" else self._sync)
+                w.grid(row=r, column=0, columnspan=2, sticky="w", pady=2)
+                tips = [w]
+            else:
+                lbl = tk.Label(parent, text=text, bg=CARD_BG, fg=TEXT, font=(FONT_SERIF, 10), anchor="w")
+                lbl.grid(row=r, column=0, sticky="w", pady=2, padx=(0, 10))
+                if kind == "choice":
+                    w = ttk.Combobox(parent, textvariable=self.v[key], values=extra, state="readonly", width=12)
+                    w.bind("<<ComboboxSelected>>", lambda _: self._sync())
+                else:
+                    lo, hi, step = extra
+                    hi = max(1, os.cpu_count() or 1) if key == "jobs" else hi
+                    w = ttk.Spinbox(parent, textvariable=self.v[key], from_=lo, to=hi, increment=step, width=8,
+                                    format="%.0f" if step >= 1 else "%.1f")
+                w.grid(row=r, column=1, sticky="w", pady=2)
+                tips = [lbl, w]
+            for x in tips:
+                Tooltip(x, help_text(key))
+            self.w[key] = w
+            r += 1
+
+    def advanced(self):
+        """The window of the other settings (files, run, scale and layout, cleaning, AI)."""
+        if getattr(self, "adv_win", None) is not None and self.adv_win.winfo_exists():
+            self.adv_win.lift()
+            return
+        win = self.adv_win = tk.Toplevel(self.root)
+        win.title(T("Réglages avancés", "Advanced settings"))
+        win.configure(bg=CARD_BG)
+        win.transient(self.root)
+        body = tk.Frame(win, bg=CARD_BG, padx=22, pady=18)
+        body.pack(fill="both", expand=True)
+        cols = [tk.Frame(body, bg=CARD_BG), tk.Frame(body, bg=CARD_BG)]
+        for k, c in enumerate(cols):
+            c.grid(row=0, column=k, sticky="nw", padx=(0, 30) if k == 0 else 0)
+            c.columnconfigure(1, weight=1)
+        for col, sections in ((0, ADVANCED_OPTIONS[:2]), (1, ADVANCED_OPTIONS[2:])):
+            for (fr, en), keys in sections:
+                tk.Label(cols[col], text=T(fr, en).upper(), bg=CARD_BG, fg=MUTED, font=(FONT_MONO, 9, "bold"),
+                         anchor="w").grid(row=cols[col].grid_size()[1], column=0, columnspan=2, sticky="w",
+                                          pady=(12, 4))
+                self._option_widgets(cols[col], keys)
+        ttk.Button(win, text=T("Fermer", "Close"), style="Run.TButton", command=win.destroy).pack(
+            anchor="e", padx=22, pady=(0, 18))
+        self._sync()
+
+    def _changed(self):
+        """The settings that differ from the defaults, listed under the settings."""
+        if not hasattr(self, "changed_var"):
+            return
+        out = []
+        for key in OPTION_KEYS:
+            try:
+                same = option_value(key, self.v[key].get()) == option_value(key, DEFAULTS[key])
+            except (ValueError, tk.TclError):
+                same = False
+            if not same:
+                kind, label, _ = OPTION_SPECS[key]
+                val = self.v[key].get()
+                out.append(T(*label) + ("" if kind == "check" else f" : {val}" if LANG == "fr" else f": {val}")
+                           + (T(" (non)", " (off)") if kind == "check" and not val else ""))
+        self.changed_var.set(", ".join(out) if out else T("Rien : réglages par défaut.", "Nothing: default settings."))
+
+    def reset_options(self):
+        """All the settings back to their default values (the results folder and the profile kept)."""
+        for key in OPTION_KEYS:
+            v = DEFAULTS[key]
+            self.v[key].set(v if isinstance(v, bool) else ("%.1f" % v if key in ("margin_cm", "gap_cm") else str(v)))
+        if not self.ai_ok:
+            self.v["ai"].set(False)
+        self._sync()
+
+    def set_lang(self, code):
+        """Interface in French or English: the window is built again in that language."""
+        global LANG
+        if code == LANG:
+            return
+        try:
+            self._collect()
+        except ValueError:
+            pass
+        paths = list(self.tree.get_children())
+        self.s["lang"] = LANG = code
+        self.save_settings()
+        if getattr(self, "adv_win", None) is not None and self.adv_win.winfo_exists():
+            self.adv_win.destroy()
+        for w in self.root.winfo_children():
+            if not isinstance(w, tk.Toplevel):
+                w.destroy()
+        self._build()
+        self.add_paths(paths)
+        self.check_packages()
+        self._refresh_steps()
 
     def apply_profile(self):
         """The options kept in the chosen profile are set in the window."""
         name = self.profile.get()
-        self.s["profile"] = "" if name == "(none)" else name
+        self.s["profile"] = "" if name == T("(aucun)", "(none)") else name
         if not self.s["profile"]:
             return
         try:
@@ -3427,104 +4102,22 @@ class App:
 
     def profiles_changed(self, name):
         """List of profiles updated, the profile saved chosen."""
-        self.profile_cb.configure(values=["(none)"] + profile_names())
+        self.profile_cb.configure(values=[T("(aucun)", "(none)")] + profile_names())
         self.profile.set(name)
         self.apply_profile()
-
-    def _options_card(self, parent):
-        """Card of the options (files, run, scale and layout, cleaning, AI)."""
-        card = ttk.Labelframe(parent, text="  Options  ", style="Card.TLabelframe", padding=12)
-        cols = [ttk.Frame(card, style="Card.TFrame"), ttk.Frame(card, style="Card.TFrame")]
-        for i, c in enumerate(cols):
-            c.grid(row=0, column=i, sticky="nw", padx=(0, 18) if i == 0 else 0)
-            c.columnconfigure(1, weight=1)
-        rows = {0: 0, 1: 0}
-        self.v = {}
-        cur = [0]                                   # column being filled
-
-        def place(widget, **kw):
-            c = cur[0]
-            widget.grid(row=rows[c], **kw)
-
-        def section(title, column):
-            cur[0] = column
-            ttk.Label(cols[column], text=title, style="Section.TLabel").grid(
-                row=rows[column], column=0, columnspan=2, sticky="w", pady=(10 if rows[column] else 0, 2))
-            rows[column] += 1
-
-        def check(key, text, command=None):
-            c = cur[0]
-            self.v[key] = tk.BooleanVar(value=self.s[key])
-            w = ttk.Checkbutton(cols[c], text=text, variable=self.v[key], command=command or self._sync)
-            place(w, column=0, columnspan=2, sticky="w", pady=1)
-            Tooltip(w, HELP[key])
-            rows[c] += 1
-            return w
-
-        def choice(key, text, values, width=11):
-            c = cur[0]
-            self.v[key] = tk.StringVar(value=str(self.s[key]))
-            lbl = ttk.Label(cols[c], text=text)
-            place(lbl, column=0, sticky="w", pady=2, padx=(0, 8))
-            w = ttk.Combobox(cols[c], textvariable=self.v[key], values=values, state="readonly", width=width)
-            place(w, column=1, sticky="w", pady=2)
-            w.bind("<<ComboboxSelected>>", lambda _: self._sync())
-            for x in (lbl, w):
-                Tooltip(x, HELP[key])
-            rows[c] += 1
-            return w
-
-        def number(key, text, lo, hi, step, width=6):
-            c = cur[0]
-            fmt = "%.0f" if step >= 1 else "%.1f"
-            self.v[key] = tk.StringVar(value=fmt % float(self.s[key]))
-            lbl = ttk.Label(cols[c], text=text)
-            place(lbl, column=0, sticky="w", pady=2, padx=(0, 8))
-            w = ttk.Spinbox(cols[c], textvariable=self.v[key], from_=lo, to=hi, increment=step, width=width,
-                            format=fmt)
-            place(w, column=1, sticky="w", pady=2)
-            for x in (lbl, w):
-                Tooltip(x, HELP[key])
-            rows[c] += 1
-            return w
-
-        section("FILES", 0)
-        check("psd", "Photoshop file (.psd)")
-        self.w_layer = check("original_layer", "   with a hidden 'Original photo' layer")
-        check("original_copy", "Copy of the original photo")
-        check("control", "Control previews (to_control)")
-        choice("background", "TIFF background", ["transparent", "white"])
-        choice("compression", "TIFF compression", ["lzw", "zip", "none"])
-        section("RUN", 0)
-        number("jobs", "Photos in parallel", 1, max(1, os.cpu_count() or 1), 1)
-        check("open", "Open the result folder at the end")
-        section("SCALE AND LAYOUT", 1)
-        check("scale", "Look for the scale")
-        self.w_scale_cm = choice("scale_cm", "Scale length (cm)", ["auto", "5", "10"], width=8)
-        self.w_ppi = number("default_ppi", "Without scale (ppi)", 50, 2400, 50)
-        choice("layout", "Scale placement", ["recompose", "original"], width=10)
-        number("margin_cm", "Margin (cm)", 0, 5, 0.1)
-        number("gap_cm", "Sherd / scale gap (cm)", 0, 5, 0.1)
-        section("CLEANING", 1)
-        check("remove_putty", "Remove mounting putty")
-        self.ai_ok = has_ai()
-        self.w_ai = check("ai", "AI second opinion" + ("" if self.ai_ok else "  (to install)"), command=self._ai_ticked)
-        if not self.ai_ok:
-            self.v["ai"].set(False)
-        self.w_model = choice("ai_model", "AI model", ["isnet", "birefnet"], width=8)
-        self.w_device = choice("ai_device", "AI device", ["auto", "cpu"], width=8)
-        self._sync()
-        return card
 
     def _ai_ticked(self):
         """AI ticked: offers to install onnxruntime when missing."""
         if self.v["ai"].get() and not self.ai_ok:
             self.v["ai"].set(False)
             if FROZEN:
-                messagebox.showinfo("Gerbil", "This version was built without the AI second opinion.")
+                messagebox.showinfo("Gerbil", T("Cette version a été construite sans le second avis de l'IA.",
+                                                "This version was built without the AI second opinion."))
             elif self.proc is None and messagebox.askyesno(
-                    "Gerbil", "The AI second opinion needs the onnxruntime package (about 60 MB, "
-                    "downloaded from the internet).\n\nInstall it now?"):
+                    "Gerbil", T("Le second avis de l'IA a besoin du paquet onnxruntime (environ 60 Mo, "
+                                "téléchargé depuis internet).\n\nL'installer maintenant ?",
+                                "The AI second opinion needs the onnxruntime package (about 60 MB, "
+                                "downloaded from the internet).\n\nInstall it now?")):
                 self._start(pip_command([AI_PACKAGE]), "pip-ai")
         self._sync()
 
@@ -3533,11 +4126,14 @@ class App:
         missing = missing_packages()
         if missing:
             self.banner_text.configure(
-                text="Some Python packages needed to process the photos are missing on this computer:  "
-                     + ", ".join(missing) + ".\nClick 'Install now' (internet connection needed, about 2 minutes).")
+                text=T("Des paquets Python nécessaires au traitement manquent sur cet ordinateur :  ",
+                       "Some Python packages needed to process the photos are missing on this computer:  ")
+                     + ", ".join(missing) + T(".\nCliquez sur « Installer maintenant » (connexion internet, "
+                                              "environ 2 minutes).",
+                                              ".\nClick 'Install now' (internet connection needed, about 2 minutes)."))
             self.banner.pack(fill="x", after=self.banner_anchor)
             self.run_btn.state(["disabled"])
-            self.status.set("Install the missing packages first (banner above).")
+            self.status.set(T("Installez d'abord les paquets manquants.", "Install the missing packages first."))
         else:
             self.banner.pack_forget()
             if self.proc is None:
@@ -3550,16 +4146,93 @@ class App:
             self._start(pip_command(missing_packages()), "pip")
 
     def _sync(self):
-        """Enables the options that depend on another one."""
+        """Enables the options that depend on another one; lists the settings changed."""
         on = lambda key: self.v[key].get()
-        self.w_layer.state(["!disabled"] if on("psd") else ["disabled"])
-        for w in (self.w_scale_cm,):
-            w.state(["!disabled", "readonly"] if on("scale") else ["disabled"])
-        for w in (self.w_model, self.w_device):
-            w.state(["!disabled", "readonly"] if on("ai") else ["disabled"])
+        live = lambda key: key in self.w and self.w[key].winfo_exists()
+        if live("original_layer"):
+            self.w["original_layer"].state(["!disabled"] if on("psd") else ["disabled"])
+        if live("scale_cm"):
+            self.w["scale_cm"].state(["!disabled", "readonly"] if on("scale") else ["disabled"])
+        for key in ("ai_model", "ai_device"):
+            if live(key):
+                self.w[key].state(["!disabled", "readonly"] if on("ai") else ["disabled"])
         other = self.out_mode.get() == "other"
         self.out_entry.state(["!disabled"] if other else ["disabled"])
         self.out_btn.state(["!disabled"] if other else ["disabled"])
+        self._changed()
+
+    # ---------------------------------------------------------------- steps
+    def _refresh_steps(self):
+        """What the column of steps says of each step."""
+        n = sum(int(self.tree.set(i, "photos")) for i in self.tree.get_children())
+        nf = sum(1 for i in self.tree.get_children() if os.path.isdir(i))
+        if n:
+            self.step_sub[0].set(T(f"{nf} dossier(s), {n} photographie(s)", f"{nf} folder(s), {n} photo(s)"))
+        else:
+            self.step_sub[0].set(T("aucune pour l'instant", "none yet"))
+        if not self.step_sub[1].get():
+            self.step_sub[1].set(T("facultatif", "optional"))
+        if self.proc is not None and self.kind == "script":
+            self.step_sub[2].set(self.status.get())
+        elif self.rows:
+            self.step_sub[2].set(self._summary())
+        else:
+            self.step_sub[2].set(T("pas encore lancé", "not run yet"))
+        bad = sum(1 for r in self.rows if r[1] != "ok")
+        badge = self.step_widgets[3]["badge"]
+        if bad:
+            badge.configure(text=str(bad))
+            badge.pack(side="left", padx=(8, 0))
+            self.step_sub[3].set(T("photographies à revoir", "photos to look at"))
+        else:
+            badge.pack_forget()
+            self.step_sub[3].set(T("rien à revoir", "nothing to look at") if self.rows else T("après le traitement",
+                                                                                          "after the processing"))
+        self.step_sub[4].set(T("planches, inventaire, vignettes", "plates, inventory, thumbnails"))
+        self.review_hint.set(T(f"{bad} photographie(s) à revoir", f"{bad} photo(s) to look at") if bad else "")
+        self.next_hint.set(T(f"Ensuite : vérification de {bad} photographie(s)", f"Next: review of {bad} photo(s)")
+                           if bad and self.proc is None else "")
+
+    def _naming_summary(self):
+        """What the project of the first folder says: template, fields, photos with missing information."""
+        folders = [i if os.path.isdir(i) else os.path.dirname(i) for i in self.tree.get_children()]
+        if not folders:
+            self.naming_var.set(T("Ajoutez d'abord un dossier de photographies (étape 01).",
+                                  "Add a folder of photos first (step 01)."))
+            self.naming_example.set("")
+            self.step_sub[1].set(T("facultatif", "optional"))
+            return
+        folder = folders[0]
+        pr = load_project_file(folder)
+        if pr is None:
+            self.naming_var.set(T("Le fichier gerbil_project.json de ce dossier est illisible.",
+                                  "The gerbil_project.json of this folder cannot be read."))
+            return
+        photos = sorted(f for f in os.listdir(folder) if os.path.splitext(f)[1].lower() in EXTENSIONS)
+        template = (pr.get("template") or "").strip()
+        exists = os.path.exists(os.path.join(folder, PROJECT_FILE))
+        required = [f["key"] for f in pr["fields"] if f.get("required")]
+        missing = sum(1 for p in photos if any(not project_values(pr, p).get(k) for k in required))
+        name = os.path.basename(folder)
+        if not exists:
+            text = T(f"Le dossier « {name} » n'a pas encore de projet : les fichiers produits garderont le nom "
+                     "des photographies.", f"The folder '{name}' has no project yet: the output files will keep "
+                     "the names of the photos.")
+            self.step_sub[1].set(T("facultatif", "optional"))
+        else:
+            fields = ", ".join(f.get("label") or f["key"] for f in pr["fields"])
+            text = T(f"Dossier « {name} » : {len(photos)} photographie(s).\nChamps : {fields}.\n"
+                     f"Modèle de nom : {template or '(aucun)'}.\n",
+                     f"Folder '{name}': {len(photos)} photo(s).\nFields: {fields}.\n"
+                     f"Name template: {template or '(none)'}.\n")
+            text += (T(f"{missing} photographie(s) sans toutes leurs informations obligatoires.",
+                       f"{missing} photo(s) without all their required information.") if missing
+                     else T("Toutes les informations obligatoires sont remplies.", "All the required information is filled in."))
+            self.step_sub[1].set((template or T("sans modèle", "no template"))
+                                 + (T(f", {missing} incomplète(s)", f", {missing} incomplete") if missing else ""))
+        self.naming_var.set(text)
+        self.naming_example.set((T("Exemple : ", "Example: ") + photos[0] + "  →  "
+                                 + project_output_name(pr, photos[0]) + "_outlined.tif") if photos else "")
 
     # ---------------------------------------------------------------- photos
     def add_paths(self, paths):
@@ -3579,19 +4252,24 @@ class App:
             known.add(p)
             self.s["last_dir"] = p if os.path.isdir(p) else os.path.dirname(p)
         n = sum(int(self.tree.set(i, "photos")) for i in self.tree.get_children())
-        self.total_lbl.configure(text=f"{n} photo(s) to process." if n else "No photo yet.")
+        self.total_lbl.configure(text=T(f"{n} photographie(s) à traiter.", f"{n} photo(s) to process.") if n
+                                 else T("Aucune photographie pour l'instant.", "No photo yet."))
+        self.sources_hint.set(T(f"{n} photographie(s)", f"{n} photo(s)") if n else "")
+        self._refresh_steps()
 
     def add_folder(self):
         """Adds a folder of photos."""
-        d = filedialog.askdirectory(title="Folder of photos", initialdir=self.s["last_dir"] or None)
+        d = filedialog.askdirectory(title=T("Dossier de photographies", "Folder of photos"),
+                                    initialdir=self.s["last_dir"] or None)
         if d:
             self.add_paths([d])
 
     def add_files(self):
         """Adds photos."""
-        fs = filedialog.askopenfilenames(title="Photos", initialdir=self.s["last_dir"] or None,
-                                         filetypes=[("Photos", " ".join("*" + e for e in sorted(EXTENSIONS))),
-                                                    ("All files", "*.*")])
+        fs = filedialog.askopenfilenames(title=T("Photographies", "Photos"), initialdir=self.s["last_dir"] or None,
+                                         filetypes=[(T("Photographies", "Photos"),
+                                                     " ".join("*" + e for e in sorted(EXTENSIONS))),
+                                                    (T("Tous les fichiers", "All files"), "*.*")])
         if fs:
             self.add_paths(fs)
 
@@ -3603,14 +4281,16 @@ class App:
             folders = [i if os.path.isdir(i) else os.path.dirname(i) for i in self.tree.get_children()]
         folders = list(dict.fromkeys(folders))
         if len(folders) != 1:
-            d = filedialog.askdirectory(title="Folder of photos to rename", initialdir=self.s["last_dir"] or None)
+            d = filedialog.askdirectory(title=T("Dossier de photographies à renommer", "Folder of photos to rename"),
+                                        initialdir=self.s["last_dir"] or None)
             if not d:
                 return
             folders = [os.path.normpath(d)]
         try:
             ProjectWindow(self, folders[0])
         except (ValueError, OSError) as e:
-            messagebox.showerror("Gerbil", f"Could not open the batch renaming:\n{e}")
+            messagebox.showerror("Gerbil", T("Impossible d'ouvrir le renommage en lot :\n", "Could not open the batch "
+                                             "renaming:\n") + str(e))
 
     def set_scale(self):
         """Manual scale of one photo: the photo selected in the list, otherwise one to choose."""
@@ -3619,17 +4299,23 @@ class App:
             self.scale_series(sel)
             return
         path = sel[0] if len(sel) == 1 else filedialog.askopenfilename(
-            title="Photo whose scale to set", initialdir=(self.tree.selection() or [self.s["last_dir"]])[0] or None,
-            filetypes=[("Photos", " ".join("*" + e for e in sorted(EXTENSIONS))), ("All files", "*.*")])
-        if not path:
-            return
+            title=T("Photographie dont régler l'échelle", "Photo whose scale to set"),
+            initialdir=(self.tree.selection() or [self.s["last_dir"]])[0] or None,
+            filetypes=[(T("Photographies", "Photos"), " ".join("*" + e for e in sorted(EXTENSIONS))),
+                       (T("Tous les fichiers", "All files"), "*.*")])
+        if path:
+            self._open_scale(os.path.normpath(path))
+
+    def _open_scale(self, path):
         try:
-            ScaleWindow(self, os.path.normpath(path))
+            ScaleWindow(self, path)
         except ImportError:
-            messagebox.showwarning("Gerbil", "This window needs the Pillow package: install the missing "
-                                               "packages first (banner at the top).")
+            messagebox.showwarning("Gerbil", T("Cette fenêtre a besoin du paquet Pillow : installez d'abord les "
+                                               "paquets manquants.", "This window needs the Pillow package: install "
+                                               "the missing packages first."))
         except OSError as e:
-            messagebox.showerror("Gerbil", f"Could not open the photo:\n{e}")
+            messagebox.showerror("Gerbil", T("Impossible d'ouvrir la photographie :\n", "Could not open the photo:\n")
+                                 + str(e))
 
     def scale_series(self, paths):
         """Manual scales of several photos, one window after the other; the photos whose scale was saved
@@ -3644,14 +4330,41 @@ class App:
                 ScaleWindow(self, path, seq)
                 return
             except ImportError:
-                messagebox.showwarning("Gerbil", "This window needs the Pillow package: install the missing "
-                                                   "packages first (banner at the top).")
+                messagebox.showwarning("Gerbil", T("Cette fenêtre a besoin du paquet Pillow : installez d'abord "
+                                                   "les paquets manquants.", "This window needs the Pillow package: "
+                                                   "install the missing packages first."))
                 return
             except OSError as e:
                 self._log(f"Could not open {path}: {e}\n", "verify")
         if seq["saved"] and messagebox.askyesno(
-                "Gerbil", f"Scale set for {len(seq['saved'])} photo(s).\n\nProcess them again now?"):
+                "Gerbil", T(f"Échelle réglée pour {len(seq['saved'])} photographie(s).\n\nLes retraiter maintenant ?",
+                            f"Scale set for {len(seq['saved'])} photo(s).\n\nProcess them again now?")):
             self.run(seq["saved"])
+
+    def _scale_for_selection(self):
+        """Manual scale of the photos selected in the list to look at (else of those whose scale is missing)."""
+        paths = [self._path_of(self.todo_tree.set(i, "photo")) for i in self.todo_tree.selection()]
+        paths = [p for p in paths if p] or list(self.no_scale)
+        if paths:
+            self.scale_series(paths)
+        else:
+            self.set_scale()
+
+    def _path_of(self, name):
+        return next((r[4] for r in self.rows if r[0] == name and r[4]), self.index.get(name))
+
+    def _row_open(self, event):
+        """Double-click on a result: the scale window when the scale is the problem, else the review."""
+        tree = event.widget
+        item = tree.identify_row(event.y)
+        if not item:
+            return
+        name = tree.set(item, "photo")
+        row = next((r for r in self.rows if r[0] == name), None)
+        if row and row[1] != "ok" and row[5] and row[4]:
+            self._open_scale(row[4])
+        else:
+            self.review()
 
     def remove(self):
         """Removes the selected rows of the list."""
@@ -3666,14 +4379,17 @@ class App:
 
     def pick_output(self):
         """Chooses the results folder (not a folder of photos)."""
-        d = filedialog.askdirectory(title="Result folder", initialdir=self.out_dir.get() or None)
+        d = filedialog.askdirectory(title=T("Dossier des résultats", "Result folder"), initialdir=self.out_dir.get() or None)
         if d:
             d = os.path.normpath(d)
             photos = {os.path.normcase(os.path.normpath(p)) for p in self.tree.get_children() if os.path.isdir(p)}
             if os.path.normcase(d) in photos:
-                messagebox.showwarning("Gerbil", "This is a folder of photos: the results would be mixed with the "
-                                                 "photos. Choose another folder (or keep 'outlined_result next to "
-                                                 "the photos').")
+                messagebox.showwarning("Gerbil", T("C'est un dossier de photographies : les résultats seraient mêlés "
+                                                   "aux photographies. Choisissez un autre dossier (ou gardez le "
+                                                   "dossier outlined_result à côté des photographies).",
+                                                   "This is a folder of photos: the results would be mixed with the "
+                                                   "photos. Choose another folder (or keep 'outlined_result next to "
+                                                   "the photos')."))
                 return
             self.out_dir.set(d)
 
@@ -3687,14 +4403,15 @@ class App:
             try:
                 s[k] = float(str(s[k]).replace(",", "."))
             except ValueError:
-                raise ValueError(f"invalid value for '{k}': {s[k]}")
+                raise ValueError(T(f"valeur invalide pour « {k} » : {s[k]}", f"invalid value for '{k}': {s[k]}"))
             if s[k] == int(s[k]):
                 s[k] = int(s[k])
         s["output_mode"], s["output_dir"] = self.out_mode.get(), self.out_dir.get().strip()
         a = []
         if s["output_mode"] == "other":
             if not s["output_dir"]:
-                raise ValueError("choose the result folder, or keep the results next to the photos")
+                raise ValueError(T("choisissez le dossier des résultats, ou gardez les résultats à côté des "
+                                   "photographies", "choose the result folder, or keep the results next to the photos"))
             a += ["-o", s["output_dir"]]
         if s["background"] != "transparent":
             a += ["--background", s["background"]]
@@ -3751,16 +4468,19 @@ class App:
         self.quiet = quiet
         inputs = list(inputs or self.tree.get_children())
         if not inputs:
-            messagebox.showinfo("Gerbil", "Add at least one folder or photo.")
+            messagebox.showinfo("Gerbil", T("Ajoutez au moins un dossier ou une photographie (étape 01).",
+                                            "Add at least one folder or photo (step 01)."))
             return
         try:
             args = self._collect()
         except ValueError as e:
-            messagebox.showwarning("Gerbil", str(e).capitalize() + ".")
+            messagebox.showwarning("Gerbil", str(e)[:1].upper() + str(e)[1:] + ".")
             return
         self.save_settings()
         if not self.check_packages():
             return
+        if not quiet:
+            self.show_page(2)
         self._clear_log()
         self._log(("gerbil_cli.exe " if FROZEN else "py gerbil.py ")
                   + " ".join(f'"{x}"' if " " in x else x for x in inputs + args)
@@ -3768,12 +4488,16 @@ class App:
         self.results, self.counts, self.total = [], {}, 0
         self.no_scale = []                                  # photos whose scale is missing or doubtful
         self.index = {}                                     # photo name -> path, to find them again
+        if not quiet:
+            self.rows = []
+            self.table.delete(*self.table.get_children())
+            self.todo_tree.delete(*self.todo_tree.get_children())
         for p in inputs:
             files = [os.path.join(p, f) for f in sorted(os.listdir(p))] if os.path.isdir(p) else [p]
             for f in files:
                 if os.path.splitext(f)[1].lower() in EXTENSIONS:
                     self.index.setdefault(os.path.basename(f), f)
-        self.bar.configure(value=0, maximum=1)
+        self.bar.configure(value=0, maximum=1, mode="determinate")
         engine = [ENGINE] if FROZEN else [python_exe(), "-u", SCRIPT]
         self._start(engine + inputs + args + ["-v"], "script")
 
@@ -3781,18 +4505,18 @@ class App:
         """Runs the script ("script") or pip ("pip": required packages, "pip-ai": onnxruntime)."""
         self.kind = kind
         if kind != "script":
-            self._log(("Installing: " + " ".join(cmd[cmd.index("install") + 2:])
-                       + "  (internet connection needed)\n"), "info")
-            self.bar.configure(mode="indeterminate")
+            self._log(T("Installation : ", "Installing: ") + " ".join(cmd[cmd.index("install") + 2:])
+                      + T("  (connexion internet nécessaire)\n", "  (internet connection needed)\n"), "info")
             self.bar.start(15)
-        self.status.set("Starting…" if kind == "script" else "Installing the Python packages…")
+        self.status.set(T("Démarrage…", "Starting…") if kind == "script"
+                        else T("Installation des paquets Python…", "Installing the Python packages…"))
         env = dict(os.environ, PYTHONIOENCODING="utf-8", PYTHONUNBUFFERED="1")
         try:
             self.proc = subprocess.Popen(cmd, cwd=HERE, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                          stdin=subprocess.DEVNULL, text=True, encoding="utf-8", errors="replace",
                                          creationflags=NO_WINDOW)
         except OSError as e:
-            messagebox.showerror("Gerbil", f"Could not start:\n{e}")
+            messagebox.showerror("Gerbil", T("Impossible de démarrer :\n", "Could not start:\n") + str(e))
             self._stop_bar()
             return
         self.run_btn.state(["disabled"])
@@ -3832,8 +4556,16 @@ class App:
         else:
             self.root.after(100, self._poll)
 
+    def _add_row(self, name, status, scale, todo, path, scale_problem):
+        """One photo in the table of the results (and in the list to look at when it is not ok)."""
+        tag = {"ok": "ok", "to verify": "verify"}.get(status, "failed")
+        state = {"ok": "● ok", "to verify": T("● à vérifier", "● to verify")}.get(status, T("● échec", "● failed"))
+        self.table.insert("", "end", values=(name, state, scale, todo), tags=(tag,))
+        if status != "ok":
+            self.todo_tree.insert("", "end", values=(name, todo), tags=(tag,))
+
     def _handle(self, line):
-        """One line of the engine: progress, coloured log, results folder, photos to set by hand."""
+        """One line of the engine: progress, table of the results, log, results folder."""
         if self.kind != "script":                          # pip output
             if line.strip():
                 self._log(line + "\n", "cmd" if not line.startswith(("ERROR", "error")) else "failed")
@@ -3842,20 +4574,32 @@ class App:
         if m:
             self.total = int(m.group(1))
             self.bar.configure(maximum=max(1, self.total))
-            self.status.set(f"0 / {self.total} photo(s)…")
+            self.status.set(f"0 / {self.total}")
             self._log(line + "\n", "info")
+            self._refresh_steps()
             return
-        m = re.match(r"^\[(\d+)/(\d+)\] .+?: (ok|to verify|failed|error) \(", line)
+        m = re.match(r"^\[(\d+)/(\d+)\] (.+?): (ok|to verify|failed|error) \((.*?)\)(.*)$", line)
         if m:
-            i, n, status = int(m.group(1)), int(m.group(2)), m.group(3)
+            i, n, name, status = int(m.group(1)), int(m.group(2)), m.group(3), m.group(4)
             self.counts[status] = self.counts.get(status, 0) + 1
-            if any(k in line for k in SCALE_PROBLEMS):
-                name = re.match(r"^\[\d+/\d+\] (.+?): ", line).group(1)
-                if name in self.index:
-                    self.no_scale.append(self.index[name])
+            scale_problem = any(k in line for k in SCALE_PROBLEMS)
+            if scale_problem and name in self.index:
+                self.no_scale.append(self.index[name])
+            scale = scale_text(m.group(5))
+            parts = [p.strip() for p in m.group(6).split(" | ") if p.strip()]
+            todo = doubt_text(parts[0].split(" ; ")[0]) if parts else ""
+            row = (name, status, scale, todo, self.index.get(name), scale_problem)
+            self.rows = [r for r in self.rows if r[0] != name] + [row]
+            for tree in (self.table, self.todo_tree):
+                for it in tree.get_children():
+                    if tree.set(it, "photo") == name:
+                        tree.delete(it)
+            self._add_row(*row)
+            self.table.see(self.table.get_children()[-1])
             self.bar.configure(maximum=n, value=i)
-            self.status.set(f"{i} / {n} photo(s)  -  " + self._summary())
+            self.status.set(f"{i} / {n}")
             self._log(line + "\n", {"ok": "ok", "to verify": "verify"}.get(status, "failed"))
+            self._refresh_steps()
             return
         if line.startswith("Results: "):
             self.results.append(line[9:].strip())
@@ -3872,12 +4616,15 @@ class App:
         self._log(line + "\n", tag)
 
     def _summary(self):
-        """"12 ok, 3 to verify, 1 failed"."""
-        c = self.counts
-        parts = [f"{c.get('ok', 0)} ok", f"{c.get('to verify', 0)} to verify"]
+        """"12 ok, 3 à vérifier, 1 échec"."""
+        c = self.counts if self.counts else {}
+        if not c and self.rows:
+            for r in self.rows:
+                c[r[1]] = c.get(r[1], 0) + 1
+        parts = [f"{c.get('ok', 0)} ok", T(f"{c.get('to verify', 0)} à vérifier", f"{c.get('to verify', 0)} to verify")]
         bad = c.get("failed", 0) + c.get("error", 0)
         if bad:
-            parts.append(f"{bad} failed")
+            parts.append(T(f"{bad} échec(s)", f"{bad} failed"))
         return ", ".join(parts)
 
     def _finished(self):
@@ -3891,39 +4638,48 @@ class App:
         self._stop_bar()
         if self.kind == "pip":
             ok = code == 0 and imports_ok(REQUIRED)
-            self._log("Packages installed: the photos can be processed.\n" if ok else
-                      "The installation did not succeed (internet connection? proxy?). See the lines above.\n",
+            self._log(T("Paquets installés : les photographies peuvent être traitées.\n",
+                        "Packages installed: the photos can be processed.\n") if ok else
+                      T("L'installation n'a pas réussi (connexion internet ? proxy ?). Voir les lignes ci-dessus.\n",
+                        "The installation did not succeed (internet connection? proxy?). See the lines above.\n"),
                       "ok" if ok else "failed")
             if self.check_packages():
-                self.status.set("Ready: add folders or photos, then Run.")
+                self.status.set(T("Prêt.", "Ready."))
             return
         if self.kind == "pip-ai":
             self.ai_ok = code == 0 and imports_ok(["onnxruntime"])
-            self._log("AI second opinion installed (its model is downloaded at its first use).\n" if self.ai_ok else
-                      "The AI installation did not succeed; everything else works without it.\n",
+            self._log(T("Second avis de l'IA installé (son modèle est téléchargé à la première utilisation).\n",
+                        "AI second opinion installed (its model is downloaded at its first use).\n") if self.ai_ok else
+                      T("L'installation de l'IA n'a pas réussi ; tout le reste fonctionne sans elle.\n",
+                        "The AI installation did not succeed; everything else works without it.\n"),
                       "ok" if self.ai_ok else "failed")
             if self.ai_ok:
-                self.w_ai.configure(text="AI second opinion")
+                if "ai" in self.w and self.w["ai"].winfo_exists():
+                    self.w["ai"].configure(text=T(*OPTION_SPECS["ai"][1]))
                 self.v["ai"].set(True)
                 self._sync()
             self.check_packages()
-            self.status.set("AI second opinion ready." if self.ai_ok else "AI not installed.")
+            self.status.set(T("IA prête.", "AI ready.") if self.ai_ok else T("IA non installée.", "AI not installed."))
             return
         if self.results:
             self.open_btn.state(["!disabled"])
         if cancelled:
-            self.status.set("Cancelled  -  " + self._summary())
+            self.status.set(T("Arrêté : ", "Stopped: ") + self._summary())
         elif code == 0 and self.total:
-            self.status.set(f"Done: {self.total} photo(s)  -  " + self._summary())
+            self.status.set(self._summary())
             self.bar.configure(value=self.bar["maximum"])
         else:
-            self.status.set("Stopped: see the log below.")
+            self.status.set(T("Arrêté : voir les détails techniques.", "Stopped: see the technical details."))
+            if not self.logf.winfo_ismapped():
+                self._toggle_log()
+        self._refresh_steps()
         if not cancelled and not self.selftest and not getattr(self, "quiet", False) and getattr(self, "no_scale", None):
             todo, self.no_scale = self.no_scale, []         # offered once
             n = len(todo)
-            if messagebox.askyesno("Gerbil", f"The scale is missing or doubtful on {n} photo(s) "
-                                               "(see the summary in the log).\n\n"
-                                               "Set it by hand now, one photo after the other?"):
+            if messagebox.askyesno("Gerbil", T(f"L'échelle manque ou est douteuse sur {n} photographie(s).\n\n"
+                                               "La régler à la main maintenant, une photographie après l'autre ?",
+                                               f"The scale is missing or doubtful on {n} photo(s).\n\n"
+                                               "Set it by hand now, one photo after the other?")):
                 self.scale_series(todo)
         if self.selftest:
             with open(os.path.join(self.selftest, "selftest.txt"), "w", encoding="utf-8") as fh:
@@ -3937,19 +4693,22 @@ class App:
             # the whole process tree (the script runs the photos in worker processes)
             subprocess.run(["taskkill", "/PID", str(self.proc.pid), "/T", "/F"], capture_output=True,
                            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
-            self._log("Cancelled.\n", "verify")
+            self._log(T("Arrêté.\n", "Cancelled.\n"), "verify")
 
     def review(self):
         """Review window over the result folders of the last run (or a result folder to choose)."""
         folders = [d for d in self.results if os.path.isdir(os.path.join(d, REVIEW_DIR))]
         if not folders:
-            d = filedialog.askdirectory(title="Result folder to review (outlined_result)",
+            d = filedialog.askdirectory(title=T("Dossier de résultats à vérifier (outlined_result)",
+                                                "Result folder to review (outlined_result)"),
                                         initialdir=self.s["last_dir"] or None)
             if not d:
                 return
             if not os.path.isdir(os.path.join(d, REVIEW_DIR)):
-                messagebox.showinfo("Gerbil", "No review data in this folder: process the photos again "
-                                              "with this version of Gerbil first.")
+                messagebox.showinfo("Gerbil", T("Pas de données de vérification dans ce dossier : retraitez d'abord "
+                                                "les photographies avec cette version de Gerbil.",
+                                                "No review data in this folder: process the photos again "
+                                                "with this version of Gerbil first."))
                 return
             folders = [d]
         items = []
@@ -3966,29 +4725,33 @@ class App:
                         it["json"] = os.path.join(rd, f)
                         items.append(it)
         if not items:
-            messagebox.showinfo("Gerbil", "Nothing to review: the photos of these results cannot be found.")
+            messagebox.showinfo("Gerbil", T("Rien à vérifier : les photographies de ces résultats sont introuvables.",
+                                            "Nothing to review: the photos of these results cannot be found."))
             return
         rank = {"failed": 0, "error": 0, "to verify": 1}
         items.sort(key=lambda it: (rank.get(it.get("status"), 2), os.path.basename(it["photo"]).lower()))
         try:
             ReviewWindow(self, items)
         except ImportError:
-            messagebox.showwarning("Gerbil", "The review window needs numpy, OpenCV and Pillow: install the "
-                                             "missing packages first (banner at the top).")
+            messagebox.showwarning("Gerbil", T("La vérification a besoin de numpy, OpenCV et Pillow : installez "
+                                               "d'abord les paquets manquants.", "The review window needs numpy, "
+                                               "OpenCV and Pillow: install the missing packages first."))
 
     def plates(self):
         """Plates window over a results folder (the last one processed, or one to choose)."""
         folders = [d for d in self.results if os.path.isdir(d)]
         d = folders[0] if len(folders) == 1 else filedialog.askdirectory(
-            title="Results folder (outlined_result) to lay out on plates",
+            title=T("Dossier de résultats (outlined_result) à mettre en planches",
+                    "Results folder (outlined_result) to lay out on plates"),
             initialdir=(folders[0] if folders else self.s["last_dir"]) or None)
         if not d:
             return
         try:
             PlatesWindow(self, os.path.normpath(d))
         except ImportError:
-            messagebox.showwarning("Gerbil", "The plates need Pillow: install the missing packages first "
-                                             "(banner at the top).")
+            messagebox.showwarning("Gerbil", T("Les planches ont besoin de Pillow : installez d'abord les paquets "
+                                               "manquants.", "The plates need Pillow: install the missing "
+                                               "packages first."))
 
     def open_results(self):
         """Opens the results folders."""
@@ -3997,14 +4760,18 @@ class App:
                 os.startfile(d)
 
     def help(self):
-        """Opens the README."""
-        if os.path.exists(README):
-            os.startfile(README)
+        """Opens the guide of the interface language (else the README)."""
+        guide = os.path.join(HERE, "docs", "Gerbil_guide_FR.odt" if LANG == "fr" else "Gerbil_guide_EN.odt")
+        for path in (guide, README):
+            if os.path.exists(path):
+                os.startfile(path)
+                return
 
     def close(self):
         """Closes (stops a run first, if wanted) and saves the settings."""
         if self.proc and self.proc.poll() is None:
-            if not messagebox.askyesno("Gerbil", "A processing is running. Stop it and quit?"):
+            if not messagebox.askyesno("Gerbil", T("Un traitement est en cours. L'arrêter et quitter ?",
+                                                   "A processing is running. Stop it and quit?")):
                 return
             self.cancel()
         try:
@@ -4015,15 +4782,24 @@ class App:
         self.root.destroy()
 
     # ---------------------------------------------------------------- log
+    def _toggle_log(self):
+        """Shows or hides the technical details (the lines of the engine)."""
+        if self.logf.winfo_ismapped():
+            self.logf.pack_forget()
+            self.log_btn.configure(text=T("▸ Détails techniques", "▸ Technical details"))
+        else:
+            self.logf.pack(fill="both", expand=False, pady=(8, 0))
+            self.log_btn.configure(text=T("▾ Détails techniques", "▾ Technical details"))
+
     def _log(self, text, tag=None):
-        """Adds a text to the log, in a colour."""
+        """Adds a text to the technical details, in a colour."""
         self.log.configure(state="normal")
         self.log.insert("end", text, tag or ())
         self.log.see("end")
         self.log.configure(state="disabled")
 
     def _clear_log(self):
-        """Empties the log."""
+        """Empties the technical details."""
         self.log.configure(state="normal")
         self.log.delete("1.0", "end")
         self.log.configure(state="disabled")

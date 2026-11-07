@@ -1,4 +1,4 @@
-"""Purple gerbil holding a terracotta sherd, on a mint disc: the Gerbil icon.
+"""Purple gerbil holding a small teal camera, on a mint disc: the Gerbil icon.
 Usage: py draw_gerbil.py OUTPUT_FOLDER  (writes gerbil.ico and PNG previews)
 © 2026 Eloïs CHARBONNEL - GPL-3.0-or-later, see LICENSE."""
 import math, os, sys
@@ -77,11 +77,16 @@ d.line(P(bezier((222, 432), (240, 455), (262, 458), (282, 447), 20)), fill=INK, 
 for (x0, y0, x1, y1) in ((250, 405, 120, 360), (252, 418, 112, 418), (250, 430, 125, 475)):
     d.line([(x0 * k, y0 * k), (x1 * k, y1 * k)], fill=LAV_DEEP, width=int(5 * k))
 
-# terracotta sherd held in the front paws (a curved rim fragment)
-sherd = [(255, 520), (420, 470), (470, 560), (430, 660), (300, 690), (238, 600)]
-d.polygon(P(sherd), fill=TERRA, outline=TERRA_DARK, width=int(10 * k))
-d.line(P(bezier((262, 545), (330, 512), (390, 500), (430, 492), 30)), fill=TERRA_DARK, width=int(9 * k))
-# paws over the sherd
+# small camera held in the front paws (lens toward the viewer)
+TEAL, TEAL_DARK, LENS = (33, 83, 83, 255), (17, 45, 46, 255), (52, 36, 90, 255)
+d.rounded_rectangle([262 * k, 482 * k, 330 * k, 520 * k], radius=12 * k, fill=TEAL, outline=TEAL_DARK, width=int(10 * k))
+d.rounded_rectangle([238 * k, 505 * k, 468 * k, 680 * k], radius=30 * k, fill=TEAL, outline=TEAL_DARK, width=int(12 * k))
+d.line([(262 * k, 535 * k), (444 * k, 535 * k)], fill=(58, 122, 112, 255), width=int(10 * k))
+ell(d, 353, 600, 62, 62, (201, 194, 214, 255), outline=TEAL_DARK, width=12)
+ell(d, 353, 600, 36, 36, LENS)
+ell(d, 340, 586, 11, 11, (255, 255, 255, 255))
+ell(d, 432, 552, 11, 11, (159, 211, 207, 255))
+# paws over the camera
 ell(d, 410, 530, 42, 34, LAV_DARK)
 ell(d, 405, 640, 42, 34, LAV_DARK)
 

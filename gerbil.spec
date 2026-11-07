@@ -9,8 +9,10 @@ HERE = os.path.abspath(SPECPATH)
 ICON = os.path.join(HERE, "icons", "gerbil.ico")
 icons = [(os.path.join(HERE, "icons", f), "icons")
          for f in ("gerbil.ico", "gerbil_64.png", "gerbil_96.png", "gerbil_128.png")]
+fonts = [(os.path.join(HERE, "fonts", f), "fonts") for f in os.listdir(os.path.join(HERE, "fonts"))
+         if f.endswith((".ttf", ".txt"))]                # interface fonts (SIL Open Font License)
 
-gui = Analysis([os.path.join(HERE, "gerbil_gui.pyw")], pathex=[HERE], datas=icons,
+gui = Analysis([os.path.join(HERE, "gerbil_gui.pyw")], pathex=[HERE], datas=icons + fonts,
                hiddenimports=["onnxruntime"])   # numpy, OpenCV, Pillow, onnxruntime: review (one click), plates…
 engine = Analysis([os.path.join(HERE, "gerbil.py")], pathex=[HERE],
                   hiddenimports=["onnxruntime"], excludes=["tkinter", "matplotlib", "IPython"])

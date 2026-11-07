@@ -367,7 +367,22 @@ The `models` folder can also be copied from one computer to another.
 ## The interface (`Gerbil.bat` or `Gerbil.exe`)
 
 Double-clicking **`Gerbil.bat`** (or `gerbil_gui.pyw`, or `Gerbil.exe` in the .exe version) opens a
-window:
+window in French or English (FR / EN at the bottom of the column; it follows Windows the first time). A
+column on the left gives the five steps of the work, each with its page; the steps can be visited in any
+order:
+
+1. **Source photographs**: folders or photos to process, and the site profile.
+2. **Naming and metadata** (optional): a summary of the batch renaming of the folder, and the button that
+   opens it.
+3. **Processing**: the essential settings (the others in *Advanced settings…*, and the settings changed
+   from the defaults listed, with *Back to the defaults*), where the results go, *Run*. The progress is a
+   scale bar whose squares fill in; a table gives each photo, its state (ok, to verify, failed), its scale
+   and what to do in a few words; double-click a row to fix it. The lines of the engine are in *Technical
+   details*.
+4. **Review**: the photos to look at with their problem, the review window and the manual scale.
+5. **Publication**: plates, inventory (CSV), thumbnails.
+
+The sections below describe each window in detail (their buttons are still named in English):
 
 - **Photos**: *Add folder…* / *Add photos…* add folders or photos (the number of photos of each folder is
   shown); *Remove* (or the Delete key) and *Clear* empty the list.
@@ -568,6 +583,7 @@ Gerbil.bat, Gerbil_drop.bat, Install.bat     launchers of the Python version
 build_exe.bat, gerbil.spec, packaging\       building the .exe version and the installer
 requirements.txt                             Python packages
 icons\                                       icon (draw_gerbil.py redraws it)
+fonts\                                       fonts of the interface (SIL Open Font License)
 docs\                                        PSEUDOCODE.txt, ROADMAP.md, REFERENCES.md, guides (.odt)
 tests\                                       automatic checks on synthetic photos (py -3 -m pytest tests)
 models\, build\, dist\                       downloaded or built: not in the repository
@@ -585,7 +601,7 @@ https://github.com/EloisCharbonnel/gerbil. Contributing: `CONTRIBUTING.md`.
 ## Installation on another computer (Python version)
 
 1. **Copy the whole folder**: `gerbil.py`, `gerbil_gui.pyw`, `gerbil_plates.py`, `gerbil_tools.py`, the `.bat` files, `requirements.txt`,
-   `README.md`, the `icons` folder (and the `models` folder only for the AI option: otherwise it is
+   `README.md`, the `icons` and `fonts` folders (and the `models` folder only for the AI option: otherwise it is
    downloaded at its first use).
 2. **Double-click `Install.bat`** (once per computer, internet connection needed):
    - if Python is not installed, it offers to install it with winget, the installer built into Windows
