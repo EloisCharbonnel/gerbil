@@ -121,6 +121,17 @@ def T(fr, en):
     return fr if LANG == "fr" else en
 
 
+try:                                                    # French texts of the other windows
+    from gerbil_lang_fr import FR as FR_TEXT
+except ImportError:
+    FR_TEXT = {}
+
+
+def tr(en):
+    """An English text of the windows, in French when the interface is in French (gerbil_lang_fr.py)."""
+    return FR_TEXT.get(en, en) if LANG == "fr" else en
+
+
 STEPS = [("Photographies sources", "Source photographs"), ("Nommage et métadonnées", "Naming and metadata"),
          ("Traitement", "Processing"), ("Vérification", "Review"), ("Publication", "Publication")]
 
@@ -485,7 +496,7 @@ class ScaleWindow:
 
         self.win = win = tk.Toplevel(app.root)
         count = f"{seq['total'] - len(seq['todo'])} / {seq['total']}" if seq else ""
-        win.title(("Learn a scale - " if learn else "Set scale - ") + os.path.basename(path) + (f"  ({count})" if seq else ""))
+        win.title((tr("Learn a scale - ") if learn else tr("Set scale - ")) + os.path.basename(path) + (f"  ({count})" if seq else ""))
         win.configure(bg=WINDOW_BG)
         sw, sh = win.winfo_screenwidth(), win.winfo_screenheight()
         win.geometry(f"{int(sw * 0.8)}x{int(sh * 0.8)}+{int(sw * 0.1)}+{int(sh * 0.06)}")
@@ -493,18 +504,18 @@ class ScaleWindow:
 
         side = ttk.Frame(win, style="Card.TFrame", padding=14)
         side.pack(side="right", fill="y")
-        ttk.Label(side, text="LEARN A SCALE" if learn else "MANUAL SCALE", style="Section.TLabel").pack(anchor="w")
+        ttk.Label(side, text=tr("LEARN A SCALE") if learn else tr("MANUAL SCALE"), style="Section.TLabel").pack(anchor="w")
         ttk.Label(side, style="Muted.TLabel", justify="left", wraplength=250, text=(
-            "Click the two ends of the scale (its 0 and its last mark, e.g. 0 and 10 cm), along its middle; "
-            "give the width of its printed band." if learn else
-            "Click the two ends of a known length on the scale (for example its 0 and 5 cm), "
-            "along its middle.") + "\n\nDrag a point to adjust it. Mouse wheel: zoom. Right button: move "
-            "the view. R: whole photo.").pack(anchor="w", pady=(4, 12))
+            tr("Click the two ends of the scale (its 0 and its last mark, e.g. 0 and 10 cm), along its middle; "
+            "give the width of its printed band.") if learn else
+            tr("Click the two ends of a known length on the scale (for example its 0 and 5 cm), "
+            "along its middle.")) + tr("\n\nDrag a point to adjust it. Mouse wheel: zoom. Right button: move "
+            "the view. R: whole photo.")).pack(anchor="w", pady=(4, 12))
         last = seq or {}                        # in a series, the values of the previous photo
         self.cm = tk.StringVar(value=f"{entry['cm']:g}" if entry else last.get("cm") or "5")
         self.width_cm = tk.StringVar(value=f"{entry.get('width_cm', 1.0):g}" if entry
                                      else last.get("width_cm") or "1")
-        for text, var in (("Length between the points (cm)", self.cm), ("Width of the scale (cm)", self.width_cm)):
+        for text, var in ((tr("Length between the points (cm)"), self.cm), (tr("Width of the scale (cm)"), self.width_cm)):
             ttk.Label(side, text=text).pack(anchor="w")
             e = ttk.Entry(side, textvariable=var, width=10)
             e.pack(anchor="w", pady=(2, 10))
@@ -512,18 +523,18 @@ class ScaleWindow:
         self.readout = tk.StringVar()
         ttk.Label(side, textvariable=self.readout, justify="left").pack(anchor="w", pady=(0, 14))
         if seq:
-            ttk.Label(side, text=f"PHOTO {count}", style="Section.TLabel").pack(anchor="w", pady=(0, 6))
-        ttk.Button(side, text="Learn this scale" if learn else ("Save and next" if seq else "Save"),
+            ttk.Label(side, text=T(f"PHOTOGRAPHIE {count}", f"PHOTO {count}"), style="Section.TLabel").pack(anchor="w", pady=(0, 6))
+        ttk.Button(side, text=tr("Learn this scale") if learn else (tr("Save and next") if seq else tr("Save")),
                    style="Run.TButton", command=self.save).pack(fill="x")
         if seq:
-            ttk.Button(side, text="Skip this photo", command=self.skip).pack(fill="x", pady=(10, 0))
-        self.remove_btn = ttk.Button(side, text="Remove the manual scale", command=self.remove)
+            ttk.Button(side, text=tr("Skip this photo"), command=self.skip).pack(fill="x", pady=(10, 0))
+        self.remove_btn = ttk.Button(side, text=tr("Remove the manual scale"), command=self.remove)
         self.remove_btn.pack(fill="x", pady=(10, 0))
         if not entry:
             self.remove_btn.state(["disabled"])
         if learn:
             self.remove_btn.pack_forget()
-        ttk.Button(side, text="Stop" if seq else "Close", command=self.close).pack(fill="x", pady=(10, 0))
+        ttk.Button(side, text=tr("Stop") if seq else tr("Close"), command=self.close).pack(fill="x", pady=(10, 0))
         win.protocol("WM_DELETE_WINDOW", self.close)
 
         self.canvas = tk.Canvas(win, bg="#2B2738", highlightthickness=0, cursor="crosshair")
@@ -612,11 +623,11 @@ class ScaleWindow:
         """Text under the fields: distance in pixels, px/cm and ppi."""
         px_cm, _ = self.values()
         if len(self.points) < 2:
-            self.readout.set("Click the first point." if not self.points else "Click the second point.")
+            self.readout.set(tr("Click the first point.") if not self.points else tr("Click the second point."))
         elif px_cm:
             self.readout.set(f"{math.dist(*self.points):.1f} px\n{px_cm:.2f} px/cm = {px_cm * 2.54:.0f} ppi")
         else:
-            self.readout.set("Give the length in cm.")
+            self.readout.set(tr("Give the length in cm."))
 
     def press(self, e):
         """Click: grabs a point near the click, or places a new point."""
@@ -675,7 +686,7 @@ class ScaleWindow:
         photo of the series or offer to process it again."""
         px_cm, width = self.values()
         if not px_cm:
-            messagebox.showwarning("Gerbil", "Click two points and give the length between them (cm).",
+            messagebox.showwarning("Gerbil", tr("Click two points and give the length between them (cm)."),
                                    parent=self.win)
             return
         if self.learn:
@@ -691,7 +702,7 @@ class ScaleWindow:
         try:
             self._write(data)
         except OSError as e:
-            messagebox.showerror("Gerbil", f"Could not save the scale:\n{e}", parent=self.win)
+            messagebox.showerror("Gerbil", T(f"Impossible d'enregistrer l'échelle :\n{e}", f"Could not save the scale:\n{e}"), parent=self.win)
             return
         self.remove_btn.state(["!disabled"])
         if self.on_saved:
@@ -702,7 +713,8 @@ class ScaleWindow:
             self.seq["cm"], self.seq["width_cm"] = self.cm.get(), self.width_cm.get()
             self.win.destroy()
             self.app.next_scale(self.seq)
-        elif messagebox.askyesno("Gerbil", f"Scale saved: {px_cm:.2f} px/cm.\n\nProcess this photo again now?",
+        elif messagebox.askyesno("Gerbil", T(f"Échelle enregistrée : {px_cm:.2f} px/cm.\n\nRetraiter cette photographie maintenant ?",
+                                   f"Scale saved: {px_cm:.2f} px/cm.\n\nProcess this photo again now?"),
                                  parent=self.win):
             self.win.destroy()
             self.app.run([self.path])
@@ -731,7 +743,7 @@ class ScaleWindow:
                         if os.path.exists(f):
                             os.remove(f)
             except OSError as e:
-                messagebox.showerror("Gerbil", f"Could not remove the scale:\n{e}", parent=self.win)
+                messagebox.showerror("Gerbil", T(f"Impossible de supprimer l'échelle :\n{e}", f"Could not remove the scale:\n{e}"), parent=self.win)
                 return
         self.points = []
         self.remove_btn.state(["disabled"])
@@ -898,7 +910,7 @@ class FieldDialog:
         self.result = None
         f = dict(field or {})
         self.win = win = tk.Toplevel(parent)
-        win.title("Field")
+        win.title(tr("Field"))
         win.configure(bg=CARD_BG)
         win.transient(parent)
         frm = ttk.Frame(win, style="Card.TFrame", padding=14)
@@ -907,16 +919,16 @@ class FieldDialog:
         self.key = tk.StringVar(value=f.get("key", ""))
         self.required = tk.BooleanVar(value=bool(f.get("required")))
         self.choices = tk.StringVar(value=", ".join(f.get("choices") or []))
-        for text, var, tip in (("Label (column of the report)", self.label, None),
-                               ("Key (in the name template: {key})", self.key, None),
-                               ("Choices (comma-separated; empty: free text)", self.choices, None)):
+        for text, var, tip in ((tr("Label (column of the report)"), self.label, None),
+                               (tr("Key (in the name template: {key})"), self.key, None),
+                               (tr("Choices (comma-separated; empty: free text)"), self.choices, None)):
             ttk.Label(frm, text=text).pack(anchor="w")
             ttk.Entry(frm, textvariable=var, width=46).pack(anchor="w", pady=(2, 8))
-        ttk.Checkbutton(frm, text="Required (a photo without it is flagged)", variable=self.required).pack(anchor="w")
+        ttk.Checkbutton(frm, text=tr("Required (a photo without it is flagged)"), variable=self.required).pack(anchor="w")
         row = ttk.Frame(frm, style="Card.TFrame")
         row.pack(fill="x", pady=(12, 0))
-        ttk.Button(row, text="OK", style="Run.TButton", command=self.ok).pack(side="left")
-        ttk.Button(row, text="Cancel", command=win.destroy).pack(side="left", padx=8)
+        ttk.Button(row, text=tr("OK"), style="Run.TButton", command=self.ok).pack(side="left")
+        ttk.Button(row, text=tr("Cancel"), command=win.destroy).pack(side="left", padx=8)
         if not f:
             self.label.trace_add("write", lambda *_: self.key.set(
                 re.sub(r"[^a-z0-9]+", "_", self.label.get().lower()).strip("_")))
@@ -927,7 +939,7 @@ class FieldDialog:
         """Checks and returns the field (key made of letters, digits and _)."""
         label, key = self.label.get().strip(), re.sub(r"\W+", "_", self.key.get().strip().lower()).strip("_")
         if not label or not key:
-            messagebox.showwarning("Gerbil", "Give a label and a key.", parent=self.win)
+            messagebox.showwarning("Gerbil", tr("Give a label and a key."), parent=self.win)
             return
         self.result = {"key": key, "label": label}
         if self.required.get():
@@ -957,7 +969,7 @@ class ProjectWindow:
         self.photos = sorted(f for f in os.listdir(folder) if os.path.splitext(f)[1].lower() in EXTENSIONS)
         self.changed = False
         self.win = win = tk.Toplevel(app.root)
-        win.title(f"Batch renaming - {folder}")
+        win.title(T(f"Renommage en lot - {folder}", f"Batch renaming - {folder}"))
         win.configure(bg=WINDOW_BG)
         sw, sh = win.winfo_screenwidth(), win.winfo_screenheight()
         win.geometry(f"{min(int(sw * 0.9), 1400)}x{int(sh * 0.9)}+{max(0, (sw - min(int(sw * 0.9), 1400)) // 2)}+{int(sh * 0.02)}")
@@ -966,18 +978,18 @@ class ProjectWindow:
         top = ttk.Frame(win, style="Card.TFrame", padding=12)
         top.pack(fill="x")
         top.columnconfigure(1, weight=1)
-        ttk.Label(top, text="FIELDS", style="Section.TLabel").grid(row=0, column=0, sticky="w")
+        ttk.Label(top, text=tr("FIELDS"), style="Section.TLabel").grid(row=0, column=0, sticky="w")
         row0 = ttk.Frame(top, style="Card.TFrame")
         row0.grid(row=0, column=1, sticky="w", padx=8)
         self.fields_lbl = ttk.Label(row0, style="Muted.TLabel", wraplength=330, justify="left")
         self.fields_lbl.pack(anchor="w")
         bar = ttk.Frame(row0, style="Card.TFrame")
         bar.pack(anchor="w", pady=(4, 0))
-        for text, cmd in (("Add field…", self.add_field), ("Edit field…", self.edit_field),
-                          ("Remove field…", self.remove_field)):
+        for text, cmd in ((tr("Add field…"), self.add_field), (tr("Edit field…"), self.edit_field),
+                          (tr("Remove field…"), self.remove_field)):
             ttk.Button(bar, text=text, command=cmd, style="Small.TButton").pack(side="left", padx=(0, 4))
 
-        ttk.Label(top, text="NAME TEMPLATE", style="Section.TLabel").grid(row=1, column=0, sticky="w", pady=(10, 0))
+        ttk.Label(top, text=tr("NAME TEMPLATE"), style="Section.TLabel").grid(row=1, column=0, sticky="w", pady=(10, 0))
         self.template = tk.StringVar(value=pr.get("template", ""))
         ttk.Entry(top, textvariable=self.template, width=40).grid(row=1, column=1, sticky="ew", padx=8, pady=(10, 0))
         self.tokens = ttk.Frame(top, style="Card.TFrame")
@@ -985,62 +997,62 @@ class ProjectWindow:
         self.preview = tk.StringVar()
         ttk.Label(top, textvariable=self.preview, style="Muted.TLabel", wraplength=560, justify="left").grid(
             row=3, column=1, sticky="w", padx=8)
-        ttk.Label(top, text="NAMING RULE (optional)", style="Section.TLabel").grid(row=4, column=0, sticky="w", pady=(8, 0))
+        ttk.Label(top, text=tr("NAMING RULE (optional)"), style="Section.TLabel").grid(row=4, column=0, sticky="w", pady=(8, 0))
         self.rule = tk.StringVar(value=pr.get("rule", ""))
         e = ttk.Entry(top, textvariable=self.rule)
         e.grid(row=4, column=1, sticky="ew", padx=8, pady=(8, 0))
-        Tooltip(e, "Regular expression the output names must match, read as PowerShell's -match: "
+        Tooltip(e, tr("Regular expression the output names must match, read as PowerShell's -match: "
                    "case-insensitive, found anywhere unless anchored with ^ and $ "
-                   "(e.g. ^QSR25_[A-Z0-9]+_US\\d+_\\d+); a name that does not match is flagged. Empty: no rule.")
+                   "(e.g. ^QSR25_[A-Z0-9]+_US\\d+_\\d+); a name that does not match is flagged. Empty: no rule."))
         self.template.trace_add("write", lambda *_: self.changes())
         self.rule.trace_add("write", lambda *_: (setattr(self, "changed", True), self.rule_feedback()))
 
         # rule helper: ready-made pieces, the rule as PowerShell code, and a test of a name
-        helper = ttk.Labelframe(top, text="  Rule helper  ", style="Card.TLabelframe", padding=8)
+        helper = ttk.Labelframe(top, text=tr("  Rule helper  "), style="Card.TLabelframe", padding=8)
         helper.grid(row=0, column=3, rowspan=7, sticky="new", padx=(14, 0))
         top.rowconfigure(6, weight=1)       # the extra height of the helper goes below the left rows
-        ttk.Label(helper, text="Tick what the names must respect: the rule is written for you.",
+        ttk.Label(helper, text=tr("Tick what the names must respect: the rule is written for you."),
                   style="Muted.TLabel").grid(row=0, column=0, columnspan=2, sticky="w")
         self.piece_vars = []
         for i, (label, piece, cs) in enumerate(RULE_PIECES):
             v = tk.BooleanVar(value=False)
-            cb = ttk.Checkbutton(helper, text=label, variable=v, command=self.helper_changed)
+            cb = ttk.Checkbutton(helper, text=tr(label), variable=v, command=self.helper_changed)
             cb.grid(row=1 + i, column=0, columnspan=2, sticky="w")
-            Tooltip(cb, f"PowerShell piece: {piece}" + ("   (case-sensitive: the rule starts with (?-i))" if cs else ""))
+            Tooltip(cb, f"PowerShell piece: {piece}" + (tr("   (case-sensitive: the rule starts with (?-i))") if cs else ""))
             self.piece_vars.append(v)
         r = 1 + len(RULE_PIECES)
-        ttk.Label(helper, text="Starts with").grid(row=r, column=0, sticky="w")
+        ttk.Label(helper, text=tr("Starts with")).grid(row=r, column=0, sticky="w")
         self.starts = tk.StringVar()
         ttk.Entry(helper, textvariable=self.starts, width=14).grid(row=r, column=1, sticky="w")
-        ttk.Label(helper, text="At most (characters)").grid(row=r + 1, column=0, sticky="w")
+        ttk.Label(helper, text=tr("At most (characters)")).grid(row=r + 1, column=0, sticky="w")
         self.max_len = tk.StringVar()
         ttk.Entry(helper, textvariable=self.max_len, width=6).grid(row=r + 1, column=1, sticky="w")
         for v in (self.starts, self.max_len):
             v.trace_add("write", lambda *_: self.helper_changed())
-        ttk.Label(helper, text="In PowerShell:", style="Section.TLabel").grid(row=r + 2, column=0, sticky="w", pady=(8, 0))
+        ttk.Label(helper, text=tr("In PowerShell:"), style="Section.TLabel").grid(row=r + 2, column=0, sticky="w", pady=(8, 0))
         self.ps_code = tk.StringVar()
         code = tk.Entry(helper, textvariable=self.ps_code, state="readonly", font=(FONT_MONO, 9), width=46,
                         readonlybackground="#F3F1FA", relief="flat")
         code.grid(row=r + 3, column=0, columnspan=2, sticky="ew")
-        ttk.Button(helper, text="Copy the PowerShell line", style="Small.TButton",
+        ttk.Button(helper, text=tr("Copy the PowerShell line"), style="Small.TButton",
                    command=lambda: (self.win.clipboard_clear(), self.win.clipboard_append(self.ps_code.get()))).grid(
             row=r + 4, column=0, sticky="w", pady=(2, 0))
-        ttk.Label(helper, text="Test a name").grid(row=r + 5, column=0, sticky="w", pady=(6, 0))
+        ttk.Label(helper, text=tr("Test a name")).grid(row=r + 5, column=0, sticky="w", pady=(6, 0))
         self.test_name = tk.StringVar()
         ttk.Entry(helper, textvariable=self.test_name, width=30).grid(row=r + 5, column=1, sticky="w", pady=(6, 0))
         self.test_result = tk.StringVar()
         ttk.Label(helper, textvariable=self.test_result, wraplength=430).grid(row=r + 6, column=0, columnspan=2,
                                                                               sticky="w")
         self.test_name.trace_add("write", lambda *_: self.rule_feedback())
-        ttk.Label(helper, text="Also check the photos:", style="Section.TLabel").grid(
+        ttk.Label(helper, text=tr("Also check the photos:"), style="Section.TLabel").grid(
             row=r + 7, column=0, columnspan=2, sticky="w", pady=(10, 0))
         self.ext_lower = tk.BooleanVar(value=bool(self.pr.get("photo_ext_lower")))
-        cb = ttk.Checkbutton(helper, text="Extension in lowercase (.jpg, not .JPG)", variable=self.ext_lower,
+        cb = ttk.Checkbutton(helper, text=tr("Extension in lowercase (.jpg, not .JPG)"), variable=self.ext_lower,
                              command=self.ext_changed)
         cb.grid(row=r + 8, column=0, columnspan=2, sticky="w")
-        Tooltip(cb, "Separate control of the names of the original photos (they are never renamed): a photo "
+        Tooltip(cb, tr("Separate control of the names of the original photos (they are never renamed): a photo "
                     "whose extension has capital letters is flagged. In PowerShell: "
-                    "$photo.Extension -cmatch '^\\.[a-z0-9]+$'")
+                    "$photo.Extension -cmatch '^\\.[a-z0-9]+$'"))
         self.ext_info = tk.StringVar()
         ttk.Label(helper, textvariable=self.ext_info, style="Muted.TLabel").grid(row=r + 9, column=0, columnspan=2,
                                                                                 sticky="w")
@@ -1048,14 +1060,14 @@ class ProjectWindow:
 
         foot = ttk.Frame(win, style="Window.TFrame", padding=12)    # packed first at the bottom: always visible
         foot.pack(side="bottom", fill="x")
-        ttk.Button(foot, text="Save", style="Run.TButton", command=self.save).pack(side="left")
-        ttk.Button(foot, text="Save and process the photos", command=lambda: self.save(run=True)).pack(side="left", padx=8)
-        b = ttk.Button(foot, text="IPTC metadata…", command=lambda: IptcWindow(self))
+        ttk.Button(foot, text=tr("Save"), style="Run.TButton", command=self.save).pack(side="left")
+        ttk.Button(foot, text=tr("Save and process the photos"), command=lambda: self.save(run=True)).pack(side="left", padx=8)
+        b = ttk.Button(foot, text=tr("IPTC metadata…"), command=lambda: IptcWindow(self))
         b.pack(side="left")
-        Tooltip(b, "Which field goes into which IPTC field (title, keywords, location, copyright…), written "
-                   "into the output files and, if wanted, next to the original photos.")
-        ttk.Button(foot, text="Close", command=self.close).pack(side="right")
-        self.common_frame = ttk.Labelframe(win, text="  Values for all the photos  ", style="Card.TLabelframe",
+        Tooltip(b, tr("Which field goes into which IPTC field (title, keywords, location, copyright…), written "
+                   "into the output files and, if wanted, next to the original photos."))
+        ttk.Button(foot, text=tr("Close"), command=self.close).pack(side="right")
+        self.common_frame = ttk.Labelframe(win, text=tr("  Values for all the photos  "), style="Card.TLabelframe",
                                            padding=8)
         self.common_frame.pack(fill="x", padx=12, pady=(8, 0))
 
@@ -1063,13 +1075,13 @@ class ProjectWindow:
         mid.pack(fill="both", expand=True)
         bar = ttk.Frame(mid, style="Window.TFrame")
         bar.pack(fill="x", pady=(0, 6))
-        ttk.Button(bar, text="Select all", command=self.select_all).pack(side="left", padx=(0, 6))
-        ttk.Button(bar, text="Set for selected…", command=self.set_selected).pack(side="left")
-        ttk.Button(bar, text="Number the selected…", command=self.number_selected).pack(side="left", padx=6)
-        ttk.Button(bar, text="Import CSV / Excel…", command=self.import_table).pack(side="left")
-        ttk.Label(bar, text="Double-click: edit a cell. Square at the corner of a cell: drag it to copy the value "
-                            "(Ctrl: count up). Ctrl+A: all rows; Ctrl+D: copy down the first selected row.",
-                  style="Status.TLabel", wraplength=520, justify="left").pack(side="left", padx=12)
+        ttk.Button(bar, text=tr("Select all"), command=self.select_all).pack(side="left", padx=(0, 6))
+        ttk.Button(bar, text=tr("Set for selected…"), command=self.set_selected).pack(side="left")
+        ttk.Button(bar, text=tr("Number the selected…"), command=self.number_selected).pack(side="left", padx=6)
+        ttk.Button(bar, text=tr("Import CSV / Excel…"), command=self.import_table).pack(side="left")
+        ttk.Label(bar, text=tr("Double-click: edit a cell. Square at the corner of a cell: drag it to copy the value "
+                            "(Ctrl: count up). Ctrl+A: all rows; Ctrl+D: copy down the first selected row."),
+                  style="Muted.TLabel", wraplength=520, justify="left").pack(side="left", padx=12)
         # table and photo preview side by side; the bar between them can be dragged
         pane = tk.PanedWindow(mid, orient="horizontal", sashwidth=8, bg=LAVENDER_LINE, bd=0, sashrelief="flat")
         pane.pack(fill="both", expand=True)
@@ -1083,7 +1095,7 @@ class ProjectWindow:
         self.thumb_lbl.bind("<Double-1>", lambda _: self.open_photo())
         self.thumb_name = tk.StringVar()
         ttk.Label(side, textvariable=self.thumb_name, style="Muted.TLabel").pack(pady=(4, 6))
-        ttk.Button(side, text="Open the photo", command=self.open_photo).pack(fill="x")
+        ttk.Button(side, text=tr("Open the photo"), command=self.open_photo).pack(fill="x")
         self.thumbs = {}                            # photo -> reduced copy (decoded once)
         self.tree = ttk.Treeview(tablef, show="headings", selectmode="extended")
         sb = ttk.Scrollbar(tablef, orient="vertical", command=self.tree.yview)
@@ -1116,10 +1128,10 @@ class ProjectWindow:
     def rebuild(self):
         """Fields changed: tokens, common values and columns of the table drawn again."""
         self.fields_lbl.configure(text=", ".join(f["label"] + (" *" if f.get("required") else "")
-                                                 for f in self.fields()) + "     (* required)")
+                                                 for f in self.fields()) + tr("     (* required)"))
         for w in self.tokens.winfo_children():
             w.destroy()
-        ttk.Label(self.tokens, text="Insert:", style="Muted.TLabel").grid(row=0, column=0, sticky="w")
+        ttk.Label(self.tokens, text=tr("Insert:"), style="Muted.TLabel").grid(row=0, column=0, sticky="w")
         for i, key in enumerate([f["key"] for f in self.fields()] + ["photo"]):
             ttk.Button(self.tokens, text="{" + key + "}", style="Small.TButton",
                        command=lambda k=key: self.template.set(self.template.get() + ("_" if self.template.get() else "")
@@ -1142,13 +1154,13 @@ class ProjectWindow:
         fnt = tkfont.Font(font=(FONT_SERIF, 10))           # the font of the table (Treeview style)
         wid = lambda text: fnt.measure(text) + 26
         self._wid = wid
-        self.tree.heading("photo", text="Photo", anchor="w")
-        self.tree.column("photo", width=max([wid("Photo")] + [wid(n) for n in self.photos[:200]]), minwidth=60,
+        self.tree.heading("photo", text=tr("Photo"), anchor="w")
+        self.tree.column("photo", width=max([wid(tr("Photo"))] + [wid(n) for n in self.photos[:200]]), minwidth=60,
                          stretch=False)
         for f in self.fields():
             self.tree.heading(f["key"], text=f["label"], anchor="w")
             self.tree.column(f["key"], width=max(wid(f["label"] + " *"), wid("0000000")), minwidth=40, stretch=False)
-        self.tree.heading("output", text="Output name", anchor="w")
+        self.tree.heading("output", text=tr("Output name"), anchor="w")
         self.tree.column("output", width=wid("QSR25_A5_US7549_187_ceramic_exterior"), minwidth=120, stretch=True)
         self.headings()
         self.fill()
@@ -1168,12 +1180,13 @@ class ProjectWindow:
     def update_preview(self):
         """Example of output name, and warning when names are used twice."""
         if not self.photos:
-            self.preview.set("No photo in this folder.")
+            self.preview.set(tr("No photo in this folder."))
             return
         names = [project_output_name(self.pr, n) for n in self.photos]
         dup = len(names) - len(set(n.lower() for n in names))
-        self.preview.set(f"Example: {self.photos[0]}  ->  {names[0]}_outlined.tif"
-                         + (f"     ({dup} name(s) used twice: a suffix _2… will be added)" if dup else ""))
+        self.preview.set(T("Exemple : ", "Example: ") + f"{self.photos[0]}  ->  {names[0]}_outlined.tif"
+                         + (T(f"     ({dup} nom(s) utilisé(s) deux fois : un suffixe _2… sera ajouté)",
+                              f"     ({dup} name(s) used twice: a suffix _2… will be added)") if dup else ""))
 
     def changes(self):
         """The template changed: output names computed again."""
@@ -1201,7 +1214,7 @@ class ProjectWindow:
         for f in self.fields():
             if f["key"] in self.tree["columns"]:
                 text = (f["label"] + (" *" if f.get("required") else "")
-                        + (f" (all: {common[f['key']]})" if common.get(f["key"]) else ""))
+                        + (T(" (toutes : ", " (all: ") + f"{common[f['key']]})" if common.get(f["key"]) else ""))
                 self.tree.heading(f["key"], text=text)
                 if hasattr(self, "_wid"):
                     self.tree.column(f["key"], width=max(self._wid(text), self._wid("0000000")))
@@ -1233,8 +1246,9 @@ class ProjectWindow:
         if not self.ext_lower.get():
             self.ext_info.set("")
         else:
-            self.ext_info.set(f"{len(bad)} photo(s) of {len(self.photos)} with capital letters in the extension"
-                              + (f" (e.g. {bad[0]})" if bad else ""))
+            self.ext_info.set(T(f"{len(bad)} photographie(s) sur {len(self.photos)} avec des majuscules dans l'extension",
+                                f"{len(bad)} photo(s) of {len(self.photos)} with capital letters in the extension")
+                              + (T(" (par ex. ", " (e.g. ") + f"{bad[0]})" if bad else ""))
 
     # ------------------------------------------------------------ rule helper
     def helper_changed(self):
@@ -1251,15 +1265,15 @@ class ProjectWindow:
         rule = self.rule.get().strip()
         name = self.test_name.get().strip() or (project_output_name(self.pr, self.photos[0]) if self.photos else "NAME")
         if not rule:
-            self.ps_code.set("(no rule)")
+            self.ps_code.set(tr("(no rule)"))
             self.test_result.set("")
             return
         self.ps_code.set("'" + name.replace("'", "''") + "' -match '" + rule.replace("'", "''") + "'")
         try:
             ok = bool(rule_regex(rule).search(name))
-            self.test_result.set(f"{name}: " + ("✓ matches the rule (True)" if ok else "✗ does not match (False)"))
+            self.test_result.set(f"{name}: " + (tr("✓ matches the rule (True)") if ok else tr("✗ does not match (False)")))
         except re.error as e:
-            self.test_result.set(f"✗ invalid rule: {e}")
+            self.test_result.set(T("✗ règle invalide : ", "✗ invalid rule: ") + str(e))
 
     # ------------------------------------------------------------ photo, selection, fill handle
     def show_thumb(self):
@@ -1268,7 +1282,7 @@ class ProjectWindow:
         if not sel:
             return
         name = sel[0]
-        self.thumb_name.set(name + (f"  (+{len(sel) - 1} selected)" if len(sel) > 1 else "")
+        self.thumb_name.set(name + (T(f"  (+{len(sel) - 1} sélectionnée(s))", f"  (+{len(sel) - 1} selected)") if len(sel) > 1 else "")
                             + "   - double-click: whole photo")
         if name not in self.thumbs:
             try:
@@ -1426,18 +1440,18 @@ class ProjectWindow:
         frm.pack()
         labels = [f["label"] for f in self.fields()]
         fvar = tk.StringVar(value=labels[0] if labels else "")
-        ttk.Label(frm, text="Field").grid(row=0, column=0, sticky="w")
+        ttk.Label(frm, text=tr("Field")).grid(row=0, column=0, sticky="w")
         cb = ttk.Combobox(frm, textvariable=fvar, values=labels, state="readonly", width=24)
         cb.grid(row=0, column=1, pady=2)
         v1, v2 = tk.StringVar(value="1" if with_start else ""), tk.StringVar(value="1")
         val_w = ttk.Combobox(frm, textvariable=v1, width=24)
         if with_value or with_start:
-            ttk.Label(frm, text="Start" if with_start else "Value").grid(row=1, column=0, sticky="w")
+            ttk.Label(frm, text=tr("Start") if with_start else tr("Value")).grid(row=1, column=0, sticky="w")
             val_w.grid(row=1, column=1, pady=2)
         cb.bind("<<ComboboxSelected>>", lambda _: val_w.configure(values=[""] + next(
             (f.get("choices") or [] for f in self.fields() if f["label"] == fvar.get()), [])))
         if with_start:
-            ttk.Label(frm, text="Step").grid(row=2, column=0, sticky="w")
+            ttk.Label(frm, text=tr("Step")).grid(row=2, column=0, sticky="w")
             ttk.Entry(frm, textvariable=v2, width=8).grid(row=2, column=1, sticky="w", pady=2)
         out = {}
 
@@ -1447,8 +1461,8 @@ class ProjectWindow:
             dlg.destroy()
         row = ttk.Frame(frm, style="Card.TFrame")
         row.grid(row=3, column=0, columnspan=2, pady=(10, 0))
-        ttk.Button(row, text="OK", style="Run.TButton", command=ok).pack(side="left")
-        ttk.Button(row, text="Cancel", command=dlg.destroy).pack(side="left", padx=8)
+        ttk.Button(row, text=tr("OK"), style="Run.TButton", command=ok).pack(side="left")
+        ttk.Button(row, text=tr("Cancel"), command=dlg.destroy).pack(side="left", padx=8)
         dlg.grab_set()
         self.win.wait_window(dlg)
         return out if out.get("field") else None
@@ -1457,9 +1471,9 @@ class ProjectWindow:
         """Same value for the selected photos."""
         rows = self.tree.selection()
         if not rows:
-            messagebox.showinfo("Gerbil", "Select the rows first (Ctrl / Shift + click).", parent=self.win)
+            messagebox.showinfo("Gerbil", tr("Select the rows first (Ctrl / Shift + click)."), parent=self.win)
             return
-        a = self._ask_field(f"Set for {len(rows)} photo(s)")
+        a = self._ask_field(T(f"Appliquer à {len(rows)} photographie(s)", f"Set for {len(rows)} photo(s)"))
         if a:
             for r in rows:
                 self.set_value(r, a["field"], a["value"])
@@ -1469,9 +1483,9 @@ class ProjectWindow:
         """Numbers the selected photos (start, step, zeros)."""
         rows = self.tree.selection()
         if not rows:
-            messagebox.showinfo("Gerbil", "Select the rows first (Ctrl / Shift + click).", parent=self.win)
+            messagebox.showinfo("Gerbil", tr("Select the rows first (Ctrl / Shift + click)."), parent=self.win)
             return
-        a = self._ask_field(f"Number {len(rows)} photo(s)", with_start=True)
+        a = self._ask_field(T(f"Numéroter {len(rows)} photographie(s)", f"Number {len(rows)} photo(s)"), with_start=True)
         if not a:
             return
         m = re.fullmatch(r"(.*?)(\d+)", a["value"].strip())
@@ -1489,7 +1503,7 @@ class ProjectWindow:
         d = FieldDialog(self.win)
         if d.result:
             if any(f["key"] == d.result["key"] for f in self.fields()):
-                messagebox.showwarning("Gerbil", "This key is already used.", parent=self.win)
+                messagebox.showwarning("Gerbil", tr("This key is already used."), parent=self.win)
                 return
             self.fields().append(d.result)
             self.changed = True
@@ -1502,7 +1516,7 @@ class ProjectWindow:
 
     def edit_field(self):
         """Edits a field (its values follow a key change)."""
-        f = self._pick_field("Field to edit")
+        f = self._pick_field(tr("Field to edit"))
         if f:
             d = FieldDialog(self.win, f)
             if d.result:
@@ -1518,8 +1532,9 @@ class ProjectWindow:
 
     def remove_field(self):
         """Removes a field and its values."""
-        f = self._pick_field("Field to remove")
-        if f and messagebox.askyesno("Gerbil", f"Remove the field '{f['label']}' and its values?", parent=self.win):
+        f = self._pick_field(tr("Field to remove"))
+        if f and messagebox.askyesno("Gerbil", T(f"Supprimer le champ « {f['label']} » et ses valeurs ?",
+                                                f"Remove the field '{f['label']}' and its values?"), parent=self.win):
             self.fields().remove(f)
             for vals in [self.pr.get("common", {})] + list(self.pr["photos"].values()):
                 vals.pop(f["key"], None)
@@ -1529,17 +1544,17 @@ class ProjectWindow:
     def import_table(self):
         """Imports values from a CSV or Excel inventory: matched with the photos
         by name, columns matched with the fields."""
-        path = filedialog.askopenfilename(title="Inventory (CSV or Excel)", parent=self.win,
-                                          filetypes=[("CSV or Excel", "*.csv *.txt *.xlsx *.xlsm"), ("All files", "*.*")])
+        path = filedialog.askopenfilename(title=tr("Inventory (CSV or Excel)"), parent=self.win,
+                                          filetypes=[(tr("CSV or Excel"), "*.csv *.txt *.xlsx *.xlsm"), (tr("All files"), "*.*")])
         if not path:
             return
         try:
             rows = read_table(path)
         except Exception as e:
-            messagebox.showerror("Gerbil", f"Could not read the file:\n{e}", parent=self.win)
+            messagebox.showerror("Gerbil", T(f"Impossible de lire le fichier :\n{e}", f"Could not read the file:\n{e}"), parent=self.win)
             return
         if len(rows) < 2:
-            messagebox.showwarning("Gerbil", "The file holds no rows.", parent=self.win)
+            messagebox.showwarning("Gerbil", tr("The file holds no rows."), parent=self.win)
             return
         header, data = [h.strip() for h in rows[0]], rows[1:]
         names = {os.path.splitext(n)[0].lower(): n for n in self.photos}
@@ -1547,7 +1562,7 @@ class ProjectWindow:
         # column of the photo names: the one whose values match most photos
         scores = [sum(1 for r in data if i < len(r) and r[i].strip().lower() in names) for i in range(len(header))]
         if not scores or max(scores) == 0:
-            messagebox.showwarning("Gerbil", "No column of this file holds the names of the photos of the folder.",
+            messagebox.showwarning("Gerbil", tr("No column of this file holds the names of the photos of the folder."),
                                    parent=self.win)
             return
         pcol = scores.index(max(scores))
@@ -1570,9 +1585,13 @@ class ProjectWindow:
                     self.set_value(name, key, r[i])
             n += 1
         self.fill()
-        messagebox.showinfo("Gerbil", f"{n} photo(s) filled from '{header[pcol]}'.\n"
-                                      f"Columns used: {', '.join(header[i] for i in mapping) or 'none'}."
-                            + (f"\nColumns ignored (no field of that name): {', '.join(ignored)}." if ignored else ""),
+        used = ", ".join(header[i] for i in mapping) or T("aucune", "none")
+        messagebox.showinfo("Gerbil", T(f"{n} photographie(s) remplie(s) d'après « {header[pcol]} ».\n"
+                                        f"Colonnes utilisées : {used}.",
+                                        f"{n} photo(s) filled from '{header[pcol]}'.\nColumns used: {used}.")
+                            + (T("\nColonnes ignorées (aucun champ de ce nom) : ",
+                                 "\nColumns ignored (no field of that name): ") + ", ".join(ignored) + "."
+                               if ignored else ""),
                             parent=self.win)
 
     # ------------------------------------------------------------ saving
@@ -1583,12 +1602,13 @@ class ProjectWindow:
             try:
                 rule_regex(self.pr["rule"])
             except re.error as e:
-                messagebox.showwarning("Gerbil", f"The rule is not a valid regular expression:\n{e}", parent=self.win)
+                messagebox.showwarning("Gerbil", T(f"La règle n'est pas une expression régulière valide :\n{e}",
+                                                   f"The rule is not a valid regular expression:\n{e}"), parent=self.win)
                 return False
         try:
             save_project_file(self.folder, self.pr)
         except OSError as e:
-            messagebox.showerror("Gerbil", f"Could not save the batch renaming:\n{e}", parent=self.win)
+            messagebox.showerror("Gerbil", T(f"Impossible d'enregistrer le renommage en lot :\n{e}", f"Could not save the batch renaming:\n{e}"), parent=self.win)
             return False
         self.changed = False
         if run:
@@ -1599,7 +1619,7 @@ class ProjectWindow:
     def close(self):
         """Closes, offering to save the changes."""
         if self.changed:
-            ans = messagebox.askyesnocancel("Gerbil", "Save the changes of the batch renaming?", parent=self.win)
+            ans = messagebox.askyesnocancel("Gerbil", tr("Save the changes of the batch renaming?"), parent=self.win)
             if ans is None or (ans and not self.save()):
                 return
         self.win.destroy()
@@ -1639,7 +1659,7 @@ class ReviewWindow:
 
         left = ttk.Frame(win, style="Card.TFrame", padding=8)
         left.pack(side="left", fill="y")
-        ttk.Label(left, text="PHOTOS", style="Section.TLabel").pack(anchor="w")
+        ttk.Label(left, text=tr("PHOTOS"), style="Section.TLabel").pack(anchor="w")
         self.listbox = tk.Listbox(left, width=34, activestyle="none", font=(FONT_SERIF, 9),
                                   selectbackground=LAVENDER, highlightthickness=0, relief="flat")
         self.listbox.pack(fill="y", expand=True, pady=(4, 0))
@@ -1652,46 +1672,47 @@ class ReviewWindow:
         side.pack(side="right", fill="y")
         # actions packed first at the bottom of the panel: always visible, whatever the screen height
         ttk.Label(side, style="Muted.TLabel", wraplength=260, justify="left", text=(
-            "Left button: tool. Mouse wheel: zoom. Move the view: scroll bars, right or middle button, Space + drag, "
+            tr("Left button: tool. Mouse wheel: zoom. Move the view: scroll bars, right or middle button, Space + drag, "
             "arrow keys. R: whole photo. "
-            "Ctrl+Z: undo.")).pack(side="bottom", anchor="w", pady=(8, 0))
-        ttk.Button(side, text="Close", command=self.close).pack(side="bottom", fill="x", pady=(6, 0))
-        ttk.Button(side, text="Next without change", command=lambda: self.goto(self.index + 1)).pack(
+            "Ctrl+Z: undo."))).pack(side="bottom", anchor="w", pady=(8, 0))
+        ttk.Button(side, text=tr("Close"), command=self.close).pack(side="bottom", fill="x", pady=(6, 0))
+        ttk.Button(side, text=tr("Next without change"), command=lambda: self.goto(self.index + 1)).pack(
             side="bottom", fill="x", pady=(6, 0))
-        ttk.Button(side, text="Accept and next", style="Run.TButton", command=self.accept).pack(
+        ttk.Button(side, text=tr("Accept and next"), style="Run.TButton", command=self.accept).pack(
             side="bottom", fill="x", pady=(10, 0))
         self.title = tk.StringVar()
         ttk.Label(side, textvariable=self.title, style="Section.TLabel", wraplength=260).pack(anchor="w")
         self.doubts = tk.StringVar()
         ttk.Label(side, textvariable=self.doubts, style="Muted.TLabel", wraplength=260, justify="left").pack(
             anchor="w", pady=(2, 10))
-        ttk.Label(side, text="TOOL", style="Section.TLabel").pack(anchor="w")
+        ttk.Label(side, text=tr("TOOL"), style="Section.TLabel").pack(anchor="w")
         self.tool = tk.StringVar(value="erase")
         for key, text in self.TOOLS:
+            text = tr(text)
             ttk.Radiobutton(side, text=text, value=key, variable=self.tool, command=self.tool_changed).pack(anchor="w")
         self.click_hint = tk.StringVar()
         ttk.Label(side, textvariable=self.click_hint, style="Muted.TLabel", wraplength=260, justify="left").pack(
             anchor="w")
         self.click_state = {"index": None, "ready": False, "used": False, "busy": False}
-        ttk.Label(side, text="Brush size").pack(anchor="w", pady=(8, 0))
+        ttk.Label(side, text=tr("Brush size")).pack(anchor="w", pady=(8, 0))
         self.brush = tk.IntVar(value=20)
         ttk.Scale(side, from_=3, to=120, variable=self.brush, orient="horizontal").pack(fill="x")
         row = ttk.Frame(side, style="Card.TFrame")
         row.pack(fill="x", pady=(8, 0))
-        ttk.Button(row, text="Undo", command=self.undo).pack(side="left")
-        ttk.Button(row, text="Reset photo", command=self.reset).pack(side="left", padx=6)
-        ttk.Label(side, text="ORIENTATION", style="Section.TLabel").pack(anchor="w", pady=(14, 0))
+        ttk.Button(row, text=tr("Undo"), command=self.undo).pack(side="left")
+        ttk.Button(row, text=tr("Reset photo"), command=self.reset).pack(side="left", padx=6)
+        ttk.Label(side, text=tr("ORIENTATION"), style="Section.TLabel").pack(anchor="w", pady=(14, 0))
         row = ttk.Frame(side, style="Card.TFrame")
         row.pack(fill="x", pady=(4, 0))
-        ttk.Button(row, text="⟲ 90°", command=lambda: self.turn(90)).pack(side="left")
-        ttk.Button(row, text="⟳ 90°", command=lambda: self.turn(-90)).pack(side="left", padx=6)
+        ttk.Button(row, text=T("Gauche 90°", "Left 90°"), command=lambda: self.turn(90)).pack(side="left")
+        ttk.Button(row, text=T("Droite 90°", "Right 90°"), command=lambda: self.turn(-90)).pack(side="left", padx=6)
         ttk.Button(row, text="0°", command=lambda: self.turn(None)).pack(side="left")
         self.angle_txt = tk.StringVar()
         ttk.Label(side, textvariable=self.angle_txt, style="Muted.TLabel").pack(anchor="w", pady=(4, 0))
         self.thumb_lbl = tk.Label(side, bg=CARD_BG)
         self.thumb_lbl.pack(pady=6)
-        ttk.Button(side, text="Fix the scale…", command=self.fix_scale).pack(fill="x", pady=(6, 0))
-        self.info = ttk.Labelframe(side, text="  Information  ", style="Card.TLabelframe", padding=6)
+        ttk.Button(side, text=tr("Fix the scale…"), command=self.fix_scale).pack(fill="x", pady=(6, 0))
+        self.info = ttk.Labelframe(side, text=tr("  Information  "), style="Card.TLabelframe", padding=6)
         self.info.pack(fill="x", pady=(10, 0))
         self.info_vars = {}
 
@@ -1778,10 +1799,10 @@ class ReviewWindow:
         self.stroke = None
         self.pan = None
         name = os.path.basename(it["photo"])
-        self.win.title(f"Review - {name}  ({i + 1} / {len(self.items)})")
+        self.win.title(T("Vérification - ", "Review - ") + f"{name}  ({i + 1} / {len(self.items)})")
         self.title.set(f"{name}  ({i + 1} / {len(self.items)})")
         doubts = it.get("to_verify") or []
-        self.doubts.set(("To verify: " + "; ".join(doubts)) if doubts else ("Status: " + it.get("status", "")))
+        self.doubts.set((tr("To verify: ") + "; ".join(doubt_text(x) for x in doubts)) if doubts else (tr("Status: ") + it.get("status", "")))
         self.fit()
         self.update_thumb()
         self.show_info()
@@ -1796,12 +1817,12 @@ class ReviewWindow:
         pr = load_project_file(os.path.dirname(photo))
         self.info_pr = pr
         if pr is None:
-            ttk.Label(self.info, text="gerbil_project.json cannot be read.", style="Muted.TLabel").pack(anchor="w")
+            ttk.Label(self.info, text=tr("gerbil_project.json cannot be read."), style="Muted.TLabel").pack(anchor="w")
             return
         own = (pr.get("photos") or {}).get(os.path.basename(photo)) or {}
         common = pr.get("common") or {}
         for i, f in enumerate(pr["fields"]):
-            hint = f"  (all: {common[f['key']]})" if common.get(f["key"]) else ""
+            hint = T("  (toutes : ", "  (all: ") + f"{common[f['key']]})" if common.get(f["key"]) else ""
             ttk.Label(self.info, text=f["label"] + (" *" if f.get("required") else "") + hint,
                       style="Muted.TLabel").grid(row=i, column=0, sticky="w", padx=(0, 6))
             var = tk.StringVar(value=own.get(f["key"], ""))
@@ -1998,7 +2019,7 @@ class ReviewWindow:
             self.show_click_hint()
             return
         st.update(index=self.index, ready=False, busy=True)
-        self.click_hint.set("Preparing the one-click cut-out…")
+        self.click_hint.set(tr("Preparing the one-click cut-out…"))
         rgb, index = self.np.asarray(self.photo), self.index
 
         def work():
@@ -2007,7 +2028,7 @@ class ReviewWindow:
                 if getattr(app, "click_model", None) is None:
                     import gerbil as engine
                     app.click_model = engine.ClickCutout(progress=lambda f: self.win.after(
-                        0, self.click_hint.set, f"Downloading the one-click model (once): {f:.0%}"))
+                        0, self.click_hint.set, T("Téléchargement du modèle « un clic » (une fois) : ", "Downloading the one-click model (once): ") + f"{f:.0%}"))
                 app.click_model.set_image(rgb)
                 ok = None
             except Exception as e:
@@ -2020,7 +2041,7 @@ class ReviewWindow:
         st = self.click_state
         st["busy"] = False
         if error:
-            self.click_hint.set("The one-click cut-out is not available: " + error)
+            self.click_hint.set(tr("The one-click cut-out is not available: ") + error)
             return
         if index != self.index:                         # another photo was shown meanwhile
             st["index"] = None
@@ -2032,8 +2053,8 @@ class ReviewWindow:
 
     def show_click_hint(self):
         """How the one-click tool is used."""
-        self.click_hint.set("Click each object to keep: the computed cut-out is replaced by the objects "
-                            "clicked. Shift + click: remove an object. Ctrl+Z: undo.")
+        self.click_hint.set(tr("Click each object to keep: the computed cut-out is replaced by the objects "
+                            "clicked. Shift + click: remove an object. Ctrl+Z: undo."))
 
     def click_object(self, x, y, keep=True):
         """One click: the object under the click (Segment Anything, edge of the
@@ -2200,14 +2221,14 @@ class ReviewWindow:
         self.mask, self.angle = self.mask0.copy(), self.angle0
         it = self.items[self.index]
         if (it.get("edited") or self.angle0) and messagebox.askyesno(
-                "Gerbil", "Remove the corrections saved before for this photo?\n\n"
-                          "The computed cut-out comes back when the photo is processed again.", parent=self.win):
+                "Gerbil", tr("Remove the corrections saved before for this photo?\n\n"
+                          "The computed cut-out comes back when the photo is processed again."), parent=self.win):
             try:
                 self.remove_saved(it["photo"])
                 self.export(it["photo"])
                 self.angle = self.angle0 = 0.0
             except OSError as e:
-                messagebox.showerror("Gerbil", f"Could not remove the corrections:\n{e}", parent=self.win)
+                messagebox.showerror("Gerbil", T(f"Impossible de supprimer les corrections :\n{e}", f"Could not remove the corrections:\n{e}"), parent=self.win)
         self.redraw()
         self.update_thumb()
 
@@ -2232,7 +2253,7 @@ class ReviewWindow:
         """The object as it will be exported (turned), small."""
         np = self.np
         ys, xs = np.nonzero(self.mask[::4, ::4])
-        self.angle_txt.set(f"Object turned by {self.angle:g}°" if self.angle else "Not turned")
+        self.angle_txt.set(T(f"Objet tourné de {self.angle:g}°", f"Object turned by {self.angle:g}°") if self.angle else tr("Not turned"))
         if not len(xs):
             self.thumb_lbl.configure(image="")
             return
@@ -2347,7 +2368,7 @@ class ReviewWindow:
             if changed:
                 self.export(self.items[self.index]["photo"])
         except OSError as e:
-            messagebox.showerror("Gerbil", f"Could not save the corrections:\n{e}", parent=self.win)
+            messagebox.showerror("Gerbil", T(f"Impossible d'enregistrer les corrections :\n{e}", f"Could not save the corrections:\n{e}"), parent=self.win)
             return
         self.goto(self.index + 1)
 
@@ -2357,7 +2378,7 @@ class ReviewWindow:
         try:
             ScaleWindow(self.app, photo, on_saved=lambda: self.export(photo))
         except (ImportError, OSError) as e:
-            messagebox.showerror("Gerbil", f"Could not open the scale window:\n{e}", parent=self.win)
+            messagebox.showerror("Gerbil", T(f"Impossible d'ouvrir la fenêtre de l'échelle :\n{e}", f"Could not open the scale window:\n{e}"), parent=self.win)
 
     def close(self):
         """Closes, offering to keep the corrections of the photo shown."""
@@ -2368,14 +2389,14 @@ class ReviewWindow:
         info_changed = bool(self.info_vars) and {k: v.get().strip() for k, v in self.info_vars.items()} != self.info_own0
         if hasattr(self, "mask") and (not np.array_equal(self.mask, self.mask0) or abs(self.angle - self.angle0) > 1e-6
                                       or info_changed):
-            if messagebox.askyesno("Gerbil", "Keep the corrections of the photo shown?", parent=self.win):
+            if messagebox.askyesno("Gerbil", tr("Keep the corrections of the photo shown?"), parent=self.win):
                 try:
                     changed = self.save_current()
                     changed = self.save_info() or changed
                     if changed:
                         self.export(self.items[self.index]["photo"])
                 except OSError as e:
-                    messagebox.showerror("Gerbil", f"Could not save the corrections:\n{e}", parent=self.win)
+                    messagebox.showerror("Gerbil", T(f"Impossible d'enregistrer les corrections :\n{e}", f"Could not save the corrections:\n{e}"), parent=self.win)
         self.win.destroy()                         # (the waiting exports go on: pump runs on the main window)
 
 
@@ -2394,7 +2415,7 @@ class PlatesWindow:
         self.thumbs = {}                            # item path -> reduced image (preview)
         self.pages, self.page_no, self.job = [], 0, None
         self.win = win = tk.Toplevel(app.root)
-        win.title(f"Plates - {folder}")
+        win.title(T(f"Planches - {folder}", f"Plates - {folder}"))
         win.configure(bg=WINDOW_BG)
         sw, sh = win.winfo_screenwidth(), win.winfo_screenheight()
         w, h = min(int(sw * 0.9), 1500), int(sh * 0.88)
@@ -2404,11 +2425,11 @@ class PlatesWindow:
 
         foot = ttk.Frame(win, style="Window.TFrame", padding=12)          # packed first: always visible
         foot.pack(side="bottom", fill="x")
-        self.write_btn = ttk.Button(foot, text="Write the plates (SVG)", style="Run.TButton", command=self.write)
+        self.write_btn = ttk.Button(foot, text=tr("Write the plates (SVG)"), style="Run.TButton", command=self.write)
         self.write_btn.pack(side="left")
-        self.open_btn = ttk.Button(foot, text="Open the plates folder", command=self.open_folder, state="disabled")
+        self.open_btn = ttk.Button(foot, text=tr("Open the plates folder"), command=self.open_folder, state="disabled")
         self.open_btn.pack(side="left", padx=8)
-        ttk.Button(foot, text="Close", command=self.close).pack(side="right")
+        ttk.Button(foot, text=tr("Close"), command=self.close).pack(side="right")
         self.msg = tk.StringVar()
         ttk.Label(foot, textvariable=self.msg, style="Footer.TLabel").pack(side="left", padx=12)
 
@@ -2420,18 +2441,18 @@ class PlatesWindow:
         nb.pack(fill="y", expand=True)
         plate = ttk.Frame(nb, style="Card.TFrame", padding=12)
         barf = ttk.Frame(nb, style="Card.TFrame", padding=12)
-        nb.add(plate, text="  Plate  ")
-        nb.add(barf, text="  Scale bar  ")
+        nb.add(plate, text=tr("  Plate  "))
+        nb.add(barf, text=tr("  Scale bar  "))
         drawf = ttk.Frame(nb, style="Card.TFrame", padding=12)
-        nb.add(drawf, text="  Scales & drawings  ")
+        nb.add(drawf, text=tr("  Scales & drawings  "))
 
         r = 0
         def row(parent, label, widget, tip=None):
             nonlocal r
-            ttk.Label(parent, text=label).grid(row=r, column=0, sticky="w", pady=3, padx=(0, 8))
+            ttk.Label(parent, text=tr(label)).grid(row=r, column=0, sticky="w", pady=3, padx=(0, 8))
             widget.grid(row=r, column=1, sticky="w", pady=3)
             if tip:
-                Tooltip(widget, tip)
+                Tooltip(widget, tr(tip))
             r += 1
             return widget
 
@@ -2448,66 +2469,66 @@ class PlatesWindow:
             return ttk.Entry(parent, textvariable=var(key, value), width=width)
 
         def check(parent, key, value, text):
-            return ttk.Checkbutton(parent, text=text, variable=var(key, bool(value), tk.BooleanVar))
+            return ttk.Checkbutton(parent, text=tr(text), variable=var(key, bool(value), tk.BooleanVar))
 
         st, b = self.st, self.st.bar
         doubtful = sum(it.doubtful for it in self.items)
-        ttk.Label(plate, text=f"{len(self.items) - doubtful} object(s) with a real size"
-                  + (f" (+{doubtful} to be verified)" if doubtful else ""), style="Muted.TLabel").grid(
+        ttk.Label(plate, text=T(f"{len(self.items) - doubtful} objet(s) à taille réelle", f"{len(self.items) - doubtful} object(s) with a real size")
+                  + (T(f" (+{doubtful} à vérifier)", f" (+{doubtful} to be verified)") if doubtful else ""), style="Muted.TLabel").grid(
             row=r, column=0, columnspan=2, sticky="w", pady=(0, 6))
         r += 1
-        row(plate, "Plate title", entry(plate, "title", st.title, 30),
-            "Optional, at the top of each plate; {page}, {pages}, {group} and {scale} (1:2) are replaced, "
-            "e.g. \"QSR25 - US 1209 - Plate {page} - {scale}\". Empty: no title.")
+        row(plate, tr("Plate title"), entry(plate, "title", st.title, 30),
+            tr("Optional, at the top of each plate; {page}, {pages}, {group} and {scale} (1:2) are replaced, "
+            "e.g. \"QSR25 - US 1209 - Plate {page} - {scale}\". Empty: no title."))
         tf = ttk.Frame(plate, style="Card.TFrame")
         entry(tf, "title_pt", gp.fmt(st.title_pt), 5).pack(side="left")
-        ttk.Label(tf, text=" pt   ").pack(side="left")
+        ttk.Label(tf, text=tr(" pt   ")).pack(side="left")
         combo(tf, "title_align", st.title_align, ["left", "centre", "right"], 7).pack(side="left")
-        row(plate, "Title size, place", tf)
-        row(plate, "File names", entry(plate, "file_name", st.file_name, 30),
-            "Name of the SVG files: {page} (01, 02…), {pages}, {group}, {scale} (1-2), e.g. \"QSR25_US1209_pl{page}\". "
-            "Without {page}, the number is added.")
+        row(plate, tr("Title size, place"), tf)
+        row(plate, tr("File names"), entry(plate, "file_name", st.file_name, 30),
+            tr("Name of the SVG files: {page} (01, 02…), {pages}, {group}, {scale} (1-2), e.g. \"QSR25_US1209_pl{page}\". "
+            "Without {page}, the number is added."))
         self.names_lbl = tk.StringVar()
         ttk.Label(plate, textvariable=self.names_lbl, style="Muted.TLabel", wraplength=300).grid(
             row=r, column=1, sticky="w")
         r += 1
-        row(plate, "Scale  1 :", combo(plate, "ratio", gp.fmt(st.ratio), ["1", "1.5", "2", "3", "4", "5", "10"], 6,
+        row(plate, tr("Scale  1 :"), combo(plate, "ratio", gp.fmt(st.ratio), ["1", "1.5", "2", "3", "4", "5", "10"], 6,
                                        "normal"), "1:2 = objects drawn at half their real size.")
-        row(plate, "", check(plate, "fit_large", st.fit_large, "Reduce the objects too large for the page"),
-            "An object that does not fit at this scale goes to 1:2, 1:3… on plates of their own, each with its "
-            "scale bar (one scale per plate).")
-        row(plate, "", ttk.Button(plate, text="Scale per object…", style="Small.TButton", command=self.object_scales),
-            "Choose a scale for some objects (e.g. a large vessel at 1:3): they go on plates of their own.")
+        row(plate, "", check(plate, "fit_large", st.fit_large, tr("Reduce the objects too large for the page")),
+            tr("An object that does not fit at this scale goes to 1:2, 1:3… on plates of their own, each with its "
+            "scale bar (one scale per plate)."))
+        row(plate, "", ttk.Button(plate, text=tr("Scale per object…"), style="Small.TButton", command=self.object_scales),
+            tr("Choose a scale for some objects (e.g. a large vessel at 1:3): they go on plates of their own."))
         row(plate, "Page", combo(plate, "page", st.page, list(gp.PAGES) + ["custom"], 8))
         row(plate, "", check(plate, "landscape", st.landscape, "Landscape"))
         size = ttk.Frame(plate, style="Card.TFrame")
         entry(size, "width_mm", gp.fmt(st.width_mm), 6).pack(side="left")
-        ttk.Label(size, text=" x ").pack(side="left")
+        ttk.Label(size, text=tr(" x ")).pack(side="left")
         entry(size, "height_mm", gp.fmt(st.height_mm), 6).pack(side="left")
-        ttk.Label(size, text=" mm").pack(side="left")
-        row(plate, "Custom size", size, "Page size when the page is 'custom'.")
-        row(plate, "Margins (mm)", entry(plate, "margin_mm", gp.fmt(st.margin_mm)))
-        row(plate, "Space between (mm)", entry(plate, "gap_mm", gp.fmt(st.gap_mm)))
-        row(plate, "Order by", combo(plate, "order", st.order, fields))
-        row(plate, "Group by", combo(plate, "group", st.group or "(none)", ["(none)"] + fields[1:]),
-            "Each value (US, material…) starts a new row, or a new page.")
-        row(plate, "", check(plate, "group_new_page", st.group_new_page, "A new page for each group"))
+        ttk.Label(size, text=tr(" mm")).pack(side="left")
+        row(plate, tr("Custom size"), size, tr("Page size when the page is 'custom'."))
+        row(plate, tr("Margins (mm)"), entry(plate, "margin_mm", gp.fmt(st.margin_mm)))
+        row(plate, tr("Space between (mm)"), entry(plate, "gap_mm", gp.fmt(st.gap_mm)))
+        row(plate, tr("Order by"), combo(plate, "order", st.order, fields))
+        row(plate, tr("Group by"), combo(plate, "group", st.group or "(none)", ["(none)"] + fields[1:]),
+            tr("Each value (US, material…) starts a new row, or a new page."))
+        row(plate, "", check(plate, "group_new_page", st.group_new_page, tr("A new page for each group")))
         row(plate, "Caption", entry(plate, "caption", st.caption, 26),
-            "Text under each object: {name} (output name) or a column of the report, e.g. "
+            tr("Text under each object: {name} (output name) or a column of the report, e.g. ")
             + ", ".join("{" + f + "}" for f in fields[1:5]) + "; empty: no caption.")
-        row(plate, "Caption font", combo(plate, "caption_font", st.caption_font, list(gp.FONTS), 16))
-        row(plate, "Caption size (pt)", entry(plate, "caption_pt", gp.fmt(st.caption_pt)))
-        row(plate, "Images (dpi)", combo(plate, "dpi", str(st.dpi), ["300", "600", "1200"], 6),
-            "Resolution of the embedded images on the paper (600: print quality; never enlarged).")
+        row(plate, tr("Caption font"), combo(plate, "caption_font", st.caption_font, list(gp.FONTS), 16))
+        row(plate, tr("Caption size (pt)"), entry(plate, "caption_pt", gp.fmt(st.caption_pt)))
+        row(plate, tr("Images (dpi)"), combo(plate, "dpi", str(st.dpi), ["300", "600", "1200"], 6),
+            tr("Resolution of the embedded images on the paper (600: print quality; never enlarged)."))
         var("object_ratios", json.dumps(st.object_ratios or {}))
         row(plate, "", check(plate, "include_doubtful", st.include_doubtful,
-                             "Also the photos to be verified (_to_be_verified)"))
-        row(plate, "", check(plate, "measurements", st.measurements, "Measurements as guides (hidden layer)"),
-            "Width and height of each object as dimension lines, on a 'Measurements' layer hidden in the SVG: "
-            "show it in Illustrator or Inkscape to place drawings. Layout guides, not data.")
+                             tr("Also the photos to be verified (_to_be_verified)")))
+        row(plate, "", check(plate, "measurements", st.measurements, tr("Measurements as guides (hidden layer)")),
+            tr("Width and height of each object as dimension lines, on a 'Measurements' layer hidden in the SVG: "
+            "show it in Illustrator or Inkscape to place drawings. Layout guides, not data."))
         self.show_measures = tk.BooleanVar(value=False)
         self.show_measures.trace_add("write", lambda *_: self.changed())
-        row(plate, "", ttk.Checkbutton(plate, text="Show the measurements in the preview",
+        row(plate, "", ttk.Checkbutton(plate, text=tr("Show the measurements in the preview"),
                                        variable=self.show_measures))
 
         r = 0
@@ -2516,42 +2537,42 @@ class PlatesWindow:
         self.bar_canvas.grid(row=r, column=0, columnspan=2, pady=(0, 8))
         r += 1
         row(barf, "Style", combo(barf, "bar.style", b.style, list(gp.BAR_STYLES), 16))
-        row(barf, "Bar length (real cm)", combo(barf, "bar.length_cm", gp.fmt(b.length_cm) if b.length_cm else "auto",
+        row(barf, tr("Bar length (real cm)"), combo(barf, "bar.length_cm", gp.fmt(b.length_cm) if b.length_cm else "auto",
                                        ["auto", "1", "2", "5", "10", "20", "50"], 6, "normal"),
-            "Length the bar stands for (e.g. 5 = a 5 cm bar, drawn 2.5 cm long at 1:2); auto: 1, 2, 5, 10, 20 "
-            "or 50 cm, at most a third of the page width.")
+            tr("Length the bar stands for (e.g. 5 = a 5 cm bar, drawn 2.5 cm long at 1:2); auto: 1, 2, 5, 10, 20 "
+            "or 50 cm, at most a third of the page width."))
         row(barf, "Segments", combo(barf, "bar.segments", str(b.segments) if b.segments else "auto",
                                     ["auto", "1", "2", "4", "5", "10"], 6, "normal"))
-        row(barf, "First segment cut in", combo(barf, "bar.subdivisions", str(b.subdivisions) if b.subdivisions > 1
+        row(barf, tr("First segment cut in"), combo(barf, "bar.subdivisions", str(b.subdivisions) if b.subdivisions > 1
                                                 else "none", ["none", "2", "4", "5", "10"], 6),
             "e.g. 10: the first centimetre divided into millimetres.")
-        row(barf, "Bar height (mm)", entry(barf, "bar.height_mm", gp.fmt(b.height_mm)),
-            "Thickness of the bar on the paper; its length on the paper follows the scale of each plate.")
-        row(barf, "Line width (mm)", entry(barf, "bar.line_mm", gp.fmt(b.line_mm)))
+        row(barf, tr("Bar height (mm)"), entry(barf, "bar.height_mm", gp.fmt(b.height_mm)),
+            tr("Thickness of the bar on the paper; its length on the paper follows the scale of each plate."))
+        row(barf, tr("Line width (mm)"), entry(barf, "bar.line_mm", gp.fmt(b.line_mm)))
         colours = ttk.Frame(barf, style="Card.TFrame")
-        for key, text in (("bar.fill", "Fill"), ("bar.fill2", "Second fill"), ("bar.line", "Line"),
+        for key, text in (("bar.fill", "Fill"), ("bar.fill2", tr("Second fill")), ("bar.line", "Line"),
                           ("bar.font_color", "Text")):
             self.colour_button(colours, key, getattr(b, key[4:]), text)
         row(barf, "Colours", colours)
         row(barf, "Numbers", combo(barf, "bar.labels", b.labels, ["ends", "all", "none"], 8),
             "ends: 0 and the end; all: every segment.")
-        row(barf, "Numbers placed", combo(barf, "bar.label_position", b.label_position, ["below", "above"], 8))
+        row(barf, tr("Numbers placed"), combo(barf, "bar.label_position", b.label_position, ["below", "above"], 8))
         row(barf, "Unit", combo(barf, "bar.unit", b.unit, ["cm", "mm", ""], 6, "normal"),
-            "Written after the last number; mm: the numbers are given in millimetres.")
+            tr("Written after the last number; mm: the numbers are given in millimetres."))
         row(barf, "Font", combo(barf, "bar.font", b.font, list(gp.FONTS), 16))
-        row(barf, "Size (pt)", entry(barf, "bar.font_pt", gp.fmt(b.font_pt)))
+        row(barf, tr("Size (pt)"), entry(barf, "bar.font_pt", gp.fmt(b.font_pt)))
         row(barf, "", check(barf, "bar.bold", b.bold, "Bold"))
-        row(barf, "", check(barf, "bar.show_ratio", b.show_ratio, "Write the scale (1:2) after the bar"))
-        row(barf, "On the page", combo(barf, "bar.position", b.position,
+        row(barf, "", check(barf, "bar.show_ratio", b.show_ratio, tr("Write the scale (1:2) after the bar")))
+        row(barf, tr("On the page"), combo(barf, "bar.position", b.position,
                                        ["bottom right", "bottom centre", "bottom left"], 12))
 
         r = 0
-        ttk.Label(drawf, text="SCALES", style="Section.TLabel").grid(row=r, column=0, columnspan=2, sticky="w")
+        ttk.Label(drawf, text=tr("SCALES"), style="Section.TLabel").grid(row=r, column=0, columnspan=2, sticky="w")
         r += 1
-        row(drawf, "", check(drawf, "by_material", st.by_material, "Scale by material"),
+        row(drawf, "", check(drawf, "by_material", st.by_material, tr("Scale by material")),
             "Each object at the reduction of its material (publication conventions, DMS Bruxelles 2009): "
             "ceramics and glass 1/3, iron 2/3, stone 1/3… The scale per object still prevails.")
-        row(drawf, "Material column", combo(drawf, "material_field", st.material_field, fields, 16, "normal"))
+        row(drawf, tr("Material column"), combo(drawf, "material_field", st.material_field, fields, 16, "normal"))
         rules = tk.Text(drawf, width=34, height=4, wrap="word", font=(FONT_SERIF, 9), relief="flat",
                         highlightthickness=1, highlightbackground=LAVENDER_LINE)
         rules.insert("1.0", st.material_ratios)
@@ -2559,31 +2580,31 @@ class PlatesWindow:
         rules.bind("<KeyRelease>", lambda _: rules_var.set(rules.get("1.0", "end").strip()))
         row(drawf, "Reductions", rules, "word=reduction, separated by ';' - the word is looked for in the "
                                          "material (\"céramique commune\" contains \"céramique\").")
-        row(drawf, "", check(drawf, "mix_scales", st.mix_scales, "Several scales on one plate"),
-            "Objects at different scales on the same plate: the scale is written in their caption, one "
-            "bar per scale. Unticked: one scale per plate (the usual way).")
-        ttk.Label(drawf, text="DRAWINGS", style="Section.TLabel").grid(row=r, column=0, columnspan=2, sticky="w",
+        row(drawf, "", check(drawf, "mix_scales", st.mix_scales, tr("Several scales on one plate")),
+            tr("Objects at different scales on the same plate: the scale is written in their caption, one "
+            "bar per scale. Unticked: one scale per plate (the usual way)."))
+        ttk.Label(drawf, text=tr("DRAWINGS"), style="Section.TLabel").grid(row=r, column=0, columnspan=2, sticky="w",
                                                                       pady=(14, 0))
         r += 1
         dfr = ttk.Frame(drawf, style="Card.TFrame")
         entry(dfr, "drawings_folder", st.drawings_folder, 26).pack(side="left")
         ttk.Button(dfr, text="…", width=3, command=self.pick_drawings).pack(side="left", padx=(4, 0))
-        row(drawf, "Folder of the drawings", dfr, "Drawings of the objects (.svg; .ai, .pdf, .eps through "
-                                                  "Inkscape), placed beside their photo, kept as vectors.")
-        row(drawf, "Drawing names", entry(drawf, "drawings_match", st.drawings_match, 26),
+        row(drawf, tr("Folder of the drawings"), dfr, tr("Drawings of the objects (.svg; .ai, .pdf, .eps through "
+                                                  "Inkscape), placed beside their photo, kept as vectors."))
+        row(drawf, tr("Drawing names"), entry(drawf, "drawings_match", st.drawings_match, 26),
             "{name}: a drawing named like the output name of the photo. Or the fields of its name, e.g. "
             "{site}_{number}: matched with the object's (leading zeros ignored).")
-        row(drawf, "Drawings at  1 :", combo(drawf, "drawings_ratio", gp.fmt(st.drawings_ratio),
+        row(drawf, tr("Drawings at  1 :"), combo(drawf, "drawings_ratio", gp.fmt(st.drawings_ratio),
                                              ["1", "2", "3", "5"], 6, "normal"),
-            "Scale of the drawings on their own paper (usually 1:1).")
-        row(drawf, "Drawing placed", combo(drawf, "drawings_side", st.drawings_side, ["left", "right"], 8))
+            tr("Scale of the drawings on their own paper (usually 1:1)."))
+        row(drawf, tr("Drawing placed"), combo(drawf, "drawings_side", st.drawings_side, ["left", "right"], 8))
         self.draw_lbl = tk.StringVar()
         ttk.Label(drawf, textvariable=self.draw_lbl, style="Muted.TLabel", wraplength=300).grid(
             row=r, column=0, columnspan=2, sticky="w", pady=(6, 0))
         if not gp.inkscape():
             ttk.Label(drawf, style="Muted.TLabel", wraplength=300, text=(
-                "Inkscape is not installed: only .svg drawings can be used, and they show as boxes in the "
-                "preview (they are written as vectors all the same).")).grid(row=r + 1, column=0, columnspan=2,
+                tr("Inkscape is not installed: only .svg drawings can be used, and they show as boxes in the "
+                "preview (they are written as vectors all the same)."))).grid(row=r + 1, column=0, columnspan=2,
                                                                              sticky="w")
 
         view = ttk.Frame(body, style="Window.TFrame")
@@ -2596,7 +2617,7 @@ class PlatesWindow:
         ttk.Button(nav, text="▶", width=3, command=lambda: self.turn(1)).pack(side="left")
         self.warn = tk.StringVar()
         ttk.Label(nav, textvariable=self.warn, style="Footer.TLabel").pack(side="left", padx=12)
-        ttk.Label(nav, text="Wheel: zoom · middle button: move · right-click an object: its scale",
+        ttk.Label(nav, text=tr("Wheel: zoom · middle button: move · right-click an object: its scale"),
                   style="Footer.TLabel").pack(side="right")
         cv = ttk.Frame(view, style="Window.TFrame")
         cv.pack(fill="both", expand=True, pady=(6, 0))
@@ -2622,16 +2643,16 @@ class PlatesWindow:
         """Small window: each object with its size and its scale (plate scale, or one chosen for it)."""
         gp = self.gp
         top = tk.Toplevel(self.win)
-        top.title("Scale per object")
+        top.title(tr("Scale per object"))
         top.configure(bg=WINDOW_BG)
         top.transient(self.win)
-        ttk.Label(top, text="Select objects, choose a scale, then Set. 'plate' = the scale of the plates "
-                            "(reduced automatically if too large).", style="Footer.TLabel",
+        ttk.Label(top, text=tr("Select objects, choose a scale, then Set. 'plate' = the scale of the plates "
+                            "(reduced automatically if too large)."), style="Footer.TLabel",
                   wraplength=460).pack(anchor="w", padx=10, pady=(10, 4))
         tree = ttk.Treeview(top, columns=("size", "scale"), show="tree headings", height=16, selectmode="extended")
-        tree.heading("#0", text="Object", anchor="w")
-        tree.heading("size", text="Size (cm)", anchor="w")
-        tree.heading("scale", text="Scale", anchor="w")
+        tree.heading("#0", text=tr("Object"), anchor="w")
+        tree.heading("size", text=tr("Size (cm)"), anchor="w")
+        tree.heading("scale", text=tr("Scale"), anchor="w")
         tree.column("#0", width=230)
         tree.column("size", width=110)
         tree.column("scale", width=125)
@@ -2653,7 +2674,7 @@ class PlatesWindow:
                 tree.insert("", "end", iid=it.name, text=it.name,
                             values=(f"{it.width_cm:.1f} x {it.height_cm:.1f}", shown))
         scale = tk.StringVar(value="2")
-        ttk.Label(bar, text="Scale  1 :").pack(side="left")
+        ttk.Label(bar, text=tr("Scale  1 :")).pack(side="left")
         ttk.Combobox(bar, textvariable=scale, values=["plate"] + [gp.fmt(r) for r in gp.RATIOS], width=7).pack(
             side="left", padx=(4, 8))
 
@@ -2669,8 +2690,8 @@ class PlatesWindow:
                         return
             self.vars["object_ratios"].set(json.dumps(chosen))
             fill()
-        ttk.Button(bar, text="Set for selected", command=set_selected).pack(side="left")
-        ttk.Button(bar, text="Close", command=top.destroy).pack(side="right")
+        ttk.Button(bar, text=tr("Set for selected"), command=set_selected).pack(side="left")
+        ttk.Button(bar, text=tr("Close"), command=top.destroy).pack(side="right")
         fill()
 
     def wheel(self, e):
@@ -2705,7 +2726,7 @@ class PlatesWindow:
         gp, name = self.gp, hit.item.name
         chosen = dict(self.st.object_ratios or {})
         menu = tk.Menu(self.win, tearoff=False)
-        menu.add_command(label=f"{name}  (now 1:{gp.fmt(hit.ratio)})", state="disabled")
+        menu.add_command(label=f"{name}  (" + T("actuellement", "now") + f" 1:{gp.fmt(hit.ratio)})", state="disabled")
         menu.add_separator()
 
         def choose(r):
@@ -2714,7 +2735,7 @@ class PlatesWindow:
             else:
                 chosen[name] = r
             self.vars["object_ratios"].set(json.dumps(chosen))
-        menu.add_command(label="Scale of the plates (automatic)", command=lambda: choose(None))
+        menu.add_command(label=tr("Scale of the plates (automatic)"), command=lambda: choose(None))
         for r in gp.RATIOS[:9]:
             menu.add_command(label=f"1:{gp.fmt(r)}", command=lambda r=r: choose(float(r)))
         try:
@@ -2724,7 +2745,7 @@ class PlatesWindow:
 
     def pick_drawings(self):
         """Chooses the folder of the drawings."""
-        d = filedialog.askdirectory(parent=self.win, title="Folder of the drawings",
+        d = filedialog.askdirectory(parent=self.win, title=tr("Folder of the drawings"),
                                     initialdir=self.vars["drawings_folder"].get() or self.folder)
         if d:
             self.vars["drawings_folder"].set(os.path.normpath(d))
@@ -2825,13 +2846,14 @@ class PlatesWindow:
             self.canvas.create_image(x0, y0, image=self.page_img, anchor="nw")
             self.canvas.configure(scrollregion=(0, 0, max(cw, img.width + 20), max(ch, img.height + 20)))
             self.view = (k, x0, y0)
-            self.page_lbl.set(f"Plate {self.page_no + 1} / {len(self.pages)}  ·  {sum(len(p[1]) for p in self.pages)} "
-                              f"object(s) at 1:{gp.fmt(st.ratio)}")
+            n_obj = sum(len(p[1]) for p in self.pages)
+            self.page_lbl.set(T(f"Planche {self.page_no + 1} / {len(self.pages)}, {n_obj} objet(s) au 1:{gp.fmt(st.ratio)}",
+                                f"Plate {self.page_no + 1} / {len(self.pages)}, {n_obj} object(s) at 1:{gp.fmt(st.ratio)}"))
         else:
-            self.page_lbl.set("No object with a real size in this folder")
+            self.page_lbl.set(tr("No object with a real size in this folder"))
         if st.drawings_folder:
             n = sum(1 for it in items if it.drawing)
-            self.draw_lbl.set(f"{n} object(s) with their drawing, out of {len(items)}.")
+            self.draw_lbl.set(T(f"{n} objet(s) avec leur dessin, sur {len(items)}.", f"{n} object(s) with their drawing, out of {len(items)}."))
         else:
             self.draw_lbl.set("")
         names = gp.plate_file_names(st, self.pages) if self.pages else []
@@ -2856,16 +2878,17 @@ class PlatesWindow:
         """Writes the SVG plates in a thread."""
         st = self.settings()
         self.write_btn.state(["disabled"])
-        self.msg.set("Writing the plates…")
+        self.msg.set(tr("Writing the plates…"))
         out = os.path.join(self.folder, "plates")
 
         def work():
             try:
                 files, warnings = self.gp.write_plates(
-                    self.folder, st, out, lambda i, n: self.win.after(0, self.msg.set, f"Plate {i} / {n}…"))
-                text = f"{len(files)} plate(s) written in {out}" + (f"  ({len(warnings)} warning(s))" if warnings else "")
+                    self.folder, st, out, lambda i, n: self.win.after(0, self.msg.set, T(f"Planche {i} / {n}…", f"Plate {i} / {n}…")))
+                text = T(f"{len(files)} planche(s) écrite(s) dans {out}", f"{len(files)} plate(s) written in {out}") + (
+                    T(f"  ({len(warnings)} avertissement(s))", f"  ({len(warnings)} warning(s))") if warnings else "")
             except Exception as e:
-                text = f"The plates could not be written: {type(e).__name__}: {e}"
+                text = T("Les planches n'ont pas pu être écrites : ", "The plates could not be written: ") + f"{type(e).__name__}: {e}"
             self.win.after(0, self.written, text)
         threading.Thread(target=work, daemon=True).start()
 
@@ -2930,32 +2953,32 @@ class ProfileWindow:
             except (OSError, ValueError):
                 pass
         self.win = win = tk.Toplevel(app.root)
-        win.title("Site profile")
+        win.title(tr("Site profile"))
         win.configure(bg=WINDOW_BG)
         win.transient(app.root)
         card = ttk.Frame(win, style="Card.TFrame", padding=14)
         card.pack(fill="both", expand=True, padx=10, pady=10)
         card.columnconfigure(1, weight=1)
         r = 0
-        ttk.Label(card, text="Name").grid(row=r, column=0, sticky="w", pady=3)
+        ttk.Label(card, text=tr("Name")).grid(row=r, column=0, sticky="w", pady=3)
         self.name = tk.StringVar(value=self.pr["name"])
         ttk.Entry(card, textvariable=self.name, width=34).grid(row=r, column=1, sticky="w", pady=3)
         r += 1
-        ttk.Label(card, text="Background of the photos").grid(row=r, column=0, sticky="w", pady=3)
-        self.bg = tk.StringVar(value={"light": "light (white, grey…)", "dark": "dark (velvet, felt…)"}.get(
-            self.pr.get("background"), "found by Gerbil"))
-        cb = ttk.Combobox(card, textvariable=self.bg, state="readonly", width=22,
-                          values=["found by Gerbil", "light (white, grey…)", "dark (velvet, felt…)"])
+        ttk.Label(card, text=tr("Background of the photos")).grid(row=r, column=0, sticky="w", pady=3)
+        self.bg_names = {"auto": tr("found by Gerbil"), "light": tr("light (white, grey…)"),
+                         "dark": tr("dark (velvet, felt…)")}
+        self.bg = tk.StringVar(value=self.bg_names.get(self.pr.get("background"), self.bg_names["auto"]))
+        cb = ttk.Combobox(card, textvariable=self.bg, state="readonly", width=24, values=list(self.bg_names.values()))
         cb.grid(row=r, column=1, sticky="w", pady=3)
-        Tooltip(cb, "Dark: paper labels are discarded, the edge of the objects is placed for a dark background.")
+        Tooltip(cb, tr("Dark: paper labels are discarded, the edge of the objects is placed for a dark background."))
         r += 1
-        ttk.Label(card, text="LEARNED SCALES", style="Section.TLabel").grid(row=r, column=0, columnspan=2,
+        ttk.Label(card, text=tr("LEARNED SCALES"), style="Section.TLabel").grid(row=r, column=0, columnspan=2,
                                                                            sticky="w", pady=(12, 2))
         r += 1
         ttk.Label(card, style="Muted.TLabel", wraplength=430, justify="left", text=(
-            "Show Gerbil one photo of each scale used on the site (each physical copy: two prints of "
+            tr("Show Gerbil one photo of each scale used on the site (each physical copy: two prints of "
             "the same model may differ by 1 %). It is then found on the photos where the usual "
-            "reading fails.")).grid(row=r, column=0, columnspan=2, sticky="w")
+            "reading fails."))).grid(row=r, column=0, columnspan=2, sticky="w")
         r += 1
         self.lb = tk.Listbox(card, height=5, activestyle="none", font=(FONT_SERIF, 9), relief="flat",
                              highlightthickness=1, highlightbackground=LAVENDER_LINE, selectbackground=LAVENDER)
@@ -2963,29 +2986,29 @@ class ProfileWindow:
         r += 1
         bar = ttk.Frame(card, style="Card.TFrame")
         bar.grid(row=r, column=0, columnspan=2, sticky="w")
-        ttk.Button(bar, text="Learn a scale from a photo…", command=self.learn).pack(side="left")
-        ttk.Button(bar, text="Remove", style="Small.TButton", command=self.remove_scale).pack(side="left", padx=6)
+        ttk.Button(bar, text=tr("Learn a scale from a photo…"), command=self.learn).pack(side="left")
+        ttk.Button(bar, text=tr("Remove"), style="Small.TButton", command=self.remove_scale).pack(side="left", padx=6)
         r += 1
         self.first = tk.BooleanVar(value=bool(self.pr.get("learned_first")))
-        ck = ttk.Checkbutton(card, text="Look for the learned scales first", variable=self.first)
+        ck = ttk.Checkbutton(card, text=tr("Look for the learned scales first"), variable=self.first)
         ck.grid(row=r, column=0, columnspan=2, sticky="w", pady=(4, 0))
-        Tooltip(ck, "For a scale the usual reading gets wrong. Otherwise the learned scales are a second "
-                    "chance (a learned 10 cm scale is also found inside a 20 cm one of the same make).")
+        Tooltip(ck, tr("For a scale the usual reading gets wrong. Otherwise the learned scales are a second "
+                    "chance (a learned 10 cm scale is also found inside a 20 cm one of the same make)."))
         r += 1
-        ttk.Label(card, text="OPTIONS", style="Section.TLabel").grid(row=r, column=0, columnspan=2,
+        ttk.Label(card, text=tr("OPTIONS"), style="Section.TLabel").grid(row=r, column=0, columnspan=2,
                                                                     sticky="w", pady=(12, 2))
         r += 1
         self.opts_lbl = tk.StringVar()
         ttk.Label(card, textvariable=self.opts_lbl, style="Muted.TLabel", wraplength=430, justify="left").grid(
             row=r, column=0, columnspan=2, sticky="w")
         r += 1
-        ttk.Button(card, text="Keep the options of the main window", command=self.take_options).grid(
+        ttk.Button(card, text=tr("Keep the options of the main window"), command=self.take_options).grid(
             row=r, column=0, columnspan=2, sticky="w", pady=(4, 0))
         foot = ttk.Frame(win, style="Window.TFrame", padding=(10, 0, 10, 10))
         foot.pack(fill="x")
-        ttk.Button(foot, text="Save", style="Run.TButton", command=self.save).pack(side="left")
-        ttk.Button(foot, text="Put next to the photos…", command=self.export).pack(side="left", padx=8)
-        ttk.Button(foot, text="Close", command=win.destroy).pack(side="right")
+        ttk.Button(foot, text=tr("Save"), style="Run.TButton", command=self.save).pack(side="left")
+        ttk.Button(foot, text=tr("Put next to the photos…"), command=self.export).pack(side="left", padx=8)
+        ttk.Button(foot, text=tr("Close"), command=win.destroy).pack(side="right")
         self.fill()
 
     def fill(self):
@@ -2994,15 +3017,15 @@ class ProfileWindow:
         for m in self.pr["scales"]:
             self.lb.insert("end", f"{m.get('name', '')}   ({m.get('cm', 0):g} cm)")
         st = self.pr.get("settings") or {}
-        self.opts_lbl.set(("Options kept: " + ", ".join(f"{k}={v}" for k, v in st.items())) if st else
-                          "No options kept: the main window keeps its own.")
+        self.opts_lbl.set((tr("Options kept: ") + ", ".join(f"{k}={v}" for k, v in st.items())) if st else
+                          tr("No options kept: the main window keeps its own."))
 
     def learn(self):
         """Chooses a photo showing the scale and opens the scale window in learning mode."""
-        path = filedialog.askopenfilename(parent=self.win, title="A photo showing the scale",
+        path = filedialog.askopenfilename(parent=self.win, title=tr("A photo showing the scale"),
                                           initialdir=self.app.s["last_dir"] or None,
                                           filetypes=[("Photos", " ".join("*" + e for e in sorted(EXTENSIONS))),
-                                                     ("All files", "*.*")])
+                                                     (tr("All files"), "*.*")])
         if path:
             ScaleWindow(self.app, path, learn=lambda entry: self.learned(path, entry))
 
@@ -3013,7 +3036,7 @@ class ProfileWindow:
             model = engine.learn_scale(engine.load_photo(path).rgb, entry,
                                        f"{entry['cm']:g} cm ({os.path.basename(path)})")
         except Exception as e:
-            messagebox.showerror("Gerbil", f"The scale could not be learned:\n{e}", parent=self.win)
+            messagebox.showerror("Gerbil", T(f"L'échelle n'a pas pu être apprise :\n{e}", f"The scale could not be learned:\n{e}"), parent=self.win)
             return
         self.pr["scales"].append(model)
         self.fill()
@@ -3034,14 +3057,14 @@ class ProfileWindow:
     def data(self):
         """The profile as saved."""
         pr = dict(self.pr, name=self.name.get().strip(), learned_first=self.first.get(),
-                  background={"light (white, grey…)": "light", "dark (velvet, felt…)": "dark"}.get(self.bg.get(), "auto"))
+                  background={v: k for k, v in self.bg_names.items()}.get(self.bg.get(), "auto"))
         return pr
 
     def save(self):
         """Saves the profile in the library and chooses it."""
         pr = self.data()
         if not safe_name(pr["name"]):
-            messagebox.showwarning("Gerbil", "Give the profile a name.", parent=self.win)
+            messagebox.showwarning("Gerbil", tr("Give the profile a name."), parent=self.win)
             return
         os.makedirs(PROFILES_DIR, exist_ok=True)
         with open(profile_path(safe_name(pr["name"])), "w", encoding="utf-8") as fh:
@@ -3051,13 +3074,15 @@ class ProfileWindow:
 
     def export(self):
         """Writes the profile as gerbil_profile.json in a folder of photos."""
-        folder = filedialog.askdirectory(parent=self.win, title="Folder of photos that use this profile",
+        folder = filedialog.askdirectory(parent=self.win, title=tr("Folder of photos that use this profile"),
                                          initialdir=self.app.s["last_dir"] or None)
         if folder:
             with open(os.path.join(folder, PROFILE_FILE), "w", encoding="utf-8") as fh:
                 json.dump(self.data(), fh, ensure_ascii=False)
-            messagebox.showinfo("Gerbil", f"Profile saved as {PROFILE_FILE} in\n{folder}\n\n"
-                                          "The photos of this folder use it, whatever the profile chosen.",
+            messagebox.showinfo("Gerbil", T(f"Profil enregistré en {PROFILE_FILE} dans\n{folder}\n\n"
+                                            "Les photographies de ce dossier l'utilisent, quel que soit le profil choisi.",
+                                            f"Profile saved as {PROFILE_FILE} in\n{folder}\n\n"
+                                            "The photos of this folder use it, whatever the profile chosen."),
                                 parent=self.win)
 
 
@@ -3073,16 +3098,16 @@ class IptcWindow:
         self.engine, self.project = engine, project
         pr = project.pr
         self.win = win = tk.Toplevel(project.win)
-        win.title("IPTC metadata")
+        win.title(tr("IPTC metadata"))
         win.configure(bg=WINDOW_BG)
         win.transient(project.win)
         card = ttk.Frame(win, style="Card.TFrame", padding=14)
         card.pack(fill="both", expand=True, padx=10, pady=10)
         keys = ", ".join("{" + f["key"] + "}" for f in project.fields())
         ttk.Label(card, style="Muted.TLabel", wraplength=560, justify="left", text=(
-            "For each field: {name} (output name) or the fields of the photo " + keys + "; a text without "
+            tr("For each field: {name} (output name) or the fields of the photo ") + keys + tr("; a text without "
             "braces is the same for every photo. Keywords and Creator: several values separated by commas. "
-            "Empty: not written.")).grid(row=0, column=0, columnspan=3, sticky="w", pady=(0, 8))
+            "Empty: not written."))).grid(row=0, column=0, columnspan=3, sticky="w", pady=(0, 8))
         mapping = pr.get("iptc") if isinstance(pr.get("iptc"), dict) else dict(engine.DEFAULT_IPTC)
         self.vars = {}
         for r, (key, (prop, _, label)) in enumerate(engine.IPTC_TARGETS.items(), 1):
@@ -3094,17 +3119,17 @@ class IptcWindow:
             self.vars[key] = v
         r = len(engine.IPTC_TARGETS) + 1
         self.sidecar = tk.BooleanVar(value=bool(pr.get("xmp_sidecar")))
-        ttk.Checkbutton(card, text="Also write a .xmp file next to each original photo (Bridge, Lightroom, "
-                                   "darktable; a .xmp of another program is never replaced)",
+        ttk.Checkbutton(card, text=tr("Also write a .xmp file next to each original photo (Bridge, Lightroom, "
+                                   "darktable; a .xmp of another program is never replaced)"),
                         variable=self.sidecar).grid(row=r, column=0, columnspan=3, sticky="w", pady=(10, 0))
         self.example = tk.StringVar()
         ttk.Label(card, textvariable=self.example, style="Muted.TLabel", wraplength=560, justify="left").grid(
             row=r + 1, column=0, columnspan=3, sticky="w", pady=(8, 0))
         foot = ttk.Frame(win, style="Window.TFrame", padding=(10, 0, 10, 10))
         foot.pack(fill="x")
-        ttk.Button(foot, text="OK", style="Run.TButton", command=self.ok).pack(side="left")
-        ttk.Button(foot, text="Default model", command=self.default).pack(side="left", padx=8)
-        ttk.Button(foot, text="Cancel", command=win.destroy).pack(side="right")
+        ttk.Button(foot, text=tr("OK"), style="Run.TButton", command=self.ok).pack(side="left")
+        ttk.Button(foot, text=tr("Default model"), command=self.default).pack(side="left", padx=8)
+        ttk.Button(foot, text=tr("Cancel"), command=win.destroy).pack(side="right")
         self.preview()
 
     def mapping(self):
@@ -3121,7 +3146,7 @@ class IptcWindow:
         vals = project_values(pj.pr, name)
         out = self.engine.iptc_values(dict(pj.pr, iptc=self.mapping()), vals, project_output_name(pj.pr, name))
         labels = {k: lab for k, (_, _, lab) in self.engine.IPTC_TARGETS.items()}
-        self.example.set(f"Example ({name}):  " + "  ·  ".join(
+        self.example.set(T(f"Exemple ({name}) :  ", f"Example ({name}):  ") + "   /   ".join(
             f"{labels[k]}: {', '.join(v) if isinstance(v, list) else v}" for k, v in out.items()))
 
     def default(self):
@@ -3147,14 +3172,14 @@ class InventoryWindow:
         import gerbil_tools as tools
         self.tools, self.app = tools, app
         self.win = win = tk.Toplevel(app.root)
-        win.title("Inventory (CSV)")
+        win.title(tr("Inventory (CSV)"))
         win.configure(bg=WINDOW_BG)
         win.transient(app.root)
         card = ttk.Frame(win, style="Card.TFrame", padding=14)
         card.pack(fill="both", expand=True, padx=10, pady=10)
         card.columnconfigure(1, weight=1)
         folders = [p for p in app.tree.get_children() if os.path.isdir(p)] if hasattr(app, "tree") else []
-        ttk.Label(card, text="Folders").grid(row=0, column=0, sticky="nw", pady=2)
+        ttk.Label(card, text=tr("Folders")).grid(row=0, column=0, sticky="nw", pady=2)
         self.folders = tk.Listbox(card, height=4, width=60, relief="flat", highlightthickness=1,
                                   highlightbackground=LAVENDER_LINE)
         self.folders.grid(row=0, column=1, sticky="ew", padx=8)
@@ -3162,18 +3187,19 @@ class InventoryWindow:
             self.folders.insert("end", f)
         fb = ttk.Frame(card, style="Card.TFrame")
         fb.grid(row=1, column=1, sticky="w", padx=8, pady=(2, 8))
-        ttk.Button(fb, text="Add folder…", style="Small.TButton", command=self.add).pack(side="left")
-        ttk.Button(fb, text="Remove", style="Small.TButton",
+        ttk.Button(fb, text=tr("Add folder…"), style="Small.TButton", command=self.add).pack(side="left")
+        ttk.Button(fb, text=tr("Remove"), style="Small.TButton",
                    command=lambda: [self.folders.delete(i) for i in reversed(self.folders.curselection())] and
                    self.update_line()).pack(side="left", padx=4)
         self.kinds = {}
         kf = ttk.Frame(card, style="Card.TFrame")
-        ttk.Label(card, text="Files").grid(row=2, column=0, sticky="w")
+        ttk.Label(card, text=tr("Files")).grid(row=2, column=0, sticky="w")
         kf.grid(row=2, column=1, sticky="w", padx=8)
         for k, label in (("photos", "photos"), ("drawings", "drawings (.ai, .svg, .pdf, .eps)"), ("3d", "3D models")):
             self.kinds[k] = tk.BooleanVar(value=True)
-            ttk.Checkbutton(kf, text=label, variable=self.kinds[k], command=self.update_line).pack(side="left", padx=(0, 10))
-        ttk.Label(card, text="Fields of the names").grid(row=3, column=0, sticky="w", pady=(8, 0))
+            ttk.Checkbutton(kf, text=tr(label), variable=self.kinds[k], command=self.update_line).pack(side="left",
+                                                                                                    padx=(0, 10))
+        ttk.Label(card, text=tr("Fields of the names")).grid(row=3, column=0, sticky="w", pady=(8, 0))
         template = ""
         for f in folders:
             pr = load_project_file(f)
@@ -3184,31 +3210,31 @@ class InventoryWindow:
         self.template.trace_add("write", lambda *_: self.update_line())
         e = ttk.Entry(card, textvariable=self.template, width=50)
         e.grid(row=3, column=1, sticky="w", padx=8, pady=(8, 0))
-        Tooltip(e, "How the names are made, e.g. {site}_{sector}_US{us}_{number}_{material}: each {field} "
-                   "becomes a column. Gerbil's suffixes (_outlined, _to_be_verified…) are left out.")
+        Tooltip(e, tr("How the names are made, e.g. {site}_{sector}_US{us}_{number}_{material}: each {field} "
+                   "becomes a column. Gerbil's suffixes (_outlined, _to_be_verified…) are left out."))
         self.sub = tk.BooleanVar(value=True)
-        ttk.Checkbutton(card, text="Sub-folders too", variable=self.sub, command=self.update_line).grid(
+        ttk.Checkbutton(card, text=tr("Sub-folders too"), variable=self.sub, command=self.update_line).grid(
             row=4, column=1, sticky="w", padx=8, pady=(6, 0))
         self.img = tk.BooleanVar(value=True)
-        ttk.Checkbutton(card, text="Image information (size in px, resolution, date taken, camera)",
+        ttk.Checkbutton(card, text=tr("Image information (size in px, resolution, date taken, camera)"),
                         variable=self.img).grid(row=5, column=1, sticky="w", padx=8)
-        ttk.Label(card, text="POWERSHELL", style="Section.TLabel").grid(row=6, column=0, columnspan=2, sticky="w",
+        ttk.Label(card, text=tr("POWERSHELL"), style="Section.TLabel").grid(row=6, column=0, columnspan=2, sticky="w",
                                                                        pady=(12, 2))
         ttk.Label(card, style="Muted.TLabel", wraplength=560, justify="left", text=(
-            "The same inventory with Windows only (without the image information): paste this line into "
-            "PowerShell.")).grid(row=7, column=0, columnspan=2, sticky="w")
+            tr("The same inventory with Windows only (without the image information): paste this line into "
+            "PowerShell."))).grid(row=7, column=0, columnspan=2, sticky="w")
         self.line = tk.Text(card, height=6, width=80, wrap="char", font=(FONT_MONO, 9), relief="flat",
                             highlightthickness=1, highlightbackground=LAVENDER_LINE)
         self.line.grid(row=8, column=0, columnspan=2, sticky="ew", pady=4)
-        ttk.Button(card, text="Copy the line", style="Small.TButton",
+        ttk.Button(card, text=tr("Copy the line"), style="Small.TButton",
                    command=lambda: (win.clipboard_clear(), win.clipboard_append(self.line.get("1.0", "end").strip()))
                    ).grid(row=9, column=0, sticky="w")
         foot = ttk.Frame(win, style="Window.TFrame", padding=(10, 0, 10, 10))
         foot.pack(fill="x")
-        ttk.Button(foot, text="Write the inventory…", style="Run.TButton", command=self.write).pack(side="left")
+        ttk.Button(foot, text=tr("Write the inventory…"), style="Run.TButton", command=self.write).pack(side="left")
         self.msg = tk.StringVar()
         ttk.Label(foot, textvariable=self.msg, style="Footer.TLabel").pack(side="left", padx=10)
-        ttk.Button(foot, text="Close", command=win.destroy).pack(side="right")
+        ttk.Button(foot, text=tr("Close"), command=win.destroy).pack(side="right")
         self.update_line()
 
     def add(self):
@@ -3239,9 +3265,9 @@ class InventoryWindow:
         """Writes the inventory and opens it."""
         folders, kinds = self.chosen()
         if not folders or not kinds:
-            self.msg.set("Add a folder and tick a kind of file.")
+            self.msg.set(tr("Add a folder and tick a kind of file."))
             return
-        out = filedialog.asksaveasfilename(parent=self.win, title="Inventory", defaultextension=".csv",
+        out = filedialog.asksaveasfilename(parent=self.win, title=tr("Inventory"), defaultextension=".csv",
                                            initialdir=folders[0], initialfile="inventory.csv",
                                            filetypes=[("CSV", "*.csv")])
         if not out:
@@ -3249,9 +3275,9 @@ class InventoryWindow:
         try:
             n, cols = self.tools.inventory(folders, out, kinds, self.template.get(), self.img.get(), self.sub.get())
         except (OSError, re.error) as e:
-            self.msg.set(f"Not written: {e}")
+            self.msg.set(T("Non écrit : ", "Not written: ") + str(e))
             return
-        self.msg.set(f"{n} file(s), {len(cols)} columns: {os.path.basename(out)}")
+        self.msg.set(T(f"{n} fichier(s), {len(cols)} colonnes : ", f"{n} file(s), {len(cols)} columns: ") + os.path.basename(out))
         os.startfile(out)
 
 
@@ -3263,38 +3289,38 @@ class ThumbnailsWindow:
         import gerbil_tools as tools
         self.tools, self.app = tools, app
         self.win = win = tk.Toplevel(app.root)
-        win.title("Thumbnails")
+        win.title(tr("Thumbnails"))
         win.configure(bg=WINDOW_BG)
         win.transient(app.root)
         card = ttk.Frame(win, style="Card.TFrame", padding=14)
         card.pack(fill="both", expand=True, padx=10, pady=10)
         folders = [d for d in getattr(app, "results", []) if os.path.isdir(d)]
         self.folder = tk.StringVar(value=folders[0] if folders else "")
-        ttk.Label(card, text="Folder").grid(row=0, column=0, sticky="w", pady=3)
+        ttk.Label(card, text=tr("Folder")).grid(row=0, column=0, sticky="w", pady=3)
         ttk.Entry(card, textvariable=self.folder, width=50).grid(row=0, column=1, sticky="w", padx=8)
-        ttk.Button(card, text="Browse…", style="Small.TButton", command=self.browse).grid(row=0, column=2)
+        ttk.Button(card, text=tr("Browse…"), style="Small.TButton", command=self.browse).grid(row=0, column=2)
         self.only = tk.BooleanVar(value=True)
-        ttk.Checkbutton(card, text="Only the outlined objects (_outlined.tif), their transparent margin cut off",
+        ttk.Checkbutton(card, text=tr("Only the outlined objects (_outlined.tif), their transparent margin cut off"),
                         variable=self.only).grid(row=1, column=1, columnspan=2, sticky="w", padx=8, pady=3)
-        ttk.Label(card, text="Size (px, longest side)").grid(row=2, column=0, sticky="w", pady=3)
+        ttk.Label(card, text=tr("Size (px, longest side)")).grid(row=2, column=0, sticky="w", pady=3)
         self.size = tk.StringVar(value="512")
         ttk.Combobox(card, textvariable=self.size, values=["128", "256", "512", "1024"], width=7).grid(
             row=2, column=1, sticky="w", padx=8)
-        ttk.Label(card, text="Format").grid(row=3, column=0, sticky="w", pady=3)
+        ttk.Label(card, text=tr("Format")).grid(row=3, column=0, sticky="w", pady=3)
         self.fmt = tk.StringVar(value="png")
         ff = ttk.Frame(card, style="Card.TFrame")
         ff.grid(row=3, column=1, sticky="w", padx=8)
-        ttk.Radiobutton(ff, text="PNG (transparent)", value="png", variable=self.fmt).pack(side="left")
-        ttk.Radiobutton(ff, text="JPEG (white background, lighter)", value="jpg", variable=self.fmt).pack(
+        ttk.Radiobutton(ff, text=tr("PNG (transparent)"), value="png", variable=self.fmt).pack(side="left")
+        ttk.Radiobutton(ff, text=tr("JPEG (white background, lighter)"), value="jpg", variable=self.fmt).pack(
             side="left", padx=10)
-        ttk.Label(card, text="Written in a 'thumbnails' folder inside the chosen folder, as NAME_thumb.png / .jpg.",
+        ttk.Label(card, text=tr("Written in a 'thumbnails' folder inside the chosen folder, as NAME_thumb.png / .jpg."),
                   style="Muted.TLabel").grid(row=4, column=0, columnspan=3, sticky="w", pady=(8, 0))
         foot = ttk.Frame(win, style="Window.TFrame", padding=(10, 0, 10, 10))
         foot.pack(fill="x")
-        ttk.Button(foot, text="Make the thumbnails", style="Run.TButton", command=self.run).pack(side="left")
+        ttk.Button(foot, text=tr("Make the thumbnails"), style="Run.TButton", command=self.run).pack(side="left")
         self.msg = tk.StringVar()
         ttk.Label(foot, textvariable=self.msg, style="Footer.TLabel").pack(side="left", padx=10)
-        ttk.Button(foot, text="Close", command=win.destroy).pack(side="right")
+        ttk.Button(foot, text=tr("Close"), command=win.destroy).pack(side="right")
 
     def browse(self):
         """Chooses the folder."""
@@ -3308,12 +3334,12 @@ class ThumbnailsWindow:
         try:
             size = max(16, int(self.size.get()))
         except ValueError:
-            self.msg.set("The size is a number of pixels.")
+            self.msg.set(tr("The size is a number of pixels."))
             return
         if not os.path.isdir(folder):
-            self.msg.set("Choose a folder.")
+            self.msg.set(tr("Choose a folder."))
             return
-        self.msg.set("Working…")
+        self.msg.set(tr("Working…"))
 
         def work():
             files = self.tools.thumbnails([folder], None, size, self.fmt.get(), self.only.get(),

@@ -382,7 +382,7 @@ order:
 4. **Review**: the photos to look at with their problem, the review window and the manual scale.
 5. **Publication**: plates, inventory (CSV), thumbnails.
 
-The sections below describe each window in detail (their buttons are still named in English):
+The sections below describe each window in detail, with the English names of their buttons (all the windows also exist in French; their texts are in `gerbil_lang_fr.py`):
 
 - **Photos**: *Add folder…* / *Add photos…* add folders or photos (the number of photos of each folder is
   shown); *Remove* (or the Delete key) and *Clear* empty the list.

@@ -87,15 +87,20 @@ PARTS = [
             "for a light sherd."),
 
     ("h2", "4. A first run, step by step"),
-    ("ol", ["Open Gerbil.",
-            "*Add folder…*: choose the folder of the photos (their number is shown). Several can be added, or "
-            "folders dropped on the window.",
-            "Keep the default options for a first try. Resting the mouse on an option shows its explanation.",
-            "Click **Run**. The log shows each photo: green when all is well, terracotta when it is to verify, red "
-            "when it failed.",
-            "At the end, a summary groups the problems. *Open results* opens the `outlined_result` folder, created "
-            "next to the photos.",
-            "Look through the `to_control` folder (previews), then open *Review…* to correct what needs it."]),
+    ("p", "The window of Gerbil follows the work: a column on the left gives the five steps, each with its page. "
+          "The steps can be visited in any order. The interface is in French and English (FR / EN at the bottom "
+          "of the column)."),
+    ("ol", ["**01 Source photographs**: *Add folder…* and choose the folder of the photos (their number is "
+            "shown). Several can be added, or folders dropped on the Gerbil icon.",
+            "**02 Naming and metadata** (optional): the summary of the batch renaming of the folder, and the button "
+            "that opens it.",
+            "**03 Processing**: keep the default settings for a first try (resting the mouse on a setting shows its "
+            "explanation), then *Run*. The scale bar fills in; the table gives each photo, its state (green: ok, "
+            "terracotta: to verify, red: failed), its scale and what to do, in a few words.",
+            "**04 Review**: the photos to look at with their problem; *Review* opens the correction window. A "
+            "double-click on a row opens straight what needs fixing.",
+            "**05 Publication**: plates, inventory, thumbnails. *Open results* opens the `outlined_result` folder, "
+            "created next to the photos."]),
     ("p", "Count 3 to 4 seconds per photo; several photos are processed at the same time."),
 
     ("h2", "5. What comes out"),
@@ -148,7 +153,7 @@ PARTS = [
                ["`notes`, `duration_s`", "Remarks of the processing, duration."]]),
     ("p", "The fields of the batch renaming (site, US, number…) are added as columns after these."),
 
-    ("h2", "7. Review and correct: Review…"),
+    ("h2", "7. Review and correct"),
     ("p", "The review window shows the photos one by one, **doubtful and failed ones first**, with the outline of "
           "the cut-out (green, background dimmed) and of the scale (magenta)."),
     ("table", [["Tool", "Use"],
@@ -170,8 +175,8 @@ PARTS = [
              "them. Reopened later, the window shows the corrections already made. Keep this folder with the "
              "photos."),
 
-    ("h2", "8. Giving the scale by hand: Set scale…"),
-    ("p", "When the scale of a photo is not found or wrongly read: select the photo, *Set scale…*, click the two "
+    ("h2", "8. Giving the scale by hand"),
+    ("p", "When the scale of a photo is not found or wrongly read: select the photo, *Set the scale by hand…*, click the two "
           "ends of a known length (for example 0 and 5 cm, along the middle of the scale), give that length and "
           "the width of the scale, then *Save*. The photo can be processed again at once."),
     ("p", "The scale is kept in `gerbil_scales.json`, in the folder of the photos; it prevails over the automatic "
@@ -179,7 +184,7 @@ PARTS = [
           "all the scales it did not find (*Save and next*, *Skip this photo*, *Stop*)."),
 
     ("h2", "9. Batch renaming and information of the photos"),
-    ("p", "*Batch renaming…* gives a folder of photos **fields** (by default *Site*, *Sector*, *US*, *Object "
+    ("p", "*Open the batch renaming…* gives a folder of photos **fields** (by default *Site*, *Sector*, *US*, *Object "
           "number*, *Material*, *View*), a **name template** and a **naming rule**. Everything is saved in "
           "`gerbil_project.json`, next to the photos."),
     ("ul", ["**Name template**, e.g. `{site}_{sector}_US{us}_{number}_{material}`: the output files take this name "
@@ -216,8 +221,8 @@ PARTS = [
           "for the learned scales first* uses it first. *Put next to the photos…* copies the profile as "
           "`gerbil_profile.json` into a folder of photos: it then applies to these photos, for the whole team."),
 
-    ("h2", "12. Plates: Plates…"),
-    ("p", "*Plates…* lays out the outlined objects of a results folder at a chosen scale (1:1, 1:2, 1:3…) and "
+    ("h2", "12. Plates"),
+    ("p", "*Plates* lays out the outlined objects of a results folder at a chosen scale (1:1, 1:2, 1:3…) and "
           "writes them as **SVG** files (`plates` folder), which open in Illustrator or Inkscape at their true size: "
           "1 cm of the object = 1 cm ÷ scale on the paper."),
     ("ul", ["Objects in **rows**, in the chosen order (name, US, material…), with a **caption** under each one "
@@ -235,12 +240,12 @@ PARTS = [
             "Optional **measurements** on a hidden layer: layout guides, not data."]),
     ("p", "The preview shows the pages as they will be written; the wheel zooms, ◀ ▶ turns the pages."),
 
-    ("h2", "13. Inventory and thumbnails: Tools menu"),
-    ("ul", ["*Inventory (CSV)…*: one row per file of the chosen folders (photos, drawings, 3D models), with "
+    ("h2", "13. Inventory and thumbnails"),
+    ("ul", ["*Inventory*: one row per file of the chosen folders (photos, drawings, 3D models), with "
             "folder, kind, size, date, **the fields read from the name** (same template as the batch renaming), "
             "and for the images their size, resolution, date taken and camera. The window shows the **PowerShell "
             "line** that makes the same inventory with Windows alone, to copy and learn from.",
-            "*Thumbnails…*: reduced copies for databases (128 to 1,024 px), transparent PNG or JPEG on white, "
+            "*Thumbnails*: reduced copies for databases (128 to 1,024 px), transparent PNG or JPEG on white, "
             "transparent margin cut off."]),
 
     ("h2", "14. The options"),
@@ -278,11 +283,11 @@ PARTS = [
     ("h2", "16. Limits"),
     ("ul", ["The measurement is right only if the scale is **in the plane of the object**.",
             "The background must be plain and different from the object. An opaque white or cream support lodged "
-            "in a hollow is not recognised: erase it in *Review…* or in Photoshop.",
+            "in a hollow is not recognised: erase it in *Review* or in Photoshop.",
             "A very light object on a white background (white paste, flint cortex, chalk spindle whorl) cannot be "
             "told from the background by its colour or its grain where it is almost white: parts may be lost. "
             "Photograph such objects on a darker background (grey or black), or use *One click on the object* in "
-            "*Review…*, which is told which object to cut out.",
+            "*Review*, which is told which object to cut out.",
             "Another form of scale will most often be flagged to verify: learn it in a site profile, or give it by "
             "hand.",
             "For a precise colour rendering of RAW files, develop them yourself (Lightroom, darktable) and give "

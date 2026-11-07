@@ -78,9 +78,8 @@ FOREWORD = [
             "des fonctions réelles commentées ligne par ligne.",
             "**Partie IV — Référence** : toutes les fonctions et classes du programme (plus de 400), expliquées "
             "en français, avec leur numéro de ligne."]),
-    ("note", "L'interface de Gerbil est pour l'instant en anglais : les noms des boutons et des options sont "
-             "donnés ici tels qu'ils apparaissent à l'écran (*Add folder…*, *Run*…), avec leur explication en "
-             "français."),
+    ("note", "L'interface de Gerbil existe en français et en anglais (FR / EN en bas de la colonne des "
+             "étapes) ; ce guide donne les noms français des boutons."),
 ]
 
 PARTS = [
@@ -132,16 +131,21 @@ PARTS = [
             "confondue avec un tesson clair."),
 
     ("h2", "4. Premier traitement, pas à pas"),
-    ("ol", ["Ouvrir Gerbil.",
-            "*Add folder…* : choisir le dossier des photos (le nombre de photos s'affiche). On peut en ajouter "
-            "plusieurs, ou glisser des dossiers sur la fenêtre.",
-            "Laisser les options par défaut pour un premier essai. Laisser la souris sur une option affiche son "
-            "explication.",
-            "Cliquer sur **Run**. Le journal affiche chaque photo : en vert si tout va bien, en terre cuite si elle "
-            "est à vérifier, en rouge en cas d'échec.",
-            "À la fin, un bilan regroupe les problèmes. *Open results* ouvre le dossier `outlined_result`, créé à "
-            "côté des photos.",
-            "Parcourir le dossier `to_control` (aperçus), puis ouvrir *Review…* pour corriger ce qui doit l'être."]),
+    ("p", "La fenêtre de Gerbil suit le travail : une colonne à gauche donne les cinq étapes, chacune avec sa "
+          "page. On peut passer d'une étape à l'autre dans n'importe quel ordre. L'interface existe en français et "
+          "en anglais (FR / EN en bas de la colonne)."),
+    ("ol", ["**01 Photographies sources** : *Ajouter un dossier…* et choisir le dossier des photographies (leur "
+            "nombre s'affiche). On peut en ajouter plusieurs, ou déposer des dossiers sur l'icône de Gerbil.",
+            "**02 Nommage et métadonnées** (facultatif) : le résumé du renommage en lot du dossier, et le bouton "
+            "qui l'ouvre.",
+            "**03 Traitement** : garder les réglages par défaut pour un premier essai (laisser la souris sur un "
+            "réglage affiche son explication), puis *Lancer*. La mire se remplit à mesure ; le tableau donne chaque "
+            "photographie, son état (vert : ok, terre cuite : à vérifier, rouge : échec), son échelle et ce qu'il "
+            "faut faire, en quelques mots.",
+            "**04 Vérification** : les photographies à revoir avec leur problème ; *Vérifier* ouvre la fenêtre de "
+            "correction. Un double-clic sur une ligne ouvre directement ce qu'il faut corriger.",
+            "**05 Publication** : planches, inventaire, vignettes. *Ouvrir les résultats* ouvre le dossier "
+            "`outlined_result`, créé à côté des photographies."]),
     ("p", "Compter 3 à 4 secondes par photo ; plusieurs photos sont traitées en même temps."),
 
     ("h2", "5. Ce qui sort"),
@@ -194,21 +198,21 @@ PARTS = [
                ["`notes`, `duration_s`", "Remarques du traitement, durée."]]),
     ("p", "Les champs du renommage en lot (site, US, numéro…) s'ajoutent en colonnes après celles-ci."),
 
-    ("h2", "7. Vérifier et corriger : Review…"),
+    ("h2", "7. Vérifier et corriger"),
     ("p", "La fenêtre de vérification montre les photos une par une, **les douteuses et les échecs d'abord**, avec "
           "le contour du détourage (vert, fond assombri) et celui de l'échelle (magenta)."),
     ("table", [["Outil", "Usage"],
-               ["*One click on the object (more precise)*", "Cliquer sur chaque objet à garder : Segment Anything "
+               ["*Un clic sur l'objet (plus précis)*", "Cliquer sur chaque objet à garder : Segment Anything "
                     "le détoure (Maj + clic en retire un). Plus fiable sur les photos difficiles, parce qu'on "
                     "**indique au programme quel objet détourer** au lieu de le laisser deviner ce qui est un "
                     "tesson, une étiquette, une ombre ou le fond."],
-               ["*Erase* / *Add*", "Pinceau (taille réglable) ou lasso (entourer une zone) pour retirer ou ajouter."],
-               ["*Remove a piece*", "Un clic retire un morceau entier (ombre, tache de fond)."],
-               ["*Undo* (Ctrl+Z), *Reset photo*", "Annuler la dernière action, ou toutes celles de la photo."],
+               ["*Effacer* / *Ajouter*", "Pinceau (taille réglable) ou lasso (entourer une zone) pour retirer ou ajouter."],
+               ["*Retirer un morceau*", "Un clic retire un morceau entier (ombre, tache de fond)."],
+               ["*Annuler* (Ctrl+Z), *Réinitialiser la photographie*", "Annuler la dernière action, ou toutes celles de la photo."],
                ["Orientation", "Tracer un trait le long du bord (lèvre) : il devient horizontal, l'objet dessous. Ou "
                                "tourner par quarts de tour."],
-               ["*Fix the scale…*", "Ouvre l'échelle manuelle de la photo."],
-               ["*Accept and next*", "Enregistre les corrections et **réexporte la photo aussitôt**, en "
+               ["*Corriger l'échelle…*", "Ouvre l'échelle manuelle de la photo."],
+               ["*Valider et suivante*", "Enregistre les corrections et **réexporte la photo aussitôt**, en "
                                      "arrière-plan (« exporting… », puis « ✓ exported »)."]]),
     ("p", "Navigation : molette pour zoomer, barres de défilement, bouton droit ou du milieu, Espace + glisser ou "
           "flèches du clavier pour déplacer la vue ; R pour revoir la photo entière."),
@@ -216,17 +220,17 @@ PARTS = [
              "traitements suivants les gardent. Rouverte plus tard, la fenêtre montre les corrections déjà faites. "
              "Garder ce dossier avec les photos."),
 
-    ("h2", "8. Donner l'échelle à la main : Set scale…"),
-    ("p", "Quand l'échelle d'une photo n'est pas trouvée ou mal lue : sélectionner la photo, *Set scale…*, cliquer "
+    ("h2", "8. Donner l'échelle à la main"),
+    ("p", "Quand l'échelle d'une photo n'est pas trouvée ou mal lue : sélectionner la photo, *Régler l'échelle à la main…*, cliquer "
           "les deux extrémités d'une longueur connue (par exemple 0 et 5 cm, au milieu de l'échelle), donner "
-          "cette longueur et la largeur de l'échelle, puis *Save*. La photo peut être retraitée tout de suite."),
+          "cette longueur et la largeur de l'échelle, puis *Enregistrer*. La photo peut être retraitée tout de suite."),
     ("p", "L'échelle est gardée dans `gerbil_scales.json`, dans le dossier des photos ; elle l'emporte sur la "
           "recherche automatique à chaque traitement (rapport : `scale_type` = `manual`). À la fin d'un "
           "traitement, Gerbil propose de régler à la suite toutes les échelles qu'il n'a pas trouvées "
-          "(*Save and next*, *Skip this photo*, *Stop*)."),
+          "(*Enregistrer et suivante*, *Passer cette photographie*, *Arrêter*)."),
 
     ("h2", "9. Renommage en lot et informations des photos"),
-    ("p", "*Batch renaming…* associe à un dossier de photos des **champs** (par défaut *Site*, *Sector*, *US*, "
+    ("p", "*Ouvrir le renommage en lot…* associe à un dossier de photos des **champs** (par défaut *Site*, *Sector*, *US*, "
           "*Object number*, *Material*, *View*), un **modèle de nom** et une **règle de nommage**. Tout est "
           "enregistré dans `gerbil_project.json`, à côté des photos."),
     ("ul", ["**Modèle de nom**, par exemple `{site}_{sector}_US{us}_{number}_{material}` : les fichiers produits "
@@ -234,8 +238,8 @@ PARTS = [
             "renommées.**",
             "**Valeurs** : celles communes à toutes les photos (le site), et un tableau d'une ligne par photo. "
             "Comme dans Excel : double-clic pour modifier, **poignée** au coin d'une case pour recopier vers le "
-            "bas (avec Ctrl : une série 187, 188, 189…), Ctrl+D, *Set for selected…*, *Number the selected…*.",
-            "**Import CSV / Excel** : un inventaire dont la première ligne porte les noms de colonnes ; la colonne "
+            "bas (avec Ctrl : une série 187, 188, 189…), Ctrl+D, *Appliquer à la sélection…*, *Numéroter la sélection…*.",
+            "**Importer CSV / Excel** : un inventaire dont la première ligne porte les noms de colonnes ; la colonne "
             "des noms de photos est trouvée toute seule.",
             "**Règle de nommage** (facultative) : une expression régulière lue comme le `-match` de PowerShell. "
             "L'assistant l'écrit à partir de cases à cocher (majuscules seulement, se termine par un nombre…) et "
@@ -244,7 +248,7 @@ PARTS = [
           "(XMP : titre = nom de sortie, mots-clés = valeurs)."),
 
     ("h2", "10. Métadonnées IPTC"),
-    ("p", "Dans *Batch renaming*, *IPTC metadata…* remplit les champs IPTC standard (lus par Bridge, Lightroom, "
+    ("p", "Dans le renommage en lot, *Métadonnées IPTC…* remplit les champs IPTC standard (lus par Bridge, Lightroom, "
           "darktable, l'Explorateur Windows) : pour chaque champ (titre, description, mots-clés, auteur, "
           "copyright, lieu…), un texte où `{champ}` est remplacé par la valeur de la photo et `{name}` par le nom "
           "de sortie. Un texte sans accolades est le même pour toutes les photos (copyright, auteur)."),
@@ -254,27 +258,27 @@ PARTS = [
 
     ("h2", "11. Profils de site et échelles apprises"),
     ("p", "Un **profil de site** rassemble ce que l'on sait des photos d'un site ou d'une campagne, choisi une fois "
-          "sous *SITE PROFILE* (*New…*, *Edit…*) :"),
+          "sous *Profil de site* (*Nouveau…*, *Modifier…*) :"),
     ("ul", ["le **fond** : trouvé par Gerbil, clair, ou sombre (velours, feutre) ;",
-            "les **échelles apprises** : *Learn a scale from a photo…*, cliquer les deux extrémités de l'échelle et "
+            "les **échelles apprises** : *Apprendre une échelle à partir d'une photographie…*, cliquer les deux extrémités de l'échelle et "
             "donner la largeur de sa bande imprimée. Gerbil garde son image et la retrouve sur les autres photos. "
             "Apprendre **chaque exemplaire** utilisé : deux impressions du même modèle peuvent différer de 1 % ;",
-            "les **options** de la fenêtre principale (*Keep the options of the main window*)."]),
+            "les **options** de la fenêtre principale (*Garder les réglages de la fenêtre principale*)."]),
     ("p", "Par défaut, une échelle apprise est une seconde chance, utilisée quand la lecture habituelle échoue ou "
-          "doute ; *Look for the learned scales first* l'utilise en premier. *Put next to the photos…* copie le "
+          "doute ; *Chercher d'abord les échelles apprises* l'utilise en premier. *Poser à côté des photographies…* copie le "
           "profil en `gerbil_profile.json` dans un dossier de photos : il s'applique alors à ces photos, pour "
           "toute l'équipe."),
 
-    ("h2", "12. Les planches : Plates…"),
-    ("p", "*Plates…* met en page les objets détourés d'un dossier de résultats à une échelle choisie (1:1, 1:2, "
+    ("h2", "12. Les planches"),
+    ("p", "*Planches* met en page les objets détourés d'un dossier de résultats à une échelle choisie (1:1, 1:2, "
           "1:3…) et les écrit en **SVG** (dossier `plates`), qui s'ouvrent dans Illustrator ou Inkscape à leur "
           "vraie taille : 1 cm de l'objet = 1 cm ÷ échelle sur le papier."),
     ("ul", ["Objets en **rangées**, dans l'ordre choisi (nom, US, matière…), avec une **légende** sous chacun "
-            "(`{name}`, ou `{site}_{us}_{number}`…). *Group by* commence une rangée ou une page à chaque valeur.",
+            "(`{name}`, ou `{site}_{us}_{number}`…). *Grouper par* commence une rangée ou une page à chaque valeur.",
             "**Barre d'échelle** graphique réglée comme dans QGIS (style, longueur, segments, couleurs, police), "
             "gardée comme « style maison ».",
             "**Une échelle par planche** ; un objet trop grand passe au 1:1,5, 1:2, 1:3… sur ses propres planches. "
-            "*Scale per object…* ou un clic droit sur un objet de l'aperçu choisit son échelle.",
+            "*Échelle par objet…* ou un clic droit sur un objet de l'aperçu choisit son échelle.",
             "**Échelle par matière** : céramique et verre au 1/3, fer aux 2/3, pierre au 1/3 par défaut (règles "
             "modifiables `mot=réduction`).",
             "**Dessins à côté des photos** : un dossier de dessins (`.svg`, ou `.ai` `.pdf` `.eps` convertis par "
@@ -284,12 +288,12 @@ PARTS = [
             "**Cotes** en option sur un calque masqué : des repères de mise en page, pas des données."]),
     ("p", "L'aperçu montre les pages telles qu'elles seront écrites ; la molette zoome, ◀ ▶ tourne les pages."),
 
-    ("h2", "13. Inventaire et vignettes : menu Tools"),
-    ("ul", ["*Inventory (CSV)…* : une ligne par fichier des dossiers choisis (photos, dessins, modèles 3D), avec "
+    ("h2", "13. Inventaire et vignettes"),
+    ("ul", ["*Inventaire* : une ligne par fichier des dossiers choisis (photos, dessins, modèles 3D), avec "
             "dossier, type, taille, date, **les champs lus dans le nom** (même modèle que le renommage), et pour "
             "les images leur taille, résolution, date de prise de vue et appareil. La fenêtre montre la **ligne "
             "PowerShell** qui fait le même inventaire avec Windows seul, à copier pour apprendre.",
-            "*Thumbnails…* : copies réduites pour les bases de données (128 à 1 024 px), PNG transparent ou JPEG "
+            "*Vignettes* : copies réduites pour les bases de données (128 à 1 024 px), PNG transparent ou JPEG "
             "sur blanc, marge transparente coupée."]),
 
     ("h2", "14. Les options"),
@@ -327,11 +331,11 @@ PARTS = [
     ("h2", "16. Limites"),
     ("ul", ["La mesure n'est juste que si l'échelle est **dans le plan de l'objet**.",
             "Le fond doit être uni et différent de l'objet. Un support opaque blanc ou crème logé dans un creux "
-            "n'est pas reconnu : l'effacer dans *Review…* ou dans Photoshop.",
+            "n'est pas reconnu : l'effacer dans *Vérifier* ou dans Photoshop.",
             "Un objet très clair sur fond blanc (pâte blanche, cortex de silex, fusaïole en craie) ne se distingue "
             "du fond ni par sa couleur ni par son grain là où il est presque blanc : des parties peuvent manquer. "
             "Photographier ces objets sur un fond plus sombre (gris ou noir), ou utiliser l'outil *One click on "
-            "the object* de *Review…*, à qui l'on indique l'objet.",
+            "the object* de *Vérifier*, à qui l'on indique l'objet.",
             "Une autre forme d'échelle sera le plus souvent signalée à vérifier : l'apprendre dans un profil de "
             "site, ou la donner à la main.",
             "Pour un rendu des couleurs précis des RAW, les développer soi-même (Lightroom, darktable) et donner "

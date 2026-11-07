@@ -34,4 +34,7 @@ owner agrees.
 
 ## Translations
 
-The interface texts are being made translatable (French and English first). Other languages welcome.
+The interface exists in French and English (FR / EN in the main window). The texts of the main window are
+written in both languages side by side with `T("français", "English")`; the other windows are written in
+English and wrapped with `tr("English")`, their French being in `gerbil_lang_fr.py` (a text missing there
+stays in English). Other languages are welcome: a `gerbil_lang_xx.py` of the same form and a choice in `tr()`.
