@@ -40,7 +40,11 @@ SECTION_TITLES = {
     "Scale detection and measurement (squares)": "Détection et mesure de l'échelle (cases)",
     "Site profiles and learned scales": "Profils de site et échelles apprises",
     "Graduated ruler (millimetre ticks on a light card)": "Réglet gradué (graduations millimétriques sur carton clair)",
-    "Ceramic outlining": "Détourage de l'objet",
+    "Object outlining": "Détourage de l'objet",
+    "Deposit: check of a folder before it goes to an archive":
+        "Versement : contrôle d'un dossier avant sa remise à un service d'archives",
+    "Colour: white balance and exposure from a white reference of the photo":
+        "Couleur : balance des blancs et exposition d'après un blanc de la photographie",
     "AI second opinion (optional, --ai): neural segmentation of the object":
         "Second avis de l'IA (option --ai) : segmentation de l'objet par un réseau de neurones",
     "One-click cut-out (review window): Segment Anything, MobileSAM version":
@@ -128,7 +132,7 @@ PARTS = [
             "**L'objet entier dans le cadre**, sans toucher le bord de la photo.",
             "**Formats** : JPEG, TIFF, PNG ou RAW (DNG, CR2, CR3, NEF, ARW, ORF, RW2, RAF…)."]),
     ("tip", "Pâte à fixe : une pâte bleue (type Blu-Tack), ou cachée derrière l'objet, évite qu'elle soit "
-            "confondue avec un tesson clair."),
+            "confondue avec un objet clair."),
 
     ("h2", "4. Premier traitement, pas à pas"),
     ("p", "La fenêtre de Gerbil suit le travail : une colonne à gauche donne les cinq étapes, chacune avec sa "
@@ -153,7 +157,7 @@ PARTS = [
     ("p", "Tous les fichiers d'une photo gardent son nom, pour se suivre dans l'Explorateur :"),
     ("table", [["Fichier", "Contenu"],
                ["`NOM.JPG`", "Copie de la photo originale (avec les métadonnées IPTC ajoutées, sans recompression)."],
-               ["`NOM.psd`", "Photoshop à calques : *Original photo* (masqué, la photo entière), *Scale*, *Ceramic*, "
+               ["`NOM.psd`", "Photoshop à calques : *Original photo* (masqué, la photo entière), *Scale*, *Object*, "
                              "avec des masques de fusion modifiables au pinceau (blanc = montrer, noir = cacher)."],
                ["`NOM_outlined.tif`", "L'objet seul, fond transparent, à la résolution 1:1."],
                ["`NOM_outlined_scale.tif`", "L'objet et son échelle redressée dessous, fond transparent."],
@@ -193,7 +197,8 @@ PARTS = [
                                                "(réglet), `manual` (à la main), `learned` (apprise)."],
                ["`squares`, `scale_length_cm`", "Nombre de cases, longueur de l'échelle."],
                ["`px_per_cm`, `ppi_1_1`", "La mesure : pixels par centimètre, et la résolution 1:1 qui en découle."],
-               ["`ceramic_width_cm`, `ceramic_height_cm`", "Dimensions de l'objet détouré, en cm."],
+               ["`object_width_cm`, `object_height_cm`", "Dimensions de l'objet détouré, en cm (colonnes nommées "
+                    "`ceramic_…` jusqu'à la version 2.1 ; les anciens rapports restent lus)."],
                ["`pieces`", "Nombre de morceaux détourés."],
                ["`camera`, `lens`, `focal_mm`, `date_taken`", "Informations de prise de vue (EXIF)."],
                ["`notes`, `duration_s`", "Remarques du traitement, durée."]]),
@@ -206,7 +211,7 @@ PARTS = [
                ["*Un clic sur l'objet (plus précis)*", "Cliquer sur chaque objet à garder : Segment Anything "
                     "le détoure (Maj + clic en retire un). Plus fiable sur les photos difficiles, parce qu'on "
                     "**indique au programme quel objet détourer** au lieu de le laisser deviner ce qui est un "
-                    "tesson, une étiquette, une ombre ou le fond."],
+                    "objet, une étiquette, une ombre ou le fond."],
                ["*Effacer* / *Ajouter*", "Pinceau (taille réglable) ou lasso (entourer une zone) pour retirer ou ajouter."],
                ["*Retirer un morceau*", "Un clic retire un morceau entier (ombre, tache de fond)."],
                ["*Annuler* (Ctrl+Z), *Réinitialiser la photographie*", "Annuler la dernière action, ou toutes celles de la photo."],
@@ -281,7 +286,7 @@ PARTS = [
             "**Barre d'échelle** graphique réglée comme dans QGIS (style, longueur, segments, couleurs, police), "
             "gardée comme « style maison ».",
             "**Une échelle par planche** ; un objet trop grand passe au 1:1,5, 1:2, 1:3… sur ses propres planches. "
-            "*Échelle par objet…* ou un clic droit sur un objet de l'aperçu choisit son échelle.",
+            "*Échelle par objet…* ou un clic sur un objet de l'aperçu choisit son échelle.",
             "**Échelle par matière** : céramique et verre au 1/3, fer aux 2/3, pierre au 1/3 par défaut (règles "
             "modifiables `mot=réduction`).",
             "**Dessins à côté des photos** : un dossier de dessins (`.svg`, ou `.ai` `.pdf` `.eps` convertis par "
@@ -291,6 +296,37 @@ PARTS = [
             "**Cotes** en option sur un calque masqué : des repères de mise en page, pas des données."]),
     ("p", "L'aperçu montre les pages telles qu'elles seront écrites ; la molette zoome, ◀ ▶ tourne les pages."),
 
+    ("h2", "12 bis. Les planches libres : photographies de terrain et orthophotos"),
+    ("p", "*Planches libres* (étape 05) met en page des **photographies entières** au lieu d'objets détourés : "
+          "des photographies de sépultures ou de structures, des orthophotos. Chaque photographie est ramenée à "
+          "l'échelle de la planche (1:10, 1:20, 1:50…) : une planche typologique montre ainsi les sépultures à la "
+          "même échelle, rangées par type."),
+    ("ul", ["**Donner l'échelle d'une photographie** : *Échelle des photographies…* liste les photographies du "
+            "dossier avec leur taille réelle (ou « sans échelle »). Un double-clic ouvre la photographie : cliquer "
+            "les deux extrémités d'une longueur connue (un jalon, une mire, ou une mesure prise sur le terrain "
+            "comme la longueur de la fosse) et donner cette longueur en centimètres (1 m = 100).",
+            "Une **orthophoto** accompagnée de son fichier de géoréférencement (`.jgw`, `.tfw`) n'a besoin de "
+            "rien : son échelle y est lue.",
+            "**Un clic sur une photographie de l'aperçu** ouvre son menu : choisir l'échelle de cette "
+            "photographie (1:5 à 1:100, ou *Autre échelle…*), ou mesurer son échelle sur la photographie.",
+            "**Légendes, ordre et groupes** viennent des champs du renommage en lot du dossier : y ajouter par "
+            "exemple *Sépulture*, *Type*, *Phase* (un tableau CSV ou Excel peut y être importé), puis *Grouper "
+            "par : Type*.",
+            "**Page** : A4, A3, A2… en portrait ou en paysage ; barre d'échelle en cm ou en m ; fichiers en SVG, "
+            "TIFF ou JPEG.",
+            "L'échelle vaut dans le plan des deux points cliqués : une photographie prise en oblique n'est pas "
+            "une orthophoto."]),
+
+    ("h2", "12 ter. Le PDF des planches, la liste des figures et les planches-contact"),
+    ("ul", ["**PDF** : dans *Fichiers écrits*, cocher *PDF* réunit toutes les planches dans un seul fichier, à "
+            "joindre au rapport.",
+            "**Liste des figures** : `figures.csv`, toujours écrit à côté des planches, donne pour chaque planche "
+            "son numéro, son fichier, son titre, sa légende (les objets de la planche), son échelle et le crédit "
+            "(champ *Crédit*). Il s'ouvre dans Excel et se colle dans le rapport comme un tableau.",
+            "**Planches-contact** (étape 05) : toutes les photographies d'un dossier sur des pages, avec leur "
+            "nom, tant par rangée ; *Grouper par* un champ (l'US, le secteur) commence une page à chaque valeur. "
+            "Les photographies n'y sont pas à l'échelle."]),
+
     ("h2", "13. Inventaire et vignettes"),
     ("ul", ["*Inventaire* : une ligne par fichier des dossiers choisis (photos, dessins, modèles 3D), avec "
             "dossier, type, taille, date, **les champs lus dans le nom** (même modèle que le renommage), et pour "
@@ -298,6 +334,18 @@ PARTS = [
             "PowerShell** qui fait le même inventaire avec Windows seul, à copier pour apprendre.",
             "*Vignettes* : copies réduites pour les bases de données (128 à 1 024 px), PNG transparent ou JPEG "
             "sur blanc, marge transparente coupée."]),
+
+    ("h2", "13 bis. Le contrôle avant versement"),
+    ("p", "*Versement* (étape 05) contrôle un dossier avant sa remise à un service d'archives, **sans rien "
+          "copier, déplacer ni modifier**. Pour chaque fichier du dossier et de ses sous-dossiers :"),
+    ("ul", ["son **format**, d'après la liste des extensions acceptées (à adapter : chaque service a la sienne) ;",
+            "son **nom** : lettres sans accent, chiffres, `_`, `-` et `.` seulement, et pour les photographies "
+            "la règle de nommage du projet ;",
+            "un fichier **vide**, un **chemin** de plus de 240 caractères, le **même contenu présent deux fois**."]),
+    ("p", "Un dossier `deposit_check` reçoit l'inventaire (`deposit_inventory.csv` : taille, date, somme de "
+          "contrôle SHA-256, métadonnées, remarques), les sommes de contrôle (`checksums.sha256`, pour vérifier "
+          "le versement après son transfert) et un rapport (`deposit_report.txt`). Ce contrôle ne remplace pas "
+          "le protocole de versement du service."),
 
     ("h2", "14. Les options"),
     ("p", "Les mêmes options existent dans l'interface et en ligne de commande (`py gerbil.py DOSSIER --option`, ou "
@@ -315,8 +363,11 @@ PARTS = [
                ["`--compression zip`", "TIFF un peu plus petits (LZW par défaut, le plus compatible)."],
                ["`--default-ppi 300`", "Résolution utilisée quand il n'y a pas d'échelle."],
                ["`--no-scale`", "Ne cherche pas d'échelle."],
-               ["`--cutout ai`", "Détourage par l'IA : le réseau BiRefNet désigne les objets (ombres, bord de "
-                    "table, blanc sur blanc) ; environ 15 s de plus par photographie."],
+               ["`--colour balance`, `--colour exposure`, `--white scale`", "Balance des blancs (et exposition) "
+                    "d'après un blanc de la photographie : charte ronde par défaut, échelle ou fond au choix."],
+               ["`--cutout ai`, `--cutout ai-lite`", "Détourage par l'IA : le réseau BiRefNet désigne les objets "
+                    "(ombres, bord de table, blanc sur blanc) ; environ 8 s de plus par photographie, 4 s avec "
+                    "le réseau allégé (ai-lite)."],
                ["`--ai`, `--ai-model birefnet`, `--ai-device cpu`", "Second avis de l'IA (il ne peut que retirer du "
                     "fond) ; modèle plus précis mais plus lent ; forcer le processeur."],
                ["`--profile FICHIER`", "Profil de site à utiliser."],
@@ -429,10 +480,10 @@ PARTS = [
                     "blanche, blanc bleuté (azurants optiques du papier) ou jaune pâle ; ou très rectangulaire "
                     "(95 %) et claire, quelle que soit sa couleur — un tesson cassé ne remplit jamais autant son "
                     "rectangle."]]),
-    ("p", "Une étiquette qui touche un tesson par un coin est découpée à la jonction étroite. Si le seul objet "
+    ("p", "Une étiquette qui touche un objet par un coin est découpée à la jonction étroite. Si le seul objet "
           "d'une photo ressemble à une étiquette (petit tesson pâle et carré), il est gardé et la photo signalée."),
     ("figure", "fig_dark", "Sur feutre sombre : l'étiquette papier est reconnue et écartée (contour rouge), le "
-                           "tesson est gardé (contour vert)."),
+                           "objet est gardé (contour vert)."),
 
     ("h2", "6. Affiner et adoucir le bord"),
     ("p", "Le premier détourage est fait sur la copie réduite ; il est refait **à pleine résolution** dans une "
@@ -487,7 +538,7 @@ PARTS = [
           "couleur**, **moins colorée** et **plus claire** que le reste. Par défaut elle est seulement signalée "
           "(zone rouge) : un fond de vase clair et lisse lui ressemble trop pour être retiré sans contrôle."),
 
-    ("h2", "10 bis. Le détourage par l'IA (réglage Détourage : ai)"),
+    ("h2", "10 bis. Le détourage par l'IA (réglage Détourage : ai ou ai-lite)"),
     ("p", "Par défaut (*Détourage : colour*), l'objet est ce qui diffère du fond par sa couleur : c'est rapide et "
           "exact sur un fond uni, mais une ombre portée, le bord de la table ou un objet blanc sur fond blanc le "
           "trompent. Avec *Détourage : ai* (`--cutout ai`), le réseau de neurones **BiRefNet** désigne d'abord "
@@ -495,23 +546,49 @@ PARTS = [
           "et trace toujours le bord d'après la photographie, à pleine résolution. Là où la couleur ne permet "
           "pas de trancher (ombre, objet de la couleur du fond), c'est le réseau qui décide."),
     ("ul", ["Tout se fait sur l'ordinateur : aucune photographie n'est envoyée sur internet.",
-            "Compter environ 15 secondes de plus par photographie, et le modèle BiRefNet (970 Mo, téléchargé une "
-            "fois).",
+            "*ai* : le réseau BiRefNet (970 Mo, téléchargé une fois), environ 8 secondes de plus par photographie.",
+            "*ai-lite* : un réseau allégé (224 Mo), environ 4 secondes de plus par photographie ; il donne le même "
+            "détourage dans la grande majorité des cas, et il est un peu moins sûr sur les photographies "
+            "difficiles.",
             "Une étiquette est un objet pour le réseau : Gerbil l'écarte quand c'est une carte claire, sans "
             "couleur, aux côtés droits ou portant une écriture (contour rouge sur l'aperçu).",
             "Les résultats du détourage par défaut ne sont pas modifiés par ce réglage."]),
+
+    ("h2", "10 ter. Les couleurs : balance des blancs et exposition (réglage Couleur)"),
+    ("p", "Par défaut, les couleurs de la photographie sont gardées. Avec *Couleur : balance*, Gerbil retire la "
+          "dominante de la lumière (ombre bleutée, lampe jaune) en rendant neutre un blanc de la photographie ; "
+          "avec *Couleur : exposure*, il amène en plus ce blanc à la même clarté sur toutes les photographies, "
+          "pour une série homogène. La correction est faite **après le détourage**, qui reste donc exactement "
+          "le même ; elle s'applique à tout ce qui est écrit (calques du PSD, TIFF, aperçu). La copie de "
+          "l'original n'est jamais modifiée, et le rapport donne les facteurs appliqués."),
+    ("p", "**Quel blanc ?** (*Blanc de référence*, sous *Couleur*). Le choix vous revient, car aucun "
+          "blanc n'est bon partout :"),
+    ("ul", ["*chart* (par défaut) : le blanc d'une charte couleur, la seule référence faite pour cela : la case "
+            "blanche d'une charte à cases (SpyderCheckr 24 ou 48, ColorChecker, Farbkarte) ou le centre blanc "
+            "d'un Archaeo Colorimeter rond. Une photographie sans charte n'est pas corrigée, et c'est noté.",
+            "*scale* : le blanc de l'échelle, quand elle est vraiment blanche. Certaines échelles sont crème : "
+            "s'équilibrer dessus bleuit la photographie.",
+            "*background* : le fond lui-même, sur papier blanc uniquement."]),
+    ("p", "**L'exposition est-elle juste pour les objets ?** Elle multiplie les trois canaux par le même "
+          "facteur : la teinte et la saturation d'un objet ne changent pas, seule sa clarté change, et chaque "
+          "photographie se retrouve comme si son blanc avait été exposé de la même façon (85 % de luminance). "
+          "C'est juste quand le blanc est dans la même lumière que l'objet, dans son plan. Ce n'est pas une "
+          "mesure : la réflectance réelle d'un papier ou d'une échelle n'est pas connue, et un blanc dans "
+          "l'ombre de l'objet éclaircit toute la photographie."),
+    ("p", "Ce sont des corrections de la lumière, pas un étalonnage des couleurs : la lecture au code Munsell "
+          "se fait toujours sur l'objet."),
 
     ("h2", "11. Le second avis de l'IA (option)"),
     ("p", "Avec `--ai`, un réseau de neurones de détourage (IS-Net ou BiRefNet) donne son avis. Il ne peut **que "
           "retirer** du fond, jamais ajouter : une zone n'est retirée que si le détourage la garde, que l'IA y "
           "voit du fond, que sa couleur reste proche du fond et qu'elle fait au moins 0,02 cm². Cela ouvre les "
-          "perforations dans l'ombre, les écarts entre deux tessons, les halos le long d'un bord flou. Quand l'IA "
+          "perforations dans l'ombre, les écarts entre deux objets, les halos le long d'un bord flou. Quand l'IA "
           "se trompe, c'est en gardant trop (étiquette, support) : ses erreurs n'ont donc pas d'effet."),
 
     ("h2", "12. Le détourage en un clic"),
     ("p", "Dans la vérification, l'outil « un clic » utilise **Segment Anything** (version MobileSAM, hors ligne, "
           "45 Mo) : on clique sur l'objet, il le détoure. Il est plus fiable sur les photos difficiles parce qu'on "
-          "lui **dit quel objet** détourer : il n'a plus à deviner ce qui est un tesson, une étiquette, une ombre "
+          "lui **dit quel objet** détourer : il n'a plus à deviner ce qui est un objet, une étiquette, une ombre "
           "ou le fond. Son bord étant moins précis, Gerbil garde le bord de son propre détourage là où les deux "
           "sont d'accord."),
 
@@ -519,11 +596,11 @@ PARTS = [
     ("p", "Un fichier image porte une **résolution** : le nombre de pixels par pouce (ppp, ou ppi). Illustrator s'en "
           "sert pour donner sa taille à une image placée. Gerbil inscrit donc dans chaque fichier la résolution "
           "mesurée sur l'échelle :"),
-    ("code", "ppi = px/cm × 2,54        (1 pouce = 2,54 cm)\nexemple : 100 px/cm → 254 ppi : un tesson de 600 px de large mesure 6 cm"),
+    ("code", "ppi = px/cm × 2,54        (1 pouce = 2,54 cm)\nexemple : 100 px/cm → 254 ppi : un objet de 600 px de large mesure 6 cm"),
     ("p", "Glissé dans Illustrator, l'objet a donc sa taille réelle. L'échelle de `NOM_outlined_scale.tif` mesure "
           "exactement 5 ou 10 cm avec la règle d'Illustrator : c'est le contrôle le plus simple. L'image n'est "
           "jamais agrandie ni réduite ; seule l'étiquette de résolution change."),
-    ("p", "Le **PSD** est écrit octet par octet : le calque *Ceramic* contient les pixels d'origine et un **masque "
+    ("p", "Le **PSD** est écrit octet par octet : le calque *Object* contient les pixels d'origine et un **masque "
           "de fusion** (rien n'est effacé : un coup de pinceau blanc ramène ce qui a été caché) ; *Scale* contient "
           "l'échelle redressée ; *Original photo*, masqué, la photo entière, alignée sur l'objet. Les **TIFF** "
           "sont sans perte (LZW), avec transparence ; un JPEG, lui, recompresserait l'image à chaque "
@@ -540,7 +617,7 @@ PARTS = [
 
     ("h2", "15. Les planches : du réel au papier"),
     ("p", "Chaque objet a sa taille réelle, lue dans la résolution de son TIFF. À l'échelle 1:r, sa taille sur le "
-          "papier est : taille réelle ÷ r. Exemple : un tesson de 6 cm au 1:2 fait 3 cm sur la planche. La page "
+          "papier est : taille réelle ÷ r. Exemple : un objet de 6 cm au 1:2 fait 3 cm sur la planche. La page "
           "est d'abord décrite comme une liste de formes **en millimètres** (rectangles, textes, images, dessins) ; "
           "cette même description est écrite en SVG et dessinée pour l'aperçu, qui montre donc exactement ce qui "
           "sera écrit."),
@@ -590,7 +667,7 @@ PARTS = [
             "`BackgroundModel` : le modèle du fond, sur la copie réduite.",
             "`manual_scale`, sinon `detect_scale` (qui appelle `analyze_pattern`, `analyze_comb`, `detect_ruler`, "
             "`_scale_on_dark`…), sinon `detect_learned_scale`. Le résultat est un objet `Scale`.",
-            "`outline_ceramic` (ou `cutout_from_mask` pour un masque corrigé à la main).",
+            "`outline_object` (ou `cutout_from_mask` pour un masque corrigé à la main).",
             "`find_putty`.",
             "`layout`, puis `write_psd`, `write_tiff` (avec `make_xmp`), `control_image`, `write_review`.",
             "La ligne du rapport est renvoyée ; `main` écrit `outlined_report.csv` et le bilan."]),

@@ -223,6 +223,14 @@ FR = {
         "d'échelle, échelles et dessins), aperçu en direct avec zoom, boutons.",
     "gerbil_gui.pyw:PlatesWindow.object_scales": "Petite fenêtre : chaque objet avec sa taille et son échelle (celle "
         "de la planche, ou une choisie pour lui).",
+    "gerbil_gui.pyw:PlatesWindow.count_text": "Combien d'objets (ou de photos) ont une taille réelle, et combien "
+        "sont laissés de côté.",
+    "gerbil_gui.pyw:PlatesWindow.reload_images": "Planches libres : une échelle a été donnée ou retirée ; les photos "
+        "sont relues et l'aperçu redessiné.",
+    "gerbil_gui.pyw:PlatesWindow.measure": "Planches libres : la fenêtre d'échelle pour une photo du dossier (deux "
+        "clics sur une longueur connue).",
+    "gerbil_gui.pyw:PlatesWindow.photo_scales": "Planches libres : les photos du dossier avec leur taille réelle, ou "
+        "« sans échelle » ; un double-clic (ou le bouton) mesure l'échelle de l'une d'elles sur la photo.",
     "gerbil_gui.pyw:PlatesWindow.wheel": "Zoom sur le point sous la souris (1 = page entière, jusqu'à 8).",
     "gerbil_gui.pyw:PlatesWindow.object_menu": "Clic droit sur un objet de l'aperçu : un menu d'échelles pour lui "
         "(gardé dans les réglages de la planche).",
@@ -333,6 +341,8 @@ FR = {
     "gerbil_gui.pyw:App.cancel": "Arrête le traitement (tout l'arbre de processus).",
     "gerbil_gui.pyw:App.review": "La fenêtre de vérification sur les dossiers de résultats du dernier traitement (ou "
         "un dossier de résultats à choisir).",
+    "gerbil_gui.pyw:App.free_plates": "La fenêtre des planches libres sur un dossier de photos (photos de "
+        "terrain, orthophotos) choisi par l'utilisateur.",
     "gerbil_gui.pyw:App.plates": "La fenêtre des planches sur un dossier de résultats (le dernier traité, ou un à "
         "choisir).",
     "gerbil_gui.pyw:App.open_results": "Ouvre les dossiers de résultats.",
@@ -365,6 +375,22 @@ FR = {
         "(cm), ligne du rapport, douteux ou non, cadre de l'objet dans le TIFF, dessin trouvé pour lui.",
     "gerbil_plates.py:natural_key": "Clé de tri où les nombres comptent comme des nombres : « 2 » avant « 10 ».",
     "gerbil_plates.py:read_report": "Les lignes de outlined_report.csv, par nom de sortie (champs des photos).",
+    "gerbil_plates.py:photo_size": "Largeur et hauteur (pixels) d'une photo telle qu'elle est montrée droite "
+        "(orientation donnée par l'appareil).",
+    "gerbil_plates.py:world_file_px_cm": "Pixels par centimètre d'une image géoréférencée (orthophoto), d'après son "
+        "fichier de géoréférencement (photo.jgw, .tfw, .pgw ou .wld : la première ligne est la taille d'un pixel, "
+        "prise en mètres), ou None.",
+    "gerbil_plates.py:manual_px_cm": "Pixels par centimètre d'une échelle donnée à la main (deux points de la photo "
+        "droite et la longueur qui les sépare), ou None.",
+    "gerbil_plates.py:photo_fields": "Les champs d'une photo (renommage en lot de son dossier, "
+        "gerbil_project.json) : {libellé : valeur}, ses valeurs propres remplaçant les valeurs communes. {} quand "
+        "le dossier n'a pas de projet.",
+    "gerbil_plates.py:collect_images": "Planches libres : les photos d'un dossier (photos de terrain, orthophotos ; "
+        "JPEG, TIFF, PNG ; les résultats de Gerbil mis à part) comme objets, chacune à sa taille réelle. L'échelle "
+        "d'une photo est celle donnée à la main (deux points cliqués et la longueur qui les sépare, "
+        "gerbil_scales.json à côté des photos), sinon celle de son fichier de géoréférencement. Leurs champs "
+        "(légendes, ordre, groupes) sont ceux du renommage en lot du dossier. Renvoie (objets, noms des photos "
+        "sans échelle).",
     "gerbil_plates.py:collect": "Les objets détourés d'un dossier de résultats, avec leur taille réelle (d'après la "
         "résolution du TIFF).",
     "gerbil_plates.py:field_value": "La valeur d'une colonne du rapport pour l'objet : son nom exact, sinon les mêmes "
@@ -441,6 +467,19 @@ FR = {
     "gerbil_plates.py:plate_file_names": "Les noms de fichier des planches (sans dossier) : d'après le modèle, les "
         "caractères interdits dans un nom Windows remplacés par « _ » ; le numéro de page ajouté si le modèle "
         "n'en a pas.",
+    "gerbil_plates.py:pdf_name": "Le nom du PDF qui réunit toutes les pages : le modèle des noms de fichiers sans "
+        "son numéro de page (« QSR25_pl{page} » → QSR25_pl.pdf), « default » quand il n'en reste rien.",
+    "gerbil_plates.py:save_pages": "Écrit des pages : « drawings » donne, pour chaque page, une fonction dpi → "
+        "Drawing ; « names » leurs noms de fichiers (.svg). Chaque page en SVG, TIFF et / ou JPEG, et toutes "
+        "dans un seul PDF (réglage pdf), les pages étant des images à raster_dpi. Renvoie les fichiers écrits.",
+    "gerbil_plates.py:write_figures": "figures.csv : la liste des figures d'un rapport, une ligne par planche "
+        "(numéro, fichier, titre, légende tirée des légendes de ses objets, échelle, crédit, groupe). S'ouvre "
+        "dans Excel, à coller dans le rapport.",
+    "gerbil_plates.py:write_contact_sheets": "Planches-contact : toutes les photos d'un dossier (JPEG, TIFF, PNG ; "
+        "les résultats de Gerbil mis à part) sur des pages, s.contact_columns par rangée, chacune ajustée dans "
+        "sa case (pas à l'échelle) avec sa légende, par groupe si on le demande (l'US par exemple), chaque "
+        "groupe commençant une rangée ou une page. Page, marges, titre, polices et fichiers écrits comme pour "
+        "les planches. Renvoie (fichiers, avertissements).",
     "gerbil_plates.py:write_plates": "Écrit plate_01.svg, plate_02.svg… Renvoie (liste des fichiers, "
         "avertissements).",
     "gerbil_plates.py:main": "La ligne de commande des planches : options ou fichier de réglages, puis write_plates.",
@@ -464,6 +503,17 @@ FR = {
     "gerbil_tools.py:ps_quote": "Un texte entre apostrophes pour PowerShell (apostrophes doublées).",
     "gerbil_tools.py:powershell_line": "Le même inventaire en PowerShell (colonnes du fichier et champs du nom ; pas "
         "d'informations d'image).",
+    "gerbil_tools.py:sha256_of": "La somme de contrôle SHA-256 d'un fichier (lu par blocs de 1 Mo).",
+    "gerbil_tools.py:has_metadata": "Vrai quand une image contient un paquet XMP ou des données IPTC (cherchés dans "
+        "son premier et son dernier mégaoctet).",
+    "gerbil_tools.py:project_rule": "La règle de nommage du renommage en lot d'un dossier (gerbil_project.json), "
+        "compilée comme PowerShell la lit (sans tenir compte de la casse, groupes nommés .NET), ou None.",
+    "gerbil_tools.py:deposit": "Contrôle un dossier avant son versement dans un service d'archives, sans rien y "
+        "modifier. Pour chaque fichier (sous-dossiers compris, dossiers de travail de Gerbil mis à part) : son "
+        "format d'après la liste acceptée, son nom (sans espace, accent ni caractère spécial ; règle de nommage "
+        "du projet pour les photos), un fichier vide, un chemin trop long, le même contenu présent deux fois "
+        "(SHA-256). Écrit l'inventaire (deposit_inventory.csv), les sommes de contrôle (checksums.sha256) et un "
+        "rapport (deposit_report.txt, en français ou en anglais).",
     "gerbil_tools.py:thumbnails": "Écrit NOM_thumb.png / .jpg (plus grand côté = « size ») dans le dossier de sortie "
         "(par défaut un dossier « thumbnails » dans chaque dossier source). Renvoie la liste des fichiers écrits.",
     "gerbil_tools.py:main": "La ligne de commande : « inventory » ou « thumbnails ».",
@@ -533,9 +583,27 @@ FR = {
         "ne le voit pas, le réseau si.",
     "tests/test_gerbil.py:test_plates_tiff_and_jpeg": "Les planches s'écrivent aussi en TIFF et en JPEG, à la "
         "taille de la page et à la résolution demandée.",
+    "tests/test_gerbil.py:test_free_plates_of_photos": "Des photos entières sur des planches à une échelle "
+        "commune : échelle donnée par deux points ou par un fichier de géoréférencement ; une photo sans échelle "
+        "est laissée de côté ; les champs du dossier font les légendes.",
+    "tests/test_gerbil.py:pdf_pages": "Le nombre de pages d'un PDF écrit par Pillow (le dernier arbre de pages "
+        "écrit : les pages sont ajoutées une à une).",
+    "tests/test_gerbil.py:test_plates_pdf_and_list_of_figures": "Les planches en un seul PDF nommé d'après le "
+        "modèle, et la liste des figures (numéro, titre, légende, échelle, crédit).",
+    "tests/test_gerbil.py:test_contact_sheets": "Sept photos, deux par rangée, groupées par un champ : une page par "
+        "groupe, toutes les pages dans un seul PDF.",
+    "tests/test_gerbil.py:test_check_before_a_deposit": "Formats, noms, fichier vide, même contenu deux fois ; "
+        "inventaire, sommes de contrôle et rapport ; rien n'est modifié.",
     "tests/test_gerbil.py:test_naming_refresh_and_extension_case": "Après un changement du renommage en lot, les "
         "alertes des noms et la casse des extensions suivent sans retraiter la photo ; un nouveau nom demande un "
         "retraitement.",
+    "tests/test_gerbil.py:test_colours_balanced_on_a_white": "Une photo avec une dominante : équilibrée sur le "
+        "blanc de son échelle, le tesson retrouve sa couleur ; le détourage est le même avec et sans la "
+        "correction ; sans le blanc demandé, rien ne change.",
+    "tests/test_gerbil.py:test_colours_balanced_on_a_chart_of_patches": "Une charte du genre SpyderCheckr (cadre "
+        "noir, colonne de gris, couleurs) à côté du tesson, sous une lumière chaude : la charte est écartée, sa "
+        "case blanche est trouvée parmi des gris, un jaune et des teintes pastel, et le tesson retrouve sa "
+        "couleur.",
     "tests/test_gerbil.py:test_learned_scale": "Une échelle apprise est retrouvée sur une autre photo, à 0,5 % près.",
     "tests/test_gerbil.py:test_iptc_and_lossless_jpeg": "Les champs IPTC sont remplis d'après le modèle, et le XMP "
         "inscrit dans un JPEG laisse son image identique pixel pour pixel.",
@@ -548,6 +616,24 @@ FR = {
     "gerbil_gui.pyw:system_lang": 'fr quand Windows est en français, sinon en.',
     "gerbil_gui.pyw:T": "Le texte dans la langue de l'interface : T(français, anglais).",
     "gerbil_gui.pyw:tr": "Un texte anglais des fenêtres, en français quand l'interface est en français (traductions de gerbil_lang_fr.py).",
+    "gerbil_gui.pyw:choice_text": "Un choix d'un réglage en clair, dans la langue de l'interface (sinon la valeur "
+        "elle-même).",
+    "gerbil_gui.pyw:ContactWindow": "Planches-contact (gerbil_plates.write_contact_sheets) : toutes les photos "
+        "d'un dossier sur des pages, avec leur nom.",
+    "gerbil_gui.pyw:ContactWindow.__init__": "La fenêtre des planches-contact : dossier, page, photos par rangée, "
+        "titre, légende, groupe, fichiers.",
+    "gerbil_gui.pyw:ContactWindow.fields": "Les champs du renommage en lot du dossier, proposés pour les groupes.",
+    "gerbil_gui.pyw:ContactWindow.browse": "Choisit le dossier.",
+    "gerbil_gui.pyw:ContactWindow.run": "Écrit les planches-contact dans un fil d'exécution.",
+    "gerbil_gui.pyw:ContactWindow.done": "Planches-contact écrites : message, dossier ouvert.",
+    "gerbil_gui.pyw:DepositWindow": "Contrôle d'un dossier avant son versement dans un service d'archives "
+        "(gerbil_tools.deposit) : formats, noms, métadonnées, inventaire et sommes de contrôle ; rien n'est "
+        "modifié dans le dossier.",
+    "gerbil_gui.pyw:DepositWindow.__init__": "La fenêtre du versement : dossier, formats acceptés.",
+    "gerbil_gui.pyw:DepositWindow.browse": "Choisit le dossier.",
+    "gerbil_gui.pyw:DepositWindow.run": "Contrôle le dossier dans un fil d'exécution (les sommes de contrôle des "
+        "gros fichiers prennent du temps).",
+    "gerbil_gui.pyw:DepositWindow.done": "Dossier contrôlé : message, rapport ouvert.",
     "gerbil_gui.pyw:option_value": 'Un réglage sous une forme comparable (les champs donnent du texte).',
     "gerbil_gui.pyw:help_text": "La bulle d'aide d'un réglage, dans la langue de l'interface.",
     "gerbil_gui.pyw:scale_text": "La partie « échelle » d'une ligne du moteur (« checkerboard 10 cm, 100.00 px/cm, 1.3 s ») en quelques mots : « damier 10 cm ».",

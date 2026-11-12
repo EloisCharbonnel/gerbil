@@ -45,7 +45,7 @@ PARTS = [
     ("h1", "Part I — Using Gerbil"),
 
     ("h2", "1. What Gerbil does"),
-    ("p", "Gerbil is given a folder of photos of finds (sherds, metal, lithics, bone, glass…) lying on a plain "
+    ("p", "Gerbil is given a folder of photos of finds (objects, metal, lithics, bone, glass…) lying on a plain "
           "background with a scale. For each photo, it:"),
     ("ol", ["**finds the scale** (black / white / red checkerboard, single row or millimetre ruler) and measures "
             "it: how many pixels make one centimetre on *this* photo;",
@@ -56,7 +56,7 @@ PARTS = [
             "**flags its doubts**: everything that deserves a look gets the `_to_be_verified` suffix."]),
     ("p", "The measurement comes from the scale of each photo, not from the EXIF data: the camera, the lens and "
           "the distance do not matter. A photo taken closer simply gives more pixels per centimetre."),
-    ("figure", "fig_photo", "A photo to process (synthetic photo: an invented sherd and a 10 cm checkerboard "
+    ("figure", "fig_photo", "A photo to process (synthetic photo: an invented object and a 10 cm checkerboard "
                             "scale)."),
 
     ("h2", "2. Installing Gerbil"),
@@ -84,7 +84,7 @@ PARTS = [
             "**The whole object in the frame**, not touching the edge of the photo.",
             "**Formats**: JPEG, TIFF, PNG or RAW (DNG, CR2, CR3, NEF, ARW, ORF, RW2, RAF…)."]),
     ("tip", "Mounting putty: a blue putty (Blu-Tack type), or putty hidden behind the object, is never mistaken "
-            "for a light sherd."),
+            "for a light object."),
 
     ("h2", "4. A first run, step by step"),
     ("p", "The window of Gerbil follows the work: a column on the left gives the five steps, each with its page. "
@@ -109,7 +109,7 @@ PARTS = [
     ("table", [["File", "Content"],
                ["`NAME.JPG`", "Copy of the original photo (with the IPTC metadata added, without recompression)."],
                ["`NAME.psd`", "Layered Photoshop file: *Original photo* (hidden, the whole photo), *Scale*, "
-                              "*Ceramic*, with layer masks editable with the brush (white = show, black = hide)."],
+                              "*Object*, with layer masks editable with the brush (white = show, black = hide)."],
                ["`NAME_outlined.tif`", "The object alone, transparent background, at the 1:1 resolution."],
                ["`NAME_outlined_scale.tif`", "The object and its straightened scale under it, transparent."],
                ["`to_control/NAME_to_control.jpg`", "The control preview."],
@@ -148,7 +148,8 @@ PARTS = [
                ["`squares`, `scale_length_cm`", "Number of squares, length of the scale."],
                ["`px_per_cm`, `ppi_1_1`", "The measurement: pixels per centimetre, and the 1:1 resolution it "
                                           "gives."],
-               ["`ceramic_width_cm`, `ceramic_height_cm`", "Size of the outlined object, in cm."],
+               ["`object_width_cm`, `object_height_cm`", "Size of the outlined object, in cm (columns called "
+                    "`ceramic_…` up to version 2.1; older reports are still read)."],
                ["`pieces`", "Number of pieces outlined."],
                ["`camera`, `lens`, `focal_mm`, `date_taken`", "Shooting information (EXIF)."],
                ["`notes`, `duration_s`", "Remarks of the processing, duration."]]),
@@ -160,7 +161,7 @@ PARTS = [
     ("table", [["Tool", "Use"],
                ["*One click on the object (more precise)*", "Click each object to keep: Segment Anything cuts it out "
                     "(Shift + click removes one). More reliable on difficult photos, because the program is **told "
-                    "which object to cut out** instead of guessing what is a sherd, a label, a shadow or the "
+                    "which object to cut out** instead of guessing what is an object, a label, a shadow or the "
                     "background."],
                ["*Erase* / *Add*", "Brush (adjustable size) or lasso (draw around an area) to remove or add."],
                ["*Remove a piece*", "One click removes a whole piece (shadow, background patch)."],
@@ -232,7 +233,7 @@ PARTS = [
             "Graphic **scale bar** set as in QGIS (style, length, segments, colours, font), remembered as your "
             "house style.",
             "**One scale per plate**; an object too large goes to 1:1.5, 1:2, 1:3… on plates of its own. *Scale "
-            "per object…*, or a right-click on an object of the preview, chooses its scale.",
+            "per object…*, or a click on an object of the preview, chooses its scale.",
             "**Scale by material**: ceramics and glass at 1/3, iron at 2/3, stone at 1/3 by default (editable rules "
             "`word=reduction`).",
             "**Drawings beside the photos**: a folder of drawings (`.svg`, or `.ai` `.pdf` `.eps` converted by "
@@ -242,6 +243,33 @@ PARTS = [
             "Optional **measurements** on a hidden layer: layout guides, not data."]),
     ("p", "The preview shows the pages as they will be written; the wheel zooms, ◀ ▶ turns the pages."),
 
+    ("h2", "12 bis. Free plates: field photos and orthophotos"),
+    ("p", "*Free plates* (step 05) lays out **whole photos** instead of outlined objects: photos of graves or "
+          "structures, orthophotos. Each photo is brought to the scale of the plate (1:10, 1:20, 1:50…): a "
+          "typological plate thus shows the graves at the same scale, sorted by type."),
+    ("ul", ["**Giving the scale of a photo**: *Scale of the photos…* lists the photos of the folder with their "
+            "real size (or 'no scale'). A double-click opens the photo: click the two ends of a known length (a "
+            "ranging pole, a scale, or a measurement taken in the field such as the length of the grave) and "
+            "give that length in centimetres (1 m = 100).",
+            "An **orthophoto** with its world file (`.jgw`, `.tfw`) needs nothing: its scale is read from it.",
+            "**A click on a photo of the preview** opens its menu: choose the scale of this photo (1:5 to 1:100, "
+            "or *Another scale…*), or measure its scale on the photo.",
+            "**Captions, order and groups** come from the fields of the batch renaming of the folder: add for "
+            "instance *Grave*, *Type*, *Phase* there (a CSV or Excel table can be imported), then *Group by: "
+            "Type*.",
+            "**Page**: A4, A3, A2… portrait or landscape; scale bar in cm or in m; files as SVG, TIFF or JPEG.",
+            "The scale holds in the plane of the two points clicked: a photo taken at an angle is not an "
+            "orthophoto."]),
+
+    ("h2", "12 ter. The PDF of the plates, the list of figures and the contact sheets"),
+    ("ul", ["**PDF**: in *Files written*, ticking *PDF* puts all the plates in one file, to join to the report.",
+            "**List of figures**: `figures.csv`, always written beside the plates, gives for each plate its "
+            "number, file, title, caption (the objects of the plate), scale and the credit (*Credit* field). It "
+            "opens in Excel and is pasted into the report as a table.",
+            "**Contact sheets** (step 05): every photo of a folder on pages, with its name, so many per row; "
+            "*Group by* a field (the US, the sector) starts a page at each value. The photos are not to scale "
+            "there."]),
+
     ("h2", "13. Inventory and thumbnails"),
     ("ul", ["*Inventory*: one row per file of the chosen folders (photos, drawings, 3D models), with "
             "folder, kind, size, date, **the fields read from the name** (same template as the batch renaming), "
@@ -249,6 +277,18 @@ PARTS = [
             "line** that makes the same inventory with Windows alone, to copy and learn from.",
             "*Thumbnails*: reduced copies for databases (128 to 1,024 px), transparent PNG or JPEG on white, "
             "transparent margin cut off."]),
+
+    ("h2", "13 bis. The check before a deposit"),
+    ("p", "*Deposit* (step 05) checks a folder before it is handed over to an archive, **without copying, "
+          "moving or changing anything**. For every file of the folder and its sub-folders:"),
+    ("ul", ["its **format**, against the list of accepted extensions (to adapt: each archive has its own);",
+            "its **name**: letters without accents, digits, `_`, `-` and `.` only, and for the photos the "
+            "naming rule of the project;",
+            "an **empty** file, a **path** of more than 240 characters, the **same content present twice**."]),
+    ("p", "A `deposit_check` folder receives the inventory (`deposit_inventory.csv`: size, date, SHA-256 "
+          "checksum, metadata, remarks), the checksums (`checksums.sha256`, to verify the deposit after its "
+          "transfer) and a report (`deposit_report.txt`). This check does not replace the deposit protocol of "
+          "the archive."),
 
     ("h2", "14. The options"),
     ("p", "The same options exist in the interface and on the command line (`py gerbil.py FOLDER --option`, or "
@@ -266,8 +306,11 @@ PARTS = [
                ["`--compression zip`", "Slightly smaller TIFF files (LZW by default, the most compatible)."],
                ["`--default-ppi 300`", "Resolution used when there is no scale."],
                ["`--no-scale`", "Does not look for a scale."],
-               ["`--cutout ai`", "Cut-out drawn from the AI: the BiRefNet network says what is an object "
-                    "(shadows, table border, white on white); about 15 s more per photo."],
+               ["`--colour balance`, `--colour exposure`, `--white scale`", "White balance (and exposure) from a "
+                    "white of the photo: round chart by default, scale or background if chosen."],
+               ["`--cutout ai`, `--cutout ai-lite`", "Cut-out drawn from the AI: the BiRefNet network says what "
+                    "is an object (shadows, table border, white on white); about 8 s more per photo, 4 s with "
+                    "the lighter network (ai-lite)."],
                ["`--ai`, `--ai-model birefnet`, `--ai-device cpu`", "AI second opinion (it can only remove "
                     "background); more precise but slower model; force the processor."],
                ["`--profile FILE`", "Site profile to use."],
@@ -371,7 +414,7 @@ PARTS = [
                                       "object, as light as or whiter than the background. A reflection on a black "
                                       "gloss, darker and along the object, is left alone."],
                ["Colour chart", "Many vivid hues: at least 5 hue sectors out of 12, with a warm one, a green and a "
-                                "blue. A ceramic, even painted, covers 2 at most (1,763 photos tested); the charts 5 "
+                                "blue. An object, even painted, covers 2 at most (1,763 photos tested); the charts 5 "
                                 "to 9."],
                ["Labels, writing", "What lies on the other side of the scale; what is everywhere thinner than 1.7 mm "
                                    "(writing, thread, line of a bag); small isolated elements more than 8 mm from "
@@ -379,9 +422,9 @@ PARTS = [
                ["Paper label (dark background)", "Light and rectangular (it fills 85 % of its rectangle): white, "
                     "bluish white (optical brighteners of the paper) or pale yellow; or very rectangular (95 %) and "
                     "light, whatever its colour — a broken sherd never fills its rectangle that much."]]),
-    ("p", "A label touching a sherd by a corner is cut at the narrow join. When the only object of a photo looks "
+    ("p", "A label touching an object by a corner is cut at the narrow join. When the only object of a photo looks "
           "like a label (small, pale, square sherd), it is kept and the photo is flagged."),
-    ("figure", "fig_dark", "On dark felt: the paper label is recognised and discarded (red outline), the sherd is "
+    ("figure", "fig_dark", "On dark felt: the paper label is recognised and discarded (red outline), the object is "
                            "kept (green outline)."),
 
     ("h2", "6. Refining and softening the edge"),
@@ -433,7 +476,7 @@ PARTS = [
           "coloured** and **lighter** than the rest. By default it is only flagged (red area): a light, smooth "
           "vessel base looks too much like it to be removed without a check."),
 
-    ("h2", "10 bis. The cut-out drawn from the AI (setting Cut-out: ai)"),
+    ("h2", "10 bis. The cut-out drawn from the AI (setting Cut-out: ai or ai-lite)"),
     ("p", "By default (*Cut-out: colour*) the object is what differs from the background by its colour: fast, and "
           "exact on a plain background, but a cast shadow, the border of the table or a white object on a white "
           "background mislead it. With *Cut-out: ai* (`--cutout ai`), the **BiRefNet** neural network first says "
@@ -441,32 +484,57 @@ PARTS = [
           "draws the edge from the photo, at full resolution. Where the colour cannot tell (a shadow, an object "
           "of the colour of the background), the network decides."),
     ("ul", ["Everything runs on the computer: no photo is sent over the internet.",
-            "Allow about 15 seconds more per photo, and the BiRefNet model (970 MB, downloaded once).",
+            "*ai*: the BiRefNet network (970 MB, downloaded once), about 8 seconds more per photo.",
+            "*ai-lite*: a lighter network (224 MB), about 4 seconds more per photo; it gives the same cut-out "
+            "in the great majority of cases, and is a little less sure on difficult photos.",
             "A label is an object for the network: Gerbil discards it when it is a light, uncoloured card with "
             "straight sides or bearing writing (red outline in the preview).",
             "The results of the default cut-out are not changed by this setting."]),
+
+    ("h2", "10 ter. Colours: white balance and exposure (setting Colour)"),
+    ("p", "By default the colours of the photo are kept. With *Colour: balance*, Gerbil removes the colour cast "
+          "of the light (bluish shade, yellowish lamp) by making a white of the photo neutral; with *Colour: "
+          "exposure* it also brings that white to the same lightness on every photo, for an even series. The "
+          "correction is made **after the cut-out**, which therefore stays exactly the same; it applies to "
+          "everything written (PSD layers, TIFF files, preview). The copy of the original is never changed, and "
+          "the report gives the factors applied."),
+    ("p", "**Which white?** (*White reference*, under *Colour*). The choice is yours, because no "
+          "white is right everywhere:"),
+    ("ul", ["*chart* (default): the white of a colour chart, the only reference made for this: the white patch "
+            "of a chart made of patches (SpyderCheckr 24 or 48, ColorChecker, Farbkarte) or the white centre of "
+            "a round Archaeo Colorimeter. A photo without a chart is not corrected, and it is noted.",
+            "*scale*: the white of the scale, when it is really white. Some scales are cream: balancing on "
+            "them turns the photo blue.",
+            "*background*: the background itself, on white paper only."]),
+    ("p", "**Is the exposure right for the objects?** It multiplies the three channels by the same factor: the "
+          "hue and the saturation of an object do not change, only its lightness, and every photo ends up as if "
+          "its white had been exposed the same way (85 % of luminance). This is sound when the white lies in "
+          "the same light as the object, in its plane. It is not a measurement: the true reflectance of a "
+          "paper or of a scale is not known, and a white in the shade of the object lightens the whole photo."),
+    ("p", "These are corrections of the light, not a colour calibration: a Munsell reading is still made on "
+          "the object."),
 
     ("h2", "11. The AI second opinion (option)"),
     ("p", "With `--ai`, a neural cut-out network (IS-Net or BiRefNet) gives its opinion. It can **only remove** "
           "background, never add: an area is removed only when the cut-out keeps it, the AI sees background there, "
           "its colour stays close to the background and it covers at least 0.02 cm². This opens shadowed "
-          "perforations, gaps between two sherds, halos along a blurred edge. When the AI is wrong, it is by "
+          "perforations, gaps between two objects, halos along a blurred edge. When the AI is wrong, it is by "
           "keeping too much (label, support): its errors therefore have no effect."),
 
     ("h2", "12. The one-click cut-out"),
     ("p", "In the review window, the one-click tool uses **Segment Anything** (MobileSAM version, offline, 45 MB): "
           "click the object, it cuts it out. It is more reliable on difficult photos because it is **told which "
-          "object** to cut out: it no longer has to guess what is a sherd, a label, a shadow or the background. Its "
+          "object** to cut out: it no longer has to guess what is an object, a label, a shadow or the background. Its "
           "edge being less precise, Gerbil keeps the edge of its own cut-out where both agree."),
 
     ("h2", "13. From the measurement to 1:1"),
     ("p", "An image file carries a **resolution**: the number of pixels per inch (ppi). Illustrator uses it to give "
           "a placed image its size. Gerbil therefore writes into each file the resolution measured on the scale:"),
-    ("code", "ppi = px/cm × 2.54        (1 inch = 2.54 cm)\nexample: 100 px/cm → 254 ppi: a sherd 600 px wide is 6 cm wide"),
+    ("code", "ppi = px/cm × 2.54        (1 inch = 2.54 cm)\nexample: 100 px/cm → 254 ppi: an object 600 px wide is 6 cm wide"),
     ("p", "Dropped into Illustrator, the object therefore has its real size. The scale of `NAME_outlined_scale.tif` "
           "measures exactly 5 or 10 cm with Illustrator's ruler: the simplest check. The image is never enlarged or "
           "reduced; only its resolution tag changes."),
-    ("p", "The **PSD** is written byte by byte: the *Ceramic* layer holds the original pixels and a **layer mask** "
+    ("p", "The **PSD** is written byte by byte: the *Object* layer holds the original pixels and a **layer mask** "
           "(nothing is erased: a stroke of white brush brings back what was hidden); *Scale* holds the straightened "
           "scale; *Original photo*, hidden, the whole photo aligned on the object. The **TIFF** files are lossless "
           "(LZW), with transparency; a JPEG would compress the image again at every save."),
@@ -482,7 +550,7 @@ PARTS = [
 
     ("h2", "15. Plates: from the real object to the paper"),
     ("p", "Each object has its real size, read from the resolution of its TIFF. At the scale 1:r, its size on the "
-          "paper is: real size ÷ r. Example: a 6 cm sherd at 1:2 is 3 cm on the plate. The page is first "
+          "paper is: real size ÷ r. Example: a 6 cm object at 1:2 is 3 cm on the plate. The page is first "
           "described as a list of shapes **in millimetres** (rectangles, texts, images, drawings); this same "
           "description is written as SVG and drawn for the preview, which therefore shows exactly what will be "
           "written."),
@@ -532,7 +600,7 @@ PARTS = [
             "`BackgroundModel`: the background model, on the reduced copy.",
             "`manual_scale`, else `detect_scale` (which calls `analyze_pattern`, `analyze_comb`, `detect_ruler`, "
             "`_scale_on_dark`…), else `detect_learned_scale`. The result is a `Scale` object.",
-            "`outline_ceramic` (or `cutout_from_mask` for a mask corrected by hand).",
+            "`outline_object` (or `cutout_from_mask` for a mask corrected by hand).",
             "`find_putty`.",
             "`layout`, then `write_psd`, `write_tiff` (with `make_xmp`), `control_image`, `write_review`.",
             "The row of the report is returned; `main` writes `outlined_report.csv` and the summary."]),

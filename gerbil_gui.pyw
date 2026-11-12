@@ -139,7 +139,9 @@ STEPS = [("Photographies sources", "Source photographs"), ("Nommage et métadonn
 
 # settings of the processing: kind, label (fr, en), choices or (min, max, step)
 OPTION_SPECS = {
-    "cutout": ("choice", ("Détourage", "Cut-out"), ["colour", "ai"]),
+    "cutout": ("choice", ("Détourage", "Cut-out"), ["colour", "ai-lite", "ai"]),
+    "colour": ("choice", ("Couleur", "Colour"), ["none", "balance", "exposure"]),
+    "white": ("choice", ("Blanc de référence", "White reference"), ["chart", "scale", "background"]),
     "psd": ("check", ("Fichier Photoshop (.psd)", "Photoshop file (.psd)"), None),
     "original_layer": ("check", ("Calque caché de la photographie entière", "Hidden layer of the whole photo"), None),
     "original_copy": ("check", ("Copie de la photographie originale", "Copy of the original photo"), None),
@@ -156,11 +158,26 @@ OPTION_SPECS = {
     "gap_cm": ("number", ("Écart objet / échelle (cm)", "Object / scale gap (cm)"), (0, 5, 0.1)),
     "remove_putty": ("check", ("Retirer la pâte à fixe", "Remove mounting putty"), None),
     "ai": ("check", ("Second avis de l'IA", "AI second opinion"), None),
-    "ai_model": ("choice", ("Modèle d'IA", "AI model"), ["isnet", "birefnet"]),
+    "ai_model": ("choice", ("Modèle d'IA", "AI model"), ["isnet", "birefnet-lite", "birefnet"]),
     "ai_device": ("choice", ("Processeur de l'IA", "AI device"), ["auto", "cpu"]),
 }
 OPTION_KEYS = list(OPTION_SPECS)
-ESSENTIAL_OPTIONS = ["cutout", "psd", "background", "scale"]
+ESSENTIAL_OPTIONS = ["cutout", "colour", "white", "psd", "background", "scale"]
+# choices shown in plain words (the setting keeps the value of the command line)
+CHOICE_TEXT = {
+    "cutout": {"colour": ("par la couleur", "by the colour"), "ai-lite": ("par l'IA, rapide", "by the AI, fast"),
+               "ai": ("par l'IA, précis", "by the AI, precise")},
+    "colour": {"none": ("inchangée", "unchanged"), "balance": ("balance des blancs", "white balance"),
+               "exposure": ("balance et exposition", "balance and exposure")},
+    "white": {"chart": ("charte couleur", "colour chart"), "scale": ("échelle", "scale"),
+              "background": ("fond (papier blanc)", "background (white paper)")},
+}
+
+
+def choice_text(key, value):
+    """A choice of a setting in plain words, in the language of the interface (else the value itself)."""
+    texts = CHOICE_TEXT.get(key, {}).get(str(value))
+    return T(*texts) if texts else str(value)
 ADVANCED_OPTIONS = [(("Fichiers", "Files"), ["original_layer", "original_copy", "control", "compression"]),
                     (("Traitement", "Run"), ["jobs", "open"]),
                     (("Échelle et mise en page", "Scale and layout"),
@@ -182,7 +199,7 @@ HELP_FR = {
     "background": "Fond des fichiers TIFF : transparent, ou blanc.",
     "compression": "Compression des TIFF, toutes sans perte : LZW (la plus compatible), ZIP (un peu plus petite), "
                    "aucune.",
-    "psd": "Écrire NOM.psd avec les calques « Scale » et « Ceramic » (masques de fusion modifiables).",
+    "psd": "Écrire NOM.psd avec les calques « Scale » et « Object » (masques de fusion modifiables).",
     "original_layer": "Garder dans le PSD un calque caché de la photographie entière (décoché : PSD 2 à 4 fois "
                       "plus léger).",
     "original_copy": "Copier la photographie originale dans le dossier des résultats.",
@@ -196,15 +213,27 @@ HELP_FR = {
     "default_ppi": "Résolution utilisée quand aucune échelle n'est trouvée.",
     "remove_putty": "Retirer automatiquement la pâte à fixe soupçonnée (sinon elle est seulement signalée, zone "
                     "rouge sur l'aperçu).",
-    "cutout": "colour : les objets sont ce qui diffère du fond (rapide). ai : le réseau BiRefNet désigne les "
+    "cutout": "Par la couleur : les objets sont ce qui diffère du fond (rapide). Par l'IA, précis : le réseau BiRefNet désigne les "
               "objets et le bord reste tracé d'après la photographie. Plus sûr avec des ombres portées, un bord de "
-              "table ou un objet blanc sur fond blanc, mais environ 15 secondes de plus par photographie. Tout se "
+              "table ou un objet blanc sur fond blanc, mais environ 8 secondes de plus par photographie. "
+              "Par l'IA, rapide : la même chose avec un réseau allégé (224 Mo à télécharger au lieu de 970), environ "
+              "4 secondes de plus par photographie, un peu moins sûr sur les photographies difficiles. Tout se "
               "fait sur cet ordinateur.",
+    "colour": "Inchangée : les couleurs de la photographie sont gardées. Balance des blancs : la dominante de la "
+              "lumière est retirée d'après un blanc de la photographie (« Blanc de référence »). Balance et "
+              "exposition : ce blanc est en plus amené à la même clarté sur toutes les photographies (85 % de "
+              "luminance), pour une série homogène. Le détourage est le même ; la copie de l'original n'est pas "
+              "modifiée.",
+    "white": "Le blanc sur lequel les couleurs sont équilibrées. Charte couleur : le blanc d'une charte (la case "
+             "blanche d'une SpyderCheckr, ColorChecker ou Farbkarte, le centre blanc d'un Archaeo "
+             "Colorimeter), la seule référence faite pour cela. Échelle : le blanc de l'échelle, quand "
+             "elle est vraiment blanche (certaines sont crème). Fond : le fond lui-même, sur papier "
+             "blanc uniquement. Une photographie qui n'a pas ce blanc n'est pas corrigée (c'est noté).",
     "ai": "Second avis de l'IA : le réseau peut seulement retirer du fond que le script a gardé (perforations, "
-          "écarts entre tessons, halos), jamais ajouter. Nécessite onnxruntime. Sans effet quand le détourage "
+          "écarts entre objets, halos), jamais ajouter. Nécessite onnxruntime. Sans effet quand le détourage "
           "est fait par l'IA.",
-    "ai_model": "IS-Net : rapide, utilise la carte graphique. BiRefNet : plus précis sur les perforations, "
-                "beaucoup plus lent (processeur).",
+    "ai_model": "Modèle du second avis. IS-Net : rapide, utilise la carte graphique. BiRefNet : plus précis sur "
+                "les perforations, beaucoup plus lent (processeur). BiRefNet-lite : entre les deux.",
     "ai_device": "auto : carte graphique si possible. cpu : processeur seulement.",
     "jobs": "Nombre de photographies traitées en même temps.",
     "open": "Ouvrir le ou les dossiers de résultats à la fin.",
@@ -232,7 +261,7 @@ DOUBTS = [("scale not detected", "Échelle non trouvée", "Scale not found"),
           ("squares detected (not", "Longueur d'échelle inhabituelle", "Unusual scale length"),
           ("neither 5 nor 10", "Longueur d'échelle inhabituelle", "Unusual scale length"),
           ("irregular", "Échelle irrégulière", "Irregular scale"),
-          ("ceramic cut by the photo edge", "Objet coupé par le bord", "Object cut by the edge"),
+          ("cut by the photo edge", "Objet coupé par le bord", "Object cut by the edge"),
           ("possible mounting putty", "Pâte à fixe possible", "Possible mounting putty"),
           ("mounting putty removed", "Pâte à fixe retirée", "Mounting putty removed"),
           ("colour chart touching", "Charte couleur contre l'objet", "Colour chart against the object"),
@@ -244,8 +273,11 @@ DOUBTS = [("scale not detected", "Échelle non trouvée", "Scale not found"),
           ("looks like a paper label", "Objet pris pour une étiquette", "Object taken for a label"),
           ("no object detected", "Aucun objet trouvé", "No object found"),
           ("no ceramic kept", "Aucun objet trouvé", "No object found"),
+          ("no object kept", "Aucun objet trouvé", "No object found"),
           ("cast shadow removed", "Ombre retirée", "Shadow removed"),
           ("cut-out drawn from the ai", "Détourage par l'IA", "Cut-out drawn from the AI"),
+          ("colours balanced on", "Couleurs équilibrées", "Colours balanced"),
+          ("colours not corrected", "Couleurs non corrigées", "Colours not corrected"),
           ("the ai saw no object", "IA sans objet : détourage par la couleur", "AI saw no object: cut-out by colour"),
           ("translucent support removed", "Support retiré", "Support removed"),
           ("scale, label or card discarded", "Échelle ou étiquette écartée", "Scale or label set aside"),
@@ -270,7 +302,7 @@ DEFAULTS = {
     "psd": True, "original_layer": True, "original_copy": True, "control": True,
     "layout": "recompose", "margin_cm": 0.5, "gap_cm": 0.5,
     "scale": True, "scale_cm": "auto", "default_ppi": 300, "remove_putty": False,
-    "ai": False, "ai_model": "isnet", "ai_device": "auto", "cutout": "colour",
+    "ai": False, "ai_model": "isnet", "ai_device": "auto", "cutout": "colour", "colour": "none", "white": "chart",
     "jobs": max(1, min(4, (os.cpu_count() or 2) // 2)), "open": True, "last_dir": "",
     "plates": {}, "profile": "", "lang": "",
 }
@@ -278,28 +310,38 @@ DEFAULTS = {
 HELP = {
     "background": "Background of the TIFF files: transparent, or white.",
     "compression": "TIFF compression, all lossless: LZW (the most compatible), ZIP (a little smaller), none.",
-    "psd": "Write NAME.psd with the layers 'Scale' and 'Ceramic' (editable layer masks).",
+    "psd": "Write NAME.psd with the layers 'Scale' and 'Object' (editable layer masks).",
     "original_layer": "Keep a hidden 'Original photo' layer in the PSD (unticked: PSD 2 to 4 times lighter).",
     "original_copy": "Copy the original photo into the result folder.",
     "control": "Write the control previews (to_control folder).",
-    "layout": "Recompose: scale straightened and centred under the sherd. "
+    "layout": "Recompose: scale straightened and centred under the object. "
               "Original: scale left where it was photographed.",
     "margin_cm": "Margin around the objects, in cm.",
-    "gap_cm": "Gap between the sherd and the scale, in cm.",
+    "gap_cm": "Gap between the object and the scale, in cm.",
     "scale": "Look for the scale (1 cm squares or millimetre ruler) to set the 1:1 resolution.",
     "scale_cm": "Force the scale length if the count of squares does not suit (auto: squares counted).",
     "default_ppi": "Resolution used when no scale is found.",
     "remove_putty": "Remove the suspected mounting putty automatically (otherwise it is only flagged, "
                     "red area in the preview).",
-    "cutout": "colour: the objects are what differs from the background (fast). ai: the BiRefNet network "
+    "cutout": "By the colour: the objects are what differs from the background (fast). By the AI, precise: the BiRefNet network "
               "says what is an object and the edge is still drawn from the photo. Surer with cast shadows, a table "
-              "border or a white object on a white background, but about 15 seconds more per photo. Everything "
-              "runs on this computer.",
+              "border or a white object on a white background, but about 8 seconds more per photo. By the AI, fast: the "
+              "same with a lighter network (224 MB to download instead of 970), about 4 seconds more per photo, "
+              "a little less sure on difficult photos. Everything runs on this computer.",
+    "colour": "Unchanged: the colours of the photo are kept. White balance: the colour cast of the light is "
+              "removed from a white of the photo ('White reference'). Balance and exposure: that white is also "
+              "brought to the same lightness on every photo (85 % luminance), for an even series. The cut-out "
+              "is the same; the copy of the original is not changed.",
+    "white": "The white the colours are balanced on. Colour chart: the white of a chart (the white patch of a "
+             "SpyderCheckr, ColorChecker or Farbkarte, the white centre of an Archaeo Colorimeter), the only "
+             "reference made for this. Scale: the white of the scale, when it is "
+             "really white (some are cream). Background: the background itself, on white paper only. A "
+             "photo that does not hold this white is not corrected (it is noted).",
     "ai": "AI second opinion: the network may only remove background the script kept "
-          "(perforations, gaps between sherds, halos), never add anything. Needs onnxruntime. No effect when "
+          "(perforations, gaps between objects, halos), never add anything. Needs onnxruntime. No effect when "
           "the cut-out is drawn from the AI.",
-    "ai_model": "IS-Net: fast, uses the graphics card. BiRefNet: more precise on perforations, "
-                "much slower (processor).",
+    "ai_model": "Model of the second opinion. IS-Net: fast, uses the graphics card. BiRefNet: more precise on "
+                "perforations, much slower (processor). BiRefNet-lite: in between.",
     "ai_device": "Auto: graphics card when available. CPU: processor only.",
     "jobs": "Number of photos processed at the same time.",
     "open": "Open the result folder(s) at the end.",
@@ -490,11 +532,12 @@ class ScaleWindow:
 
     HANDLE = 9                                  # screen pixels: radius of the point markers
 
-    def __init__(self, app, path, seq=None, on_saved=None, learn=None):
+    def __init__(self, app, path, seq=None, on_saved=None, learn=None, free=False):
         """seq: series of photos corrected one after the other (see App.scale_series), or None.
         on_saved: called after saving instead of offering to process the photo (review window).
-        learn: called with the two points instead of saving a manual scale (site profile: learn a scale)."""
-        self.learn = learn
+        learn: called with the two points instead of saving a manual scale (site profile: learn a scale).
+        free: photo of the free plates (field photo): any known length, no printed scale to describe."""
+        self.learn, self.free = learn, free
         from PIL import Image, ImageOps, ImageTk  # only here: the window needs Pillow
         self.Image, self.ImageTk = Image, ImageTk
         self.app, self.path, self.seq, self.on_saved = app, path, seq, on_saved
@@ -525,14 +568,18 @@ class ScaleWindow:
         ttk.Label(side, style="Muted.TLabel", justify="left", wraplength=250, text=(
             tr("Click the two ends of the scale (its 0 and its last mark, e.g. 0 and 10 cm), along its middle; "
             "give the width of its printed band.") if learn else
+            tr("Click the two ends of a length you know on the photo: a ranging pole, a scale, or a measurement "
+               "taken in the field (the length of the grave). Give that length in centimetres (1 m = 100). The "
+               "scale holds in the plane of these two points.") if free else
             tr("Click the two ends of a known length on the scale (for example its 0 and 5 cm), "
             "along its middle.")) + tr("\n\nDrag a point to adjust it. Mouse wheel: zoom. Right button: move "
             "the view. R: whole photo.")).pack(anchor="w", pady=(4, 12))
         last = seq or {}                        # in a series, the values of the previous photo
-        self.cm = tk.StringVar(value=f"{entry['cm']:g}" if entry else last.get("cm") or "5")
+        self.cm = tk.StringVar(value=f"{entry['cm']:g}" if entry else last.get("cm") or ("100" if free else "5"))
         self.width_cm = tk.StringVar(value=f"{entry.get('width_cm', 1.0):g}" if entry
                                      else last.get("width_cm") or "1")
-        for text, var in ((tr("Length between the points (cm)"), self.cm), (tr("Width of the scale (cm)"), self.width_cm)):
+        for text, var in ((tr("Length between the points (cm)"), self.cm),
+                          (tr("Width of the scale (cm)"), self.width_cm))[:1 if free else 2]:
             ttk.Label(side, text=text).pack(anchor="w")
             e = ttk.Entry(side, textvariable=var, width=10)
             e.pack(anchor="w", pady=(2, 10))
@@ -765,6 +812,8 @@ class ScaleWindow:
         self.points = []
         self.remove_btn.state(["disabled"])
         self.redraw()
+        if self.free and self.on_saved:
+            self.on_saved()
 
 
 PROJECT_FILE = "gerbil_project.json"        # in the folder of the photos, read by gerbil.py (load_project)
@@ -2444,24 +2493,34 @@ class ReviewWindow:
 class PlatesWindow:
     """Plates of a results folder (gerbil_plates): objects at a chosen scale on pages, captions, graphic
     scale bar in the manner of QGIS; live preview of the pages; written as SVG (Illustrator, Inkscape).
-    The settings are remembered (house style of the scale bar)."""
+    The settings are remembered (house style of the scale bar). images: free plates - the photos of a
+    folder (field photos, orthophotos) instead of outlined objects, each with a scale given by two
+    clicks on a known length (or by its world file)."""
 
-    def __init__(self, app, folder):
+    def __init__(self, app, folder, images=False):
         """The plates window: three tabs of settings (plate, scale bar, scales and
         drawings), live preview with zoom, buttons."""
         import gerbil_plates as gp
-        self.gp, self.app, self.folder = gp, app, folder
+        self.gp, self.app, self.folder, self.images = gp, app, folder, images
         self.st = gp.PlateSettings.from_dict(app.s.get("plates") or {})
-        self.items = gp.collect(folder, True)
+        self.unscaled = []                          # free plates: photos without a scale yet
+        if images:
+            self.items, self.unscaled = gp.collect_images(folder)
+        else:
+            self.items = gp.collect(folder, True)
         self.thumbs = {}                            # item path -> reduced image (preview)
         self.pages, self.page_no, self.job = [], 0, None
         self.win = win = tk.Toplevel(app.root)
-        win.title(T(f"Planches - {folder}", f"Plates - {folder}"))
+        win.title(T(f"Planches libres - {folder}", f"Free plates - {folder}") if images
+                  else T(f"Planches - {folder}", f"Plates - {folder}"))
         win.configure(bg=WINDOW_BG)
         sw, sh = win.winfo_screenwidth(), win.winfo_screenheight()
         w, h = min(int(sw * 0.9), 1500), int(sh * 0.88)
         win.geometry(f"{w}x{h}+{(sw - w) // 2}+{int(sh * 0.02)}")
         fields = gp.report_fields(self.items)
+        if images:                                  # the fields of the folder, even before any scale is set
+            names = [it.values.get("file", "") for it in self.items] + self.unscaled
+            fields = ["name"] + (list(gp.photo_fields(folder, names[0])) if names else [])
         self.vars = {}
 
         foot = ttk.Frame(win, style="Window.TFrame", padding=12)          # packed first: always visible
@@ -2513,11 +2572,14 @@ class PlatesWindow:
             return ttk.Checkbutton(parent, text=tr(text), variable=var(key, bool(value), tk.BooleanVar))
 
         st, b = self.st, self.st.bar
-        doubtful = sum(it.doubtful for it in self.items)
-        ttk.Label(plate, text=T(f"{len(self.items) - doubtful} objet(s) à taille réelle", f"{len(self.items) - doubtful} object(s) with a real size")
-                  + (T(f" (+{doubtful} à vérifier)", f" (+{doubtful} to be verified)") if doubtful else ""), style="Muted.TLabel").grid(
+        self.count_lbl = tk.StringVar(value=self.count_text())
+        ttk.Label(plate, textvariable=self.count_lbl, style="Muted.TLabel").grid(
             row=r, column=0, columnspan=2, sticky="w", pady=(0, 6))
         r += 1
+        if images:
+            row(plate, "", ttk.Button(plate, text=tr("Scale of the photos…"), command=self.photo_scales),
+                tr("The list of the photos of the folder: measure the scale of each one by clicking the two "
+                   "ends of a known length (pole, scale, measurement taken in the field)."))
         row(plate, tr("Plate title"), entry(plate, "title", st.title, 30),
             tr("Optional, at the top of each plate; {page}, {pages}, {group} and {scale} (1:2) are replaced, "
             "e.g. \"QSR25 - US 1209 - Plate {page} - {scale}\". Empty: no title."))
@@ -2533,7 +2595,9 @@ class PlatesWindow:
         ttk.Label(plate, textvariable=self.names_lbl, style="Muted.TLabel", wraplength=300).grid(
             row=r, column=1, sticky="w")
         r += 1
-        row(plate, tr("Scale  1 :"), combo(plate, "ratio", gp.fmt(st.ratio), ["1", "1.5", "2", "3", "4", "5", "10"], 6,
+        row(plate, tr("Scale  1 :"), combo(plate, "ratio", gp.fmt(st.ratio),
+                                       ["5", "10", "20", "25", "50", "100"] if images
+                                       else ["1", "1.5", "2", "3", "4", "5", "10"], 6,
                                        "normal"), "1:2 = objects drawn at half their real size.")
         row(plate, "", check(plate, "fit_large", st.fit_large, tr("Reduce the objects too large for the page")),
             tr("An object that does not fit at this scale goes to 1:2, 1:3… on plates of their own, each with its "
@@ -2562,17 +2626,30 @@ class PlatesWindow:
         row(plate, tr("Images (dpi)"), combo(plate, "dpi", str(st.dpi), ["300", "600", "1200"], 6),
             tr("Resolution of the embedded images on the paper (600: print quality; never enlarged)."))
         ff = ttk.Frame(plate, style="Card.TFrame")
-        for key, label in (("svg", "SVG"), ("tiff", "TIFF"), ("jpeg", "JPEG")):
+        for key, label in (("svg", "SVG"), ("tiff", "TIFF"), ("jpeg", "JPEG"), ("pdf", "PDF")):
             check(ff, key, getattr(st, key), label).pack(side="left", padx=(0, 10))
         row(plate, tr("Files written"), ff,
-            tr("SVG: layers, text and drawings stay editable in Illustrator or Inkscape. TIFF (lossless) and "
-               "JPEG: the whole page as one image on white, for a report or a slide."))
-        row(plate, tr("TIFF / JPEG (dpi)"), combo(plate, "raster_dpi", str(st.raster_dpi), ["300", "600", "1200"], 6),
-            tr("Resolution of the TIFF and JPEG pages (300: screen and report; 600: print). An A4 page at 1200 dpi "
-               "is a very large file."))
+            T("SVG : les calques, le texte et les dessins restent modifiables dans Illustrator ou Inkscape. TIFF "
+              "(sans perte) et JPEG : la page entière en une image sur fond blanc. PDF : toutes les planches dans "
+              "un seul fichier, à joindre au rapport. La liste des figures (figures.csv) est toujours écrite.",
+              "SVG: layers, text and drawings stay editable in Illustrator or Inkscape. TIFF (lossless) and "
+              "JPEG: the whole page as one image on white. PDF: all the plates in one file, to join to the "
+              "report. The list of figures (figures.csv) is always written."))
+        row(plate, tr("TIFF / JPEG (dpi)"), combo(plate, "raster_dpi", str(st.raster_dpi), ["150", "300", "600", "1200"], 6),
+            T("Résolution des pages TIFF, JPEG et PDF (300 : écran et rapport ; 600 : impression). Une page A4 à "
+              "1200 ppp est un très gros fichier.",
+              "Resolution of the TIFF, JPEG and PDF pages (300: screen and report; 600: print). An A4 page at "
+              "1200 dpi is a very large file."))
+        row(plate, T("Crédit", "Credit"), entry(plate, "credit", st.credit, 30),
+            T("Crédit des photographies, écrit dans la liste des figures (figures.csv), par exemple "
+              "« Photographies : E. Charbonnel, ITINERA ».",
+              "Credit of the photos, written in the list of figures (figures.csv), for example "
+              "'Photos: E. Charbonnel, ITINERA'."))
         var("object_ratios", json.dumps(st.object_ratios or {}))
-        row(plate, "", check(plate, "include_doubtful", st.include_doubtful,
-                             tr("Also the photos to be verified (_to_be_verified)")))
+        doubt_box = check(plate, "include_doubtful", st.include_doubtful,
+                          tr("Also the photos to be verified (_to_be_verified)"))
+        if not images:                              # (free plates: whole photos, nothing to verify)
+            row(plate, "", doubt_box)
         row(plate, "", check(plate, "measurements", st.measurements, tr("Measurements as guides (hidden layer)")),
             tr("Width and height of each object as dimension lines, on a 'Measurements' layer hidden in the SVG: "
             "show it in Illustrator or Inkscape to place drawings. Layout guides, not data."))
@@ -2607,7 +2684,7 @@ class PlatesWindow:
         row(barf, "Numbers", combo(barf, "bar.labels", b.labels, ["ends", "all", "none"], 8),
             "ends: 0 and the end; all: every segment.")
         row(barf, tr("Numbers placed"), combo(barf, "bar.label_position", b.label_position, ["below", "above"], 8))
-        row(barf, "Unit", combo(barf, "bar.unit", b.unit, ["cm", "mm", ""], 6, "normal"),
+        row(barf, "Unit", combo(barf, "bar.unit", b.unit, ["cm", "mm", "m", ""], 6, "normal"),
             tr("Written after the last number; mm: the numbers are given in millimetres."))
         row(barf, "Font", combo(barf, "bar.font", b.font, list(gp.FONTS), 16))
         row(barf, tr("Size (pt)"), entry(barf, "bar.font_pt", gp.fmt(b.font_pt)))
@@ -2686,6 +2763,7 @@ class PlatesWindow:
         self.canvas.bind("<ButtonPress-2>", lambda e: self.canvas.scan_mark(e.x, e.y))
         self.canvas.bind("<B2-Motion>", lambda e: self.canvas.scan_dragto(e.x, e.y, gain=1))
         self.canvas.bind("<ButtonPress-3>", self.object_menu)
+        self.canvas.bind("<ButtonPress-1>", self.object_menu)      # a click on an image: its scale
         win.protocol("WM_DELETE_WINDOW", self.close)
         self.changed()
 
@@ -2744,6 +2822,78 @@ class PlatesWindow:
         ttk.Button(bar, text=tr("Close"), command=top.destroy).pack(side="right")
         fill()
 
+    def count_text(self):
+        """How many objects (or photos) have a real size, and how many are left out."""
+        if self.images:
+            n, m = len(self.items), len(self.unscaled)
+            return (T(f"{n} photographie(s) à l'échelle", f"{n} photo(s) with a scale")
+                    + (T(f" (+{m} sans échelle : non placée(s))", f" (+{m} without a scale: left out)") if m else ""))
+        doubtful = sum(it.doubtful for it in self.items)
+        return (T(f"{len(self.items) - doubtful} objet(s) à taille réelle", f"{len(self.items) - doubtful} object(s) with a real size")
+                + (T(f" (+{doubtful} à vérifier)", f" (+{doubtful} to be verified)") if doubtful else ""))
+
+    def reload_images(self):
+        """Free plates: a scale was set or removed - the photos are read again, the preview drawn again."""
+        self.items, self.unscaled = self.gp.collect_images(self.folder)
+        self.count_lbl.set(self.count_text())
+        if getattr(self, "fill_scales", None):
+            try:
+                self.fill_scales()
+            except tk.TclError:
+                self.fill_scales = None
+        self.refresh()
+
+    def measure(self, name):
+        """Free plates: the scale window for a photo of the folder (two clicks on a known length)."""
+        try:
+            ScaleWindow(self.app, os.path.join(self.folder, name), on_saved=self.reload_images, free=True)
+        except Exception as e:
+            messagebox.showerror("Gerbil", T("Impossible d'ouvrir la photographie :\n", "Could not open the photo:\n")
+                                 + f"{type(e).__name__}: {e}", parent=self.win)
+
+    def photo_scales(self):
+        """Free plates: the photos of the folder with their real size, or 'no scale'; double-click (or the
+        button) to measure the scale of one on the photo."""
+        top = tk.Toplevel(self.win)
+        top.title(tr("Scale of the photos"))
+        top.configure(bg=WINDOW_BG)
+        top.transient(self.win)
+        top.geometry("560x520")
+        ttk.Label(top, text=tr("Double-click a photo to measure its scale: click the two ends of a known length "
+                               "and give that length. An orthophoto with its world file (.jgw, .tfw) needs "
+                               "nothing."), style="Footer.TLabel", wraplength=520).pack(anchor="w", padx=10, pady=(10, 4))
+        bar = ttk.Frame(top, style="Window.TFrame", padding=10)
+        bar.pack(side="bottom", fill="x")
+        tree = ttk.Treeview(top, columns=("size",), show="tree headings", height=16, selectmode="browse")
+        tree.heading("#0", text=tr("Photo"), anchor="w")
+        tree.heading("size", text=tr("Real size"), anchor="w")
+        tree.column("#0", width=300)
+        tree.column("size", width=200)
+        tree.tag_configure("none", foreground=TERRA)
+        sb = ttk.Scrollbar(top, orient="vertical", command=tree.yview)
+        tree.configure(yscrollcommand=sb.set)
+        sb.pack(side="right", fill="y", padx=(0, 10))
+        tree.pack(fill="both", expand=True, padx=(10, 0))
+
+        def fill():
+            keep = tree.selection()
+            tree.delete(*tree.get_children())
+            rows = [(it.values.get("file", it.name), f"{it.width_cm:.0f} x {it.height_cm:.0f} cm", ()) for it in self.items]
+            rows += [(n, tr("no scale"), ("none",)) for n in self.unscaled]
+            for name, size, tags in sorted(rows, key=lambda r: self.gp.natural_key(r[0])):
+                tree.insert("", "end", iid=name, text=name, values=(size,), tags=tags)
+            if keep and tree.exists(keep[0]):
+                tree.selection_set(keep[0])
+        self.fill_scales = fill
+
+        def go(_=None):
+            if tree.selection():
+                self.measure(tree.selection()[0])
+        tree.bind("<Double-1>", go)
+        ttk.Button(bar, text=tr("Measure the scale…"), style="Run.TButton", command=go).pack(side="left")
+        ttk.Button(bar, text=tr("Close"), command=top.destroy).pack(side="right")
+        fill()
+
     def wheel(self, e):
         """Zoom on the point under the mouse (1 = whole page, up to 8)."""
         if not self.view:
@@ -2760,7 +2910,8 @@ class PlatesWindow:
             self.canvas.yview_moveto(max(0.0, (y0 + my * k - e.y) / sr[3]))
 
     def object_menu(self, e):
-        """Right-click on an object of the preview: a menu of scales for it (kept in the plate settings)."""
+        """Click (left or right) on an object of the preview: a menu of scales for it (kept in the plate
+        settings), with any other scale, and for a photo of the free plates the measure of its scale."""
         if not self.view or not self.pages:
             return
         k, x0, y0 = self.view
@@ -2785,9 +2936,21 @@ class PlatesWindow:
             else:
                 chosen[name] = r
             self.vars["object_ratios"].set(json.dumps(chosen))
+        def other():
+            from tkinter import simpledialog
+            v = simpledialog.askstring("Gerbil", T(f"Échelle de {name} (par exemple 1:20, ou 20) :",
+                                                   f"Scale of {name} (for example 1:20, or 20):"), parent=self.win)
+            r = gp.parse_ratio(v) if v else None
+            if r and r > 0:
+                choose(float(r))
         menu.add_command(label=tr("Scale of the plates (automatic)"), command=lambda: choose(None))
-        for r in gp.RATIOS[:9]:
+        for r in ((5, 10, 15, 20, 25, 40, 50, 100) if hit.item.photo else gp.RATIOS[:9]):
             menu.add_command(label=f"1:{gp.fmt(r)}", command=lambda r=r: choose(float(r)))
+        menu.add_command(label=tr("Another scale…"), command=other)
+        if hit.item.photo:
+            menu.add_separator()
+            menu.add_command(label=tr("Measure the scale on the photo…"),
+                             command=lambda: self.measure(hit.item.values.get("file", name)))
         try:
             menu.tk_popup(e.x_root, e.y_root)
         finally:
@@ -2864,8 +3027,11 @@ class PlatesWindow:
         """Reduced image of an object for the preview (cached)."""
         im = self.thumbs.get(item.path)
         if im is None:
-            from PIL import Image
+            from PIL import Image, ImageOps
             with Image.open(item.path) as src:
+                if item.photo:                              # a whole photo: upright, reduced as it is read
+                    src.draft("RGB", (1600, 1600))
+                    src = ImageOps.exif_transpose(src)
                 im = src.convert("RGBA")
                 if item.bbox:
                     im = im.crop(item.bbox)
@@ -2897,10 +3063,12 @@ class PlatesWindow:
             self.canvas.configure(scrollregion=(0, 0, max(cw, img.width + 20), max(ch, img.height + 20)))
             self.view = (k, x0, y0)
             n_obj = sum(len(p[1]) for p in self.pages)
-            self.page_lbl.set(T(f"Planche {self.page_no + 1} / {len(self.pages)}, {n_obj} objet(s) au 1:{gp.fmt(st.ratio)}",
-                                f"Plate {self.page_no + 1} / {len(self.pages)}, {n_obj} object(s) at 1:{gp.fmt(st.ratio)}"))
+            what = T("photographie(s)", "photo(s)") if self.images else T("objet(s)", "object(s)")
+            self.page_lbl.set(T(f"Planche {self.page_no + 1} / {len(self.pages)}, {n_obj} {what} au 1:{gp.fmt(st.ratio)}",
+                                f"Plate {self.page_no + 1} / {len(self.pages)}, {n_obj} {what} at 1:{gp.fmt(st.ratio)}"))
         else:
-            self.page_lbl.set(tr("No object with a real size in this folder"))
+            self.page_lbl.set(tr("No photo with a scale yet: 'Scale of the photos…'") if self.images
+                              else tr("No object with a real size in this folder"))
         if st.drawings_folder:
             n = sum(1 for it in items if it.drawing)
             self.draw_lbl.set(T(f"{n} objet(s) avec leur dessin, sur {len(items)}.", f"{n} object(s) with their drawing, out of {len(items)}."))
@@ -2934,7 +3102,8 @@ class PlatesWindow:
         def work():
             try:
                 files, warnings = self.gp.write_plates(
-                    self.folder, st, out, lambda i, n: self.win.after(0, self.msg.set, T(f"Planche {i} / {n}…", f"Plate {i} / {n}…")))
+                    self.folder, st, out, lambda i, n: self.win.after(0, self.msg.set, T(f"Planche {i} / {n}…", f"Plate {i} / {n}…")),
+                    self.images)
                 text = T(f"{len(files)} planche(s) écrite(s) dans {out}", f"{len(files)} plate(s) written in {out}") + (
                     T(f"  ({len(warnings)} avertissement(s))", f"  ({len(warnings)} warning(s))") if warnings else "")
             except Exception as e:
@@ -2966,7 +3135,7 @@ PROFILES_DIR = os.path.join(os.environ.get("APPDATA") or os.path.expanduser("~")
 PROFILE_FILE = "gerbil_profile.json"           # a profile placed next to the photos is used by the engine
 PROFILE_SETTINGS = ("background", "compression", "psd", "original_layer", "original_copy", "control", "layout",
                     "margin_cm", "gap_cm", "scale", "scale_cm", "default_ppi", "remove_putty", "ai", "ai_model",
-                    "cutout")
+                    "cutout", "colour", "white")
 
 
 def profile_names():
@@ -3403,6 +3572,220 @@ class ThumbnailsWindow:
         self.msg.set(f"{n} thumbnail(s) written.")
         if n:
             os.startfile(os.path.join(folder, "thumbnails"))
+
+
+class ContactWindow:
+    """Contact sheets (gerbil_plates.write_contact_sheets): every photo of a folder on pages, with its name."""
+
+    def __init__(self, app):
+        """The contact sheets window: folder, page, photos per row, title, caption, group, files."""
+        import gerbil_plates as gp
+        self.gp, self.app = gp, app
+        self.win = win = tk.Toplevel(app.root)
+        win.title(T("Planches-contact", "Contact sheets"))
+        win.configure(bg=WINDOW_BG)
+        win.transient(app.root)
+        card = ttk.Frame(win, style="Card.TFrame", padding=14)
+        card.pack(fill="both", expand=True, padx=10, pady=10)
+        first = next((i if os.path.isdir(i) else os.path.dirname(i) for i in app.tree.get_children()), "")
+        self.folder = tk.StringVar(value=first)
+        st = gp.PlateSettings.from_dict(app.s.get("plates") or {})
+        self.page, self.landscape = tk.StringVar(value=st.page), tk.BooleanVar(value=False)
+        self.columns = tk.StringVar(value=str(st.contact_columns))
+        self.title, self.caption, self.group = tk.StringVar(value=""), tk.StringVar(value="{name}"), tk.StringVar(value="")
+        self.new_page = tk.BooleanVar(value=True)
+        self.pdf, self.jpeg, self.svg = tk.BooleanVar(value=True), tk.BooleanVar(value=False), tk.BooleanVar(value=False)
+        self.dpi = tk.StringVar(value="150")
+        r = 0
+
+        def row(label, widget, tip=None):
+            nonlocal r
+            ttk.Label(card, text=label).grid(row=r, column=0, sticky="w", pady=3, padx=(0, 8))
+            widget.grid(row=r, column=1, sticky="w", pady=3)
+            if tip:
+                Tooltip(widget, tip)
+            r += 1
+        ff = ttk.Frame(card, style="Card.TFrame")
+        ttk.Entry(ff, textvariable=self.folder, width=48).pack(side="left")
+        ttk.Button(ff, text=tr("Browse…"), style="Small.TButton", command=self.browse).pack(side="left", padx=6)
+        row(T("Dossier des photographies", "Folder of the photos"), ff)
+        pf = ttk.Frame(card, style="Card.TFrame")
+        ttk.Combobox(pf, textvariable=self.page, values=list(gp.PAGES), width=7, state="readonly").pack(side="left")
+        ttk.Checkbutton(pf, text=T("Paysage", "Landscape"), variable=self.landscape).pack(side="left", padx=10)
+        row("Page", pf)
+        row(T("Photographies par rangée", "Photos per row"),
+            ttk.Spinbox(card, textvariable=self.columns, from_=1, to=10, width=5))
+        row(T("Titre", "Title"), ttk.Entry(card, textvariable=self.title, width=40),
+            T("En haut de chaque page ; {page}, {pages} et {group} sont remplacés, par exemple « US {group} ».",
+              "At the top of each page; {page}, {pages} and {group} are replaced, for example 'US {group}'."))
+        row(T("Légende", "Caption"), ttk.Entry(card, textvariable=self.caption, width=40),
+            T("Sous chaque photographie : {name} (nom du fichier) ou un champ du renommage en lot, par exemple "
+              "{US} ; vide : pas de légende.",
+              "Under each photo: {name} (file name) or a field of the batch renaming, for example {US}; empty: "
+              "no caption."))
+        gf = ttk.Frame(card, style="Card.TFrame")
+        self.group_cb = ttk.Combobox(gf, textvariable=self.group, width=16)
+        self.group_cb.pack(side="left")
+        ttk.Checkbutton(gf, text=T("Une nouvelle page par groupe", "A new page for each group"),
+                        variable=self.new_page).pack(side="left", padx=10)
+        row(T("Grouper par", "Group by"), gf,
+            T("Un champ du renommage en lot du dossier (US, secteur…) : chaque valeur commence une rangée ou une page.",
+              "A field of the batch renaming of the folder (US, sector…): each value starts a row or a page."))
+        of = ttk.Frame(card, style="Card.TFrame")
+        for text, var in (("PDF", self.pdf), ("JPEG", self.jpeg), ("SVG", self.svg)):
+            ttk.Checkbutton(of, text=text, variable=var).pack(side="left", padx=(0, 10))
+        ttk.Combobox(of, textvariable=self.dpi, values=["100", "150", "300"], width=5).pack(side="left")
+        ttk.Label(of, text=T(" ppp", " dpi")).pack(side="left")
+        row(T("Fichiers écrits", "Files written"), of)
+        ttk.Label(card, style="Muted.TLabel", text=T(
+            "Écrit dans un dossier « contact_sheets » à l'intérieur du dossier choisi. Les photographies ne sont "
+            "pas à l'échelle ; JPEG, TIFF et PNG seulement.",
+            "Written in a 'contact_sheets' folder inside the chosen folder. The photos are not to scale; JPEG, "
+            "TIFF and PNG only.")).grid(row=r, column=0, columnspan=2, sticky="w", pady=(8, 0))
+        foot = ttk.Frame(win, style="Window.TFrame", padding=(10, 0, 10, 10))
+        foot.pack(fill="x")
+        self.btn = ttk.Button(foot, text=T("Écrire les planches-contact", "Write the contact sheets"),
+                              style="Run.TButton", command=self.run)
+        self.btn.pack(side="left")
+        self.msg = tk.StringVar()
+        ttk.Label(foot, textvariable=self.msg, style="Footer.TLabel").pack(side="left", padx=10)
+        ttk.Button(foot, text=tr("Close"), command=win.destroy).pack(side="right")
+        self.fields()
+
+    def fields(self):
+        """Fields of the batch renaming of the folder, offered for the groups."""
+        folder = self.folder.get().strip()
+        try:
+            name = next(f for f in sorted(os.listdir(folder)) if os.path.splitext(f)[1].lower() in self.gp.IMAGE_EXTS)
+            self.group_cb.configure(values=[""] + list(self.gp.photo_fields(folder, name)))
+        except (OSError, StopIteration):
+            self.group_cb.configure(values=[""])
+
+    def browse(self):
+        """Chooses the folder."""
+        d = filedialog.askdirectory(parent=self.win, initialdir=self.folder.get() or self.app.s["last_dir"] or None)
+        if d:
+            self.folder.set(os.path.normpath(d))
+            self.fields()
+
+    def run(self):
+        """Writes the contact sheets in a thread."""
+        folder = self.folder.get().strip()
+        if not os.path.isdir(folder):
+            self.msg.set(tr("Choose a folder."))
+            return
+        gp = self.gp
+        st = gp.PlateSettings.from_dict(self.app.s.get("plates") or {})
+        try:
+            st.contact_columns, st.raster_dpi = max(1, int(self.columns.get())), max(72, int(self.dpi.get()))
+        except ValueError:
+            self.msg.set(T("Le nombre par rangée et la résolution sont des nombres.",
+                           "The number per row and the resolution are numbers."))
+            return
+        st.page, st.landscape, st.margin_mm, st.gap_mm = self.page.get(), self.landscape.get(), 12.0, 5.0
+        st.title, st.caption, st.group = self.title.get().strip(), self.caption.get().strip(), self.group.get().strip()
+        st.group_new_page, st.order = self.new_page.get(), "name"
+        st.pdf, st.jpeg, st.svg, st.tiff = self.pdf.get(), self.jpeg.get(), self.svg.get(), False
+        self.btn.state(["disabled"])
+        self.msg.set(tr("Working…"))
+
+        def work():
+            try:
+                files, warnings = gp.write_contact_sheets(
+                    folder, st, None, lambda i, n: self.win.after(0, self.msg.set, f"{i} / {n}…"))
+                text = (T(f"{len(files)} fichier(s) écrit(s).", f"{len(files)} file(s) written.") if files
+                        else T("Aucune photographie dans ce dossier.", "No photo in this folder."))
+            except Exception as e:
+                files, text = [], f"{type(e).__name__}: {e}"
+            self.win.after(0, self.done, folder, bool(files), text)
+        threading.Thread(target=work, daemon=True).start()
+
+    def done(self, folder, ok, text):
+        """Contact sheets written: message, folder opened."""
+        self.msg.set(text)
+        self.btn.state(["!disabled"])
+        if ok and not self.app.selftest:
+            os.startfile(os.path.join(folder, self.gp.CONTACT_DIR))
+
+
+class DepositWindow:
+    """Check of a folder before its deposit in an archive (gerbil_tools.deposit): formats, names, metadata,
+    inventory and checksums; nothing is changed in the folder."""
+
+    def __init__(self, app):
+        """The deposit window: folder, formats accepted."""
+        import gerbil_tools as tools
+        self.tools, self.app = tools, app
+        self.win = win = tk.Toplevel(app.root)
+        win.title(T("Contrôle avant versement", "Check before deposit"))
+        win.configure(bg=WINDOW_BG)
+        win.transient(app.root)
+        card = ttk.Frame(win, style="Card.TFrame", padding=14)
+        card.pack(fill="both", expand=True, padx=10, pady=10)
+        first = next((i if os.path.isdir(i) else os.path.dirname(i) for i in app.tree.get_children()), "")
+        self.folder = tk.StringVar(value=first)
+        self.formats = tk.StringVar(value=", ".join(tools.DEPOSIT_FORMATS))
+        ttk.Label(card, text=T("Dossier à verser", "Folder to deposit")).grid(row=0, column=0, sticky="w", pady=3)
+        ttk.Entry(card, textvariable=self.folder, width=56).grid(row=0, column=1, sticky="w", padx=8)
+        ttk.Button(card, text=tr("Browse…"), style="Small.TButton", command=self.browse).grid(row=0, column=2)
+        ttk.Label(card, text=T("Formats acceptés", "Formats accepted")).grid(row=1, column=0, sticky="w", pady=3)
+        e = ttk.Entry(card, textvariable=self.formats, width=56)
+        e.grid(row=1, column=1, sticky="w", padx=8)
+        Tooltip(e, T("Les extensions que le service d'archives accepte, séparées par des virgules. Chaque service a "
+                     "sa liste : adaptez-la à son protocole de versement.",
+                     "The extensions the archive accepts, separated by commas. Each archive has its own list: "
+                     "adapt it to its deposit protocol."))
+        ttk.Label(card, style="Muted.TLabel", justify="left", wraplength=640, text=T(
+            "Pour chaque fichier du dossier et de ses sous-dossiers : format accepté ou non, nom sans espace ni "
+            "accent, règle de nommage du projet, fichier vide, chemin trop long, même contenu présent deux fois. "
+            "Un dossier « deposit_check » reçoit l'inventaire (CSV), les sommes de contrôle SHA-256 "
+            "(checksums.sha256) et un rapport. Rien n'est copié, déplacé ni modifié.",
+            "For every file of the folder and its sub-folders: format accepted or not, name without a space or "
+            "an accent, naming rule of the project, empty file, path too long, same content present twice. A "
+            "'deposit_check' folder receives the inventory (CSV), the SHA-256 checksums (checksums.sha256) and "
+            "a report. Nothing is copied, moved or changed.")).grid(row=2, column=0, columnspan=3, sticky="w", pady=(8, 0))
+        foot = ttk.Frame(win, style="Window.TFrame", padding=(10, 0, 10, 10))
+        foot.pack(fill="x")
+        self.btn = ttk.Button(foot, text=T("Contrôler le dossier", "Check the folder"), style="Run.TButton",
+                              command=self.run)
+        self.btn.pack(side="left")
+        self.msg = tk.StringVar()
+        ttk.Label(foot, textvariable=self.msg, style="Footer.TLabel").pack(side="left", padx=10)
+        ttk.Button(foot, text=tr("Close"), command=win.destroy).pack(side="right")
+
+    def browse(self):
+        """Chooses the folder."""
+        d = filedialog.askdirectory(parent=self.win, initialdir=self.folder.get() or self.app.s["last_dir"] or None)
+        if d:
+            self.folder.set(os.path.normpath(d))
+
+    def run(self):
+        """Checks the folder in a thread (the checksums of large files take time)."""
+        folder = self.folder.get().strip()
+        if not os.path.isdir(folder):
+            self.msg.set(tr("Choose a folder."))
+            return
+        formats = [f for f in self.formats.get().replace(";", ",").split(",") if f.strip()]
+        self.btn.state(["disabled"])
+        self.msg.set(tr("Working…"))
+
+        def work():
+            try:
+                r = self.tools.deposit(folder, None, formats, LANG,
+                                       lambda i, n: self.win.after(0, self.msg.set, f"{i} / {n}…"))
+                text = T(f"{r['files']} fichier(s), {r['problems']} à revoir.",
+                         f"{r['files']} file(s), {r['problems']} to look at.")
+            except Exception as e:
+                r, text = None, f"{type(e).__name__}: {e}"
+            self.win.after(0, self.done, r, text)
+        threading.Thread(target=work, daemon=True).start()
+
+    def done(self, result, text):
+        """Folder checked: message, report opened."""
+        self.msg.set(text)
+        self.btn.state(["!disabled"])
+        if result and not self.app.selftest:
+            os.startfile(os.path.join(result["out_dir"], "deposit_report.txt"))
 
 
 class Mire(tk.Canvas):
@@ -3998,16 +4381,30 @@ class App:
                  "barre d'échelle et dessins, en SVG pour Illustrator ou Inkscape.",
                  "The objects laid out at a chosen scale (1:1, 1:2…), with captions, scale bar and drawings, "
                  "as SVG for Illustrator or Inkscape.", self.plates),
+                ("Planches libres", "Free plates", "Des photographies de terrain ou des orthophotos mises à une "
+                 "échelle commune (1:10, 1:20…), rangées par type : sépultures, structures. L'échelle de chaque "
+                 "photographie se donne par deux clics sur une longueur connue.",
+                 "Field photos or orthophotos brought to a common scale (1:10, 1:20…), sorted by type: graves, "
+                 "structures. The scale of each photo is given by two clicks on a known length.", self.free_plates),
+                ("Planches-contact", "Contact sheets", "Toutes les photographies d'un dossier sur des pages, avec "
+                 "leur nom, par US si on le souhaite : pour le rapport ou le classement.",
+                 "Every photo of a folder on pages, with its name, by US if wanted: for the report or the "
+                 "filing.", lambda: ContactWindow(self)),
                 ("Inventaire", "Inventory", "Un tableau CSV des fichiers d'un dossier (photographies, dessins, "
                  "modèles 3D) et des informations lues dans leurs noms.",
                  "A CSV table of the files of a folder (photos, drawings, 3D models) and of the information "
                  "read from their names.", lambda: InventoryWindow(self)),
                 ("Vignettes", "Thumbnails", "Des copies réduites pour les bases de données, fond transparent ou "
                  "blanc.", "Reduced copies for databases, transparent or white background.",
-                 lambda: ThumbnailsWindow(self)))):
+                 lambda: ThumbnailsWindow(self)),
+                ("Versement", "Deposit", "Le contrôle d'un dossier avant son versement : formats, noms, "
+                 "métadonnées, inventaire et sommes de contrôle. Rien n'est modifié.",
+                 "The check of a folder before its deposit: formats, names, metadata, inventory and "
+                 "checksums. Nothing is changed.", lambda: DepositWindow(self)))):
             t = tk.Frame(tiles, bg=CARD_BG, highlightthickness=1, highlightbackground=LINE, padx=14, pady=12)
-            t.grid(row=0, column=k, sticky="new", padx=(0 if k == 0 else 12, 0))
-            tiles.columnconfigure(k, weight=1, uniform="tiles")
+            t.grid(row=k // 3, column=k % 3, sticky="new", padx=(0 if k % 3 == 0 else 12, 0),
+                   pady=(0 if k < 3 else 12, 0))
+            tiles.columnconfigure(k % 3, weight=1, uniform="tiles")
             tk.Label(t, text=f"0{k + 1}", bg=CARD_BG, fg=TEAL, font=(FONT_MONO, 10, "bold")).pack(anchor="w")
             tk.Label(t, text=T(fr, en), bg=CARD_BG, fg=VIOLET, font=(FONT_DISPLAY, 18, "bold")).pack(anchor="w")
             tk.Label(t, text=T(dfr, den), bg=CARD_BG, fg=MUTED, font=(FONT_SERIF, 10), justify="left",
@@ -4016,8 +4413,10 @@ class App:
         opn = ttk.Button(self.canvas, text=T("Ouvrir les résultats", "Open results"), style="Teal.TButton",
                          command=self.open_results)
         self._page(T("Étape 05", "Step 05"), T("Publication", "Publication"),
-                   T("Ce que l'on fait des objets détourés : planches, inventaire, vignettes.",
-                     "What to do with the outlined objects: plates, inventory, thumbnails."),
+                   T("Ce que l'on fait des objets détourés et des photographies : planches, planches-contact, "
+                     "inventaire, vignettes, contrôle avant versement.",
+                     "What to do with the outlined objects and the photos: plates, contact sheets, inventory, "
+                     "thumbnails, check before a deposit."),
                    left, None, [opn], None)
 
     # ---------------------------------------------------------------- settings
@@ -4085,7 +4484,20 @@ class App:
             else:
                 lbl = tk.Label(parent, text=text, bg=CARD_BG, fg=TEXT, font=(FONT_SERIF, 10), anchor="w")
                 lbl.grid(row=r, column=0, sticky="w", pady=2, padx=(0, 10))
-                if kind == "choice":
+                if kind == "choice" and key in CHOICE_TEXT:
+                    # shown in plain words; the setting itself keeps the value of the command line
+                    shown = tk.StringVar(value=choice_text(key, self.v[key].get()))
+                    w = ttk.Combobox(parent, textvariable=shown, values=[choice_text(key, x) for x in extra],
+                                     state="readonly", width=22)
+
+                    def picked(_=None, key=key, shown=shown, extra=extra):
+                        self.v[key].set(next((x for x in extra if choice_text(key, x) == shown.get()), extra[0]))
+                        (self._ai_ticked if key == "cutout" else self._sync)()
+                    w.bind("<<ComboboxSelected>>", picked)
+                    self.v[key].trace_add("write", lambda *_, key=key, shown=shown: shown.set(
+                        choice_text(key, self.v[key].get())))
+                    w.shown = shown                         # (kept alive with the widget)
+                elif kind == "choice":
                     w = ttk.Combobox(parent, textvariable=self.v[key], values=extra, state="readonly", width=12)
                     w.bind("<<ComboboxSelected>>", (lambda _: self._ai_ticked()) if key == "cutout"
                            else (lambda _: self._sync()))
@@ -4138,9 +4550,10 @@ class App:
                 same = False
             if not same:
                 kind, label, _ = OPTION_SPECS[key]
-                val = self.v[key].get()
+                raw = self.v[key].get()
+                val = choice_text(key, raw)
                 out.append(T(*label) + ("" if kind == "check" else f" : {val}" if LANG == "fr" else f": {val}")
-                           + (T(" (non)", " (off)") if kind == "check" and not val else ""))
+                           + (T(" (non)", " (off)") if kind == "check" and not raw else ""))
         self.changed_var.set(", ".join(out) if out else T("Rien : réglages par défaut.", "Nothing: default settings."))
 
     def reset_options(self):
@@ -4199,7 +4612,7 @@ class App:
 
     def _ai_ticked(self):
         """AI ticked, or cut-out by the AI chosen: offers to install onnxruntime when missing."""
-        if (self.v["ai"].get() or self.v["cutout"].get() == "ai") and not self.ai_ok:
+        if (self.v["ai"].get() or self.v["cutout"].get() != "colour") and not self.ai_ok:
             self.v["ai"].set(False)
             self.v["cutout"].set("colour")
             if FROZEN:
@@ -4245,7 +4658,9 @@ class App:
             self.w["original_layer"].state(["!disabled"] if on("psd") else ["disabled"])
         if live("scale_cm"):
             self.w["scale_cm"].state(["!disabled", "readonly"] if on("scale") else ["disabled"])
-        by_ai = self.v["cutout"].get() == "ai"         # cut-out drawn from the AI: always BiRefNet, no second opinion
+        if live("white"):                              # the white reference only matters when colours are corrected
+            self.w["white"].state(["!disabled", "readonly"] if self.v["colour"].get() != "none" else ["disabled"])
+        by_ai = self.v["cutout"].get() != "colour"     # cut-out drawn from the AI: its own network, no second opinion
         if live("ai"):
             self.w["ai"].state(["disabled"] if by_ai else ["!disabled"])
         if live("ai_model"):
@@ -4284,7 +4699,7 @@ class App:
             badge.pack_forget()
             self.step_sub[3].set(T("rien à revoir", "nothing to look at") if self.rows else T("après le traitement",
                                                                                           "after the processing"))
-        self.step_sub[4].set(T("planches, inventaire, vignettes", "plates, inventory, thumbnails"))
+        self.step_sub[4].set(T("planches, inventaire, versement", "plates, inventory, deposit"))
         self.review_hint.set(T(f"{bad} photographie(s) à revoir", f"{bad} photo(s) to look at") if bad else "")
         self.next_hint.set(T(f"Ensuite : vérification de {bad} photographie(s)", f"Next: review of {bad} photo(s)")
                            if bad and self.proc is None else "")
@@ -4592,8 +5007,12 @@ class App:
             a += ["--gap-cm", f"{s['gap_cm']:g}"]
         if s["remove_putty"]:
             a.append("--remove-putty")
-        if s["cutout"] == "ai":
-            a += ["--cutout", "ai"]
+        if s["colour"] != "none":
+            a += ["--colour", s["colour"]]
+            if s["white"] != "chart":
+                a += ["--white", s["white"]]
+        if s["cutout"] != "colour":
+            a += ["--cutout", s["cutout"]]
             if s["ai_device"] != "auto":
                 a += ["--ai-device", s["ai_device"]]
         elif s["ai"]:
@@ -4905,6 +5324,21 @@ class App:
             return
         try:
             PlatesWindow(self, os.path.normpath(d))
+        except ImportError:
+            messagebox.showwarning("Gerbil", T("Les planches ont besoin de Pillow : installez d'abord les paquets "
+                                               "manquants.", "The plates need Pillow: install the missing "
+                                               "packages first."))
+
+    def free_plates(self):
+        """Free plates window over a folder of photos (field photos, orthophotos) chosen by the user."""
+        first = next((i if os.path.isdir(i) else os.path.dirname(i) for i in self.tree.get_children()), "")
+        d = filedialog.askdirectory(title=T("Dossier des photographies à mettre en planches",
+                                            "Folder of the photos to lay out on plates"),
+                                    initialdir=first or self.s["last_dir"] or None)
+        if not d:
+            return
+        try:
+            PlatesWindow(self, os.path.normpath(d), images=True)
         except ImportError:
             messagebox.showwarning("Gerbil", T("Les planches ont besoin de Pillow : installez d'abord les paquets "
                                                "manquants.", "The plates need Pillow: install the missing "

@@ -15,13 +15,20 @@ PowerShell line that does the same (without the image information) is given too,
 Thumbnails: a reduced copy of each image (PNG, transparency kept, or JPEG on white), the transparent
 margin of the outlined objects cut off.
 
+Deposit: the check of a folder before it is handed over to an archive - formats accepted, names without
+spaces or accents, naming rule of the project, empty files, files present twice - with an inventory
+(CSV), the SHA-256 checksum of every file and a report. Nothing is copied, moved or changed.
+
 Usage:
   py -3 gerbil_tools.py inventory FOLDER [-o inventory.csv] [--template "{site}_{us}_{number}"]
   py -3 gerbil_tools.py thumbnails FOLDER [--size 512] [--format png|jpg] [--only-outlined]
+  py -3 gerbil_tools.py deposit FOLDER [--formats "tif, jpg, pdf"] [--lang fr]
 """
 import argparse
 import csv
 import datetime
+import hashlib
+import json
 import os
 import re
 import sys
@@ -186,9 +193,167 @@ def thumbnails(folders, out_dir=None, size=512, fmt="png", only_outlined=False, 
     return written
 
 
+# --------------------------------------------------------------------------
+# Deposit: check of a folder before it goes to an archive
+# --------------------------------------------------------------------------
+
+DEPOSIT_DIR = "deposit_check"       # written inside the folder checked
+DEPOSIT_FORMATS = ("tif", "tiff", "jpg", "jpeg", "png", "dng", "pdf", "svg", "csv", "txt", "xml", "json", "odt",
+                   "ods", "ply", "obj")   # open, documented formats usually asked for; the list can be changed
+DEPOSIT_SKIP = {"gerbil_review", "gerbil_edits", DEPOSIT_DIR}     # Gerbil's working data: not deposited
+DEPOSIT_NAME = re.compile(r"^[A-Za-z0-9_.\-]+$")                  # no space, accent or special character
+DEPOSIT_PATH = 240                  # characters: longer paths break on Windows and on many archives
+DEPOSIT_TEXT = {
+    "title": ("Contrôle avant versement", "Check before deposit"),
+    "folder": ("Dossier", "Folder"), "date": ("Date", "Date"),
+    "files": ("fichier(s)", "file(s)"), "size": ("taille totale", "total size"),
+    "ok": ("fichier(s) sans remarque", "file(s) without a remark"),
+    "bad": ("fichier(s) à revoir", "file(s) to look at"),
+    "formats": ("Formats acceptés", "Formats accepted"),
+    "by_format": ("Fichiers par format", "Files by format"),
+    "problems": ("Remarques", "Remarks"),
+    "metadata": ("image(s) sans métadonnées XMP ou IPTC", "image(s) without XMP or IPTC metadata"),
+    "skipped": ("Dossiers de travail de Gerbil laissés de côté", "Gerbil's working folders left out"),
+    "written": ("Fichiers écrits", "Files written"),
+    "nothing": ("Rien n'a été copié, déplacé ni modifié.", "Nothing was copied, moved or changed."),
+    "format": ("format hors de la liste acceptée", "format outside the accepted list"),
+    "name": ("nom avec espace, accent ou caractère spécial", "name with a space, an accent or a special character"),
+    "rule": ("nom hors de la règle de nommage du projet", "name off the naming rule of the project"),
+    "empty": ("fichier vide", "empty file"),
+    "long": ("chemin de plus de 240 caractères", "path longer than 240 characters"),
+    "twice": ("même contenu que", "same content as"),
+}
+
+
+def sha256_of(path):
+    """SHA-256 checksum of a file (read by blocks of 1 MB)."""
+    h = hashlib.sha256()
+    with open(path, "rb") as fh:
+        while block := fh.read(1 << 20):
+            h.update(block)
+    return h.hexdigest()
+
+
+def has_metadata(path):
+    """True when an image holds an XMP packet or IPTC data (looked for in its first and last megabyte)."""
+    try:
+        with open(path, "rb") as fh:
+            data = fh.read(1 << 20)
+            size = os.path.getsize(path)
+            if size > 2 << 20:
+                fh.seek(size - (1 << 20))
+                data += fh.read()
+    except OSError:
+        return False
+    return b"<x:xmpmeta" in data or b"http://ns.adobe.com/xap/1.0/" in data or b"Photoshop 3.0\x008BIM" in data
+
+
+def project_rule(folder, cache):
+    """Naming rule of the batch renaming of a folder (gerbil_project.json), compiled as PowerShell reads
+    it (case-insensitive, .NET named groups), or None."""
+    if folder not in cache:
+        cache[folder] = None
+        try:
+            with open(os.path.join(folder, "gerbil_project.json"), encoding="utf-8") as fh:
+                rule = (json.load(fh).get("rule") or "").strip()
+            if rule:
+                rule = re.sub(r"\(\?<(?![=!])", "(?P<", rule)
+                cache[folder] = re.compile(rule[5:]) if rule.startswith("(?-i)") else re.compile(rule, re.IGNORECASE)
+        except (OSError, ValueError, AttributeError, re.error):
+            pass
+    return cache[folder]
+
+
+def deposit(folder, out_dir=None, formats=DEPOSIT_FORMATS, lang="en", progress=None):
+    """Checks a folder before its deposit in an archive, without changing anything in it. For every
+    file (sub-folders included, Gerbil's working folders left out): its format against the accepted
+    list, its name (no space, accent or special character; the naming rule of the project of its
+    folder, for photos), an empty file, a path too long, the same content present twice (SHA-256).
+    Writes in out_dir (default: FOLDER/deposit_check) deposit_inventory.csv (one row per file, with
+    its size, date, checksum, metadata and remarks), checksums.sha256 (the format of sha256sum, to
+    check the deposit after its transfer) and deposit_report.txt (in French or English: lang).
+    Returns {"files", "bytes", "problems" (files with a remark), "out_dir"}."""
+    t = lambda key: DEPOSIT_TEXT[key][0 if lang == "fr" else 1]
+    folder = os.path.abspath(folder)
+    out_dir = os.path.abspath(out_dir or os.path.join(folder, DEPOSIT_DIR))
+    accepted = {str(f).strip().lower().lstrip(".") for f in formats if str(f).strip()}
+    files = []
+    for root, dirs, names in os.walk(folder):
+        dirs[:] = sorted(d for d in dirs if d not in DEPOSIT_SKIP and os.path.abspath(os.path.join(root, d)) != out_dir)
+        files += [os.path.join(root, n) for n in sorted(names)]
+    rows, seen, rules, by_format, no_meta, total = [], {}, {}, {}, 0, 0
+    for i, f in enumerate(files, 1):
+        rel = os.path.relpath(f, folder).replace(os.sep, "/")
+        stem, ext = os.path.splitext(os.path.basename(f))
+        ext = ext.lower().lstrip(".")
+        st = os.stat(f)
+        total += st.st_size
+        by_format[ext or "-"] = by_format.get(ext or "-", 0) + 1
+        problems = []
+        if ext not in accepted:
+            problems.append(t("format") + f" (.{ext})")
+        if not DEPOSIT_NAME.match(os.path.basename(f)):
+            problems.append(t("name"))
+        kind = kind_of(f)
+        if kind == "photos":
+            rule = project_rule(os.path.dirname(f), rules) or project_rule(os.path.dirname(os.path.dirname(f)), rules)
+            if rule and not rule.search(re.sub(GERBIL_SUFFIX, "", stem, count=1)):
+                problems.append(t("rule"))
+        if st.st_size == 0:
+            problems.append(t("empty"))
+        if len(f) > DEPOSIT_PATH:
+            problems.append(t("long"))
+        digest = sha256_of(f)
+        if st.st_size and digest in seen:
+            problems.append(f"{t('twice')} {seen[digest]}")
+        seen.setdefault(digest, rel)
+        meta = ""
+        if kind == "photos" and ext in ("jpg", "jpeg", "tif", "tiff", "png", "dng"):
+            meta = "yes" if has_metadata(f) else "no"
+            no_meta += meta == "no"
+        rows.append({"file": rel, "format": ext, "size_bytes": st.st_size,
+                     "modified": datetime.datetime.fromtimestamp(st.st_mtime).strftime("%Y-%m-%d %H:%M"),
+                     "sha256": digest, "metadata": meta, "remarks": " ; ".join(problems)})
+        if progress:
+            progress(i, len(files))
+    os.makedirs(out_dir, exist_ok=True)
+    with open(os.path.join(out_dir, "deposit_inventory.csv"), "w", encoding="utf-8-sig", newline="") as fh:
+        wr = csv.DictWriter(fh, ["file", "format", "size_bytes", "modified", "sha256", "metadata", "remarks"], delimiter=";")
+        wr.writeheader()
+        wr.writerows(rows)
+    with open(os.path.join(out_dir, "checksums.sha256"), "w", encoding="utf-8", newline="\n") as fh:
+        fh.writelines(f"{r['sha256']} *{r['file']}\n" for r in rows)
+    bad = [r for r in rows if r["remarks"]]
+    counts = {}
+    for r in bad:
+        for remark in r["remarks"].split(" ; "):
+            key = re.sub(r" \(\.\w*\)$", "", remark)
+            key = t("twice") if key.startswith(t("twice")) else key
+            counts[key] = counts.get(key, 0) + 1
+    lines = [t("title"), "=" * len(t("title")), f"{t('folder')} : {folder}",
+             f"{t('date')} : {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}", "",
+             f"{len(rows)} {t('files')}, {t('size')} {total / 1e6:.1f} Mo" if lang == "fr"
+             else f"{len(rows)} {t('files')}, {t('size')} {total / 1e6:.1f} MB",
+             f"{len(rows) - len(bad)} {t('ok')}", f"{len(bad)} {t('bad')}", "",
+             f"{t('formats')} : {', '.join(sorted(accepted))}", "",
+             f"{t('by_format')} :"] + [f"  .{k} : {v}" for k, v in sorted(by_format.items())] + ["", f"{t('problems')} :"]
+    lines += [f"  {v} x {k}" for k, v in sorted(counts.items(), key=lambda kv: -kv[1])] or ["  -"]
+    if no_meta:
+        lines += ["", f"{no_meta} {t('metadata')}"]
+    lines += ["", f"{t('skipped')} : gerbil_review, gerbil_edits", "",
+              f"{t('written')} : deposit_inventory.csv, checksums.sha256, deposit_report.txt", t("nothing")]
+    if bad:
+        lines += ["", f"{t('bad')} :"] + [f"  {r['file']} : {r['remarks']}" for r in bad[:200]]
+        if len(bad) > 200:
+            lines.append(f"  … (+{len(bad) - 200}, deposit_inventory.csv)")
+    with open(os.path.join(out_dir, "deposit_report.txt"), "w", encoding="utf-8-sig", newline="\r\n") as fh:
+        fh.write("\n".join(lines) + "\n")
+    return {"files": len(rows), "bytes": total, "problems": len(bad), "out_dir": out_dir}
+
+
 def main(argv=None):
-    """Command line: "inventory" or "thumbnails"."""
-    p = argparse.ArgumentParser(description="Gerbil tools: CSV inventory, thumbnails.")
+    """Command line: "inventory", "thumbnails" or "deposit"."""
+    p = argparse.ArgumentParser(description="Gerbil tools: CSV inventory, thumbnails, check before a deposit.")
     sub = p.add_subparsers(dest="cmd", required=True)
     a = sub.add_parser("inventory", help="inventory of a folder as CSV")
     a.add_argument("folders", nargs="+")
@@ -203,7 +368,16 @@ def main(argv=None):
     t.add_argument("--size", type=int, default=512)
     t.add_argument("--format", choices=["png", "jpg"], default="png")
     t.add_argument("--only-outlined", action="store_true", help="only the _outlined.tif files")
+    d = sub.add_parser("deposit", help="check of a folder before its deposit in an archive")
+    d.add_argument("folder")
+    d.add_argument("-o", "--output", help=f"where the inventory, checksums and report go (default: FOLDER/{DEPOSIT_DIR})")
+    d.add_argument("--formats", default=", ".join(DEPOSIT_FORMATS), help="formats accepted (comma separated)")
+    d.add_argument("--lang", choices=["en", "fr"], default="en", help="language of the report")
     a = p.parse_args(argv)
+    if a.cmd == "deposit":
+        r = deposit(a.folder, a.output, a.formats.split(","), a.lang)
+        print(f"{r['files']} file(s), {r['bytes'] / 1e6:.1f} MB, {r['problems']} to look at -> {r['out_dir']}")
+        return 0
     if a.cmd == "inventory":
         kinds = [k.strip() for k in a.kinds.split(",") if k.strip() in KINDS]
         n, cols = inventory(a.folders, a.output, kinds, a.template, not a.no_image_info)

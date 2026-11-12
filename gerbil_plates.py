@@ -34,9 +34,10 @@ import re
 import sys
 from dataclasses import asdict, dataclass, field, fields as dc_fields, replace
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageOps
 
-PAGES = {"A4": (210.0, 297.0), "A3": (297.0, 420.0), "A5": (148.0, 210.0), "Letter": (215.9, 279.4)}
+PAGES = {"A4": (210.0, 297.0), "A3": (297.0, 420.0), "A2": (420.0, 594.0), "A5": (148.0, 210.0),
+         "Letter": (215.9, 279.4)}
 PT = 25.4 / 72.0                      # one typographic point in mm
 REPORT = "outlined_report.csv"
 TIFF_SUFFIXES = ("_outlined.tif", "_outlined_to_be_verified.tif")
@@ -68,7 +69,7 @@ class ScaleBar:
     line: str = "#000000"
     labels: str = "ends"               # "ends" (0 and the end), "all" (every segment), "none"
     label_position: str = "below"      # "below" or "above"
-    unit: str = "cm"                   # written after the last number ("mm": numbers in millimetres)
+    unit: str = "cm"                   # written after the last number ("mm", "m": numbers in that unit)
     font: str = "Arial"
     font_pt: float = 7.0
     bold: bool = False
@@ -103,7 +104,10 @@ class PlateSettings:
     svg: bool = True                   # files written: SVG (layers, text and drawings kept as vectors),
     tiff: bool = False                 # TIFF (LZW, lossless) and / or
     jpeg: bool = False                 # JPEG, the whole page as one image at raster_dpi
-    raster_dpi: int = 600              # resolution of the TIFF and JPEG pages
+    pdf: bool = False                  # all the pages in one PDF file (images at raster_dpi)
+    raster_dpi: int = 600              # resolution of the TIFF, JPEG and PDF pages
+    credit: str = ""                   # credit of the photos, written in the list of figures (figures.csv)
+    contact_columns: int = 4           # contact sheets: photos per row
     include_doubtful: bool = False     # also the _to_be_verified files
     fit_large: bool = True             # an object too large for the page at 1:ratio goes to 1:2, 1:3...
     object_ratios: dict = field(default_factory=dict)   # output name -> its own scale (1:r), chosen by hand
@@ -157,6 +161,7 @@ class Item:
     doubtful: bool = False
     bbox: tuple = None                 # the object in the TIFF (pixels): its margins are left out
     drawing: dict = None               # drawing of the object (attach_drawings): svg file, real size
+    photo: bool = False                # a whole photo (free plates): shown upright, as the camera says
 
 
 def natural_key(text):
@@ -201,12 +206,102 @@ def collect(folder, include_doubtful=False):
     return items
 
 
+IMAGE_EXTS = (".jpg", ".jpeg", ".tif", ".tiff", ".png")
+MANUAL_SCALES = "gerbil_scales.json"      # next to the photos: scales given by hand (two points), as gerbil.py
+PROJECT_FILE = "gerbil_project.json"      # next to the photos: fields of the batch renaming
+WORLD_FILES = {".jpg": (".jgw", ".jpgw"), ".jpeg": (".jgw", ".jpegw"), ".tif": (".tfw", ".tifw"),
+               ".tiff": (".tfw", ".tiffw"), ".png": (".pgw", ".pngw")}
+
+
+def photo_size(path):
+    """Width and height (pixels) of a photo as it is shown upright (orientation of the camera)."""
+    with Image.open(path) as im:
+        w, h = im.size
+        return (h, w) if im.getexif().get(0x0112) in (5, 6, 7, 8) else (w, h)
+
+
+def world_file_px_cm(path):
+    """Pixels per centimetre of a georeferenced image (orthophoto), from its world file (photo.jgw,
+    .tfw, .pgw or .wld: the first line is the size of a pixel, taken in metres), or None."""
+    stem, ext = os.path.splitext(path)
+    for e in WORLD_FILES.get(ext.lower(), ()) + (".wld",):
+        for name in (stem + e, stem + e.upper()):
+            try:
+                with open(name, encoding="ascii", errors="ignore") as fh:
+                    size = abs(float(fh.readline().strip().replace(",", ".")))
+                if size > 0:
+                    return 1.0 / (size * 100.0)
+            except (OSError, ValueError):
+                continue
+    return None
+
+
+def manual_px_cm(entry):
+    """Pixels per centimetre of a scale given by hand ({"p1", "p2", "cm"}: two points of the upright
+    photo and the length between them), or None."""
+    try:
+        p1, p2, cm = [float(v) for v in entry["p1"]], [float(v) for v in entry["p2"]], float(entry["cm"])
+    except (TypeError, KeyError, ValueError):
+        return None
+    d = math.dist(p1, p2) if len(p1) == 2 and len(p2) == 2 else 0.0
+    return d / cm if cm > 0 and d >= 10 else None
+
+
+def photo_fields(folder, name):
+    """Fields of a photo (batch renaming of its folder, gerbil_project.json): {label: value}, its own
+    values replacing the common ones. {} when the folder has no project."""
+    try:
+        with open(os.path.join(folder, PROJECT_FILE), encoding="utf-8") as fh:
+            pr = json.load(fh)
+        labels = {f["key"]: f.get("label") or f["key"] for f in pr.get("fields", [])}
+        vals = {k: str(v).strip() for k, v in (pr.get("common") or {}).items() if str(v).strip()}
+        vals.update({k: str(v).strip() for k, v in ((pr.get("photos") or {}).get(name) or {}).items()
+                     if str(v).strip()})
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
+        return {}
+    return {label: vals.get(key, "") for key, label in labels.items()}
+
+
+def collect_images(folder):
+    """Free plates: the photos of a folder (field photos, orthophotos; JPEG, TIFF, PNG; Gerbil's own
+    results left out) as items, each at its real size. The scale of a photo is the one given by hand
+    (two points clicked and the length between them, gerbil_scales.json next to the photos), else the
+    one of its world file (orthophoto). Their fields (captions, order, groups) are those of the batch
+    renaming of the folder. Returns (items, names of the photos without a scale)."""
+    try:
+        with open(os.path.join(folder, MANUAL_SCALES), encoding="utf-8") as fh:
+            manual = json.load(fh)
+    except (OSError, ValueError):
+        manual = {}
+    if not isinstance(manual, dict):
+        manual = {}
+    items, unscaled = [], []
+    for n in sorted(os.listdir(folder), key=natural_key):
+        stem, ext = os.path.splitext(n)
+        if ext.lower() not in IMAGE_EXTS or re.search(GERBIL_SUFFIX, stem, re.I).group(0):
+            continue
+        path = os.path.join(folder, n)
+        px_cm = manual_px_cm(manual.get(n)) or world_file_px_cm(path)
+        if not px_cm:
+            unscaled.append(n)
+            continue
+        try:
+            w, h = photo_size(path)
+        except OSError:
+            continue
+        items.append(Item(stem, path, w / px_cm, h / px_cm, dict({"file": n}, **photo_fields(folder, n)),
+                          photo=True))
+    return items, unscaled
+
+
 def field_value(item, key):
     """Value of a column of the report for the object: its exact name, else the same letters and digits
     (case, spaces and underscores aside), else a field of the batch renaming ending so ("number" for
     "Object number")."""
     if key in ("name", "output_name"):
         return item.name
+    if key not in item.values and COLUMN_ALIASES.get(key) in item.values:
+        key = COLUMN_ALIASES[key]          # size columns: ceramic_... up to version 2.1, object_... since
     if key in item.values:
         return str(item.values.get(key) or "")
     k = re.sub(r"[^0-9a-z]", "", key.lower())
@@ -220,6 +315,8 @@ def field_value(item, key):
 
 
 STANDARD_COLUMNS = 19                  # columns of the report written by Gerbil itself (the fields follow)
+COLUMN_ALIASES = {"ceramic_width_cm": "object_width_cm", "ceramic_height_cm": "object_height_cm",
+                  "object_width_cm": "ceramic_width_cm", "object_height_cm": "ceramic_height_cm"}
 
 
 def caption_text(template, item):
@@ -436,7 +533,7 @@ def render(drawing, px_per_mm, hidden=(), show_hidden=False, final=False):
 # Scale bar
 # --------------------------------------------------------------------------
 
-NICE_LENGTHS = (1, 2, 5, 10, 20, 50, 100)
+NICE_LENGTHS = (1, 2, 5, 10, 20, 50, 100, 200, 500, 1000)    # cm (the last ones: graves, structures)
 
 
 def bar_geometry(bar, ratio, max_mm):
@@ -449,7 +546,7 @@ def bar_geometry(bar, ratio, max_mm):
     n = bar.segments
     if n <= 0:
         n = int(round(length)) if length <= 10 and abs(length - round(length)) < 1e-6 else (
-            4 if length in (20, 100) else 5)
+            4 if length in (20, 100, 200) else 5)
     return float(length), max(1, int(n))
 
 
@@ -526,7 +623,7 @@ def draw_bar(dr, bar, ratio, x0, y0, max_mm, layer="Scale bar"):
         if bar.labels == "all" and sub:
             places = sorted(set(edges) | {sub[-1]})
         for p in places:
-            value = p * ratio / 10.0 * (10.0 if bar.unit.strip() == "mm" else 1.0)
+            value = p * ratio / 10.0 * {"mm": 10.0, "m": 0.01}.get(bar.unit.strip(), 1.0)
             text = fmt(value) + (f" {bar.unit}" if p == places[-1] and bar.unit else "")
             # the unit does not shift the number: the number stays centred on its tick
             if p == places[-1] and bar.unit:
@@ -702,7 +799,7 @@ def sort_items(items, s):
     return sorted(items, key=lambda it: [natural_key(field_value(it, k)) for k in keys] + [natural_key(it.name)])
 
 
-RATIOS = (1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10, 15, 20)   # usual plate scales (1:r)
+RATIOS = (1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10, 15, 20, 25, 40, 50, 100)   # usual plate scales (1:r)
 
 
 def page_room(s):
@@ -885,6 +982,8 @@ def layout_one(items, s, ratio_of=None, bars=1):
 def load_image(item, w_mm, h_mm, dpi):
     """The object image at `dpi` on the paper (never enlarged)."""
     with Image.open(item.path) as im:
+        if item.photo:
+            im = ImageOps.exif_transpose(im)
         im = im.convert("RGBA")
         if item.bbox:
             im = im.crop(item.bbox)
@@ -990,27 +1089,30 @@ LAYER_NAMES = {"Objects": "Objects", "Drawings": "Drawings", "Captions": "Captio
                MEASURES: "Measurements (guides)"}
 
 
-def write_plates(folder, s, out_dir=None, progress=None):
-    """Writes plate_01.svg, plate_02.svg... and / or the same pages as TIFF and JPEG images (settings svg,
-    tiff, jpeg; SVG when none is chosen). Returns (list of files, warnings)."""
-    items = collect(folder, s.include_doubtful)
-    if not items:
-        return [], ["no outlined object with a real size in this folder"]
-    pages, warnings = layout(items, s)
-    out_dir = out_dir or os.path.join(folder, "plates")
-    os.makedirs(out_dir, exist_ok=True)
-    files = []
-    names = plate_file_names(s, pages)
-    for i, page in enumerate(pages, 1):
+def pdf_name(s, default="plates"):
+    """Name of the PDF holding all the pages: the template of the file names without its page number
+    ("QSR25_pl{page}" -> QSR25_pl.pdf), `default` when nothing is left of it."""
+    t = re.sub(r"\{\w+\}", "", s.file_name or "")
+    t = "".join("_" if c in BAD_CHARS or ord(c) < 32 else c for c in t).strip(" ._-")
+    return (t if t and t != "plate" else default) + ".pdf"
+
+
+def save_pages(drawings, names, out_dir, s, progress=None, pdf=None):
+    """Writes pages: `drawings` gives, for each page, a function dpi -> Drawing; `names` their file names
+    (.svg). Each page as SVG, TIFF and / or JPEG (settings svg, tiff, jpeg; SVG when nothing is chosen),
+    and all of them in one PDF (setting pdf; file `pdf`), the pages as images at raster_dpi. Returns
+    the files written."""
+    files, dpi = [], max(72, int(s.raster_dpi))
+    pdf_path = os.path.join(out_dir, pdf or pdf_name(s))
+    for i, (make, name) in enumerate(zip(drawings, names), 1):
         if progress:
-            progress(i - 1, len(pages))
-        path = os.path.join(out_dir, names[i - 1])
-        if s.svg or not (s.tiff or s.jpeg):
-            write_svg(page_drawing(s, page, i, len(pages)), path, LAYER_NAMES)
+            progress(i - 1, len(names))
+        path = os.path.join(out_dir, name)
+        if s.svg or not (s.tiff or s.jpeg or s.pdf):
+            write_svg(make(None), path, LAYER_NAMES)
             files.append(path)
-        if s.tiff or s.jpeg:                    # the whole page as one image, on white
-            dpi = max(72, int(s.raster_dpi))
-            image = render(page_drawing(s, page, i, len(pages), dpi=dpi), dpi / 25.4, final=True)
+        if s.tiff or s.jpeg or s.pdf:           # the whole page as one image, on white
+            image = render(make(dpi), dpi / 25.4, final=True)
             stem = os.path.splitext(path)[0]
             if s.tiff:
                 image.save(stem + ".tif", compression="tiff_lzw", dpi=(dpi, dpi))
@@ -1018,9 +1120,148 @@ def write_plates(folder, s, out_dir=None, progress=None):
             if s.jpeg:
                 image.save(stem + ".jpg", quality=95, subsampling=0, dpi=(dpi, dpi))
                 files.append(stem + ".jpg")
+            if s.pdf:                           # (one page after the other: never all in memory)
+                image.save(pdf_path, "PDF", resolution=float(dpi), quality=92, append=i > 1)
+                if i == 1:
+                    files.append(pdf_path)
             del image
     if progress:
-        progress(len(pages), len(pages))
+        progress(len(names), len(names))
+    return files
+
+
+def write_figures(out_dir, s, pages, names):
+    """figures.csv: the list of figures of a report, one row per plate - number, file, title, caption
+    (what the plate shows, from the captions of its objects), scale, credit, group. Opens in Excel
+    (";" separator), to paste into the report."""
+    path = os.path.join(out_dir, "figures.csv")
+    with open(path, "w", encoding="utf-8-sig", newline="") as fh:
+        wr = csv.writer(fh, delimiter=";")
+        wr.writerow(["figure", "file", "title", "caption", "scale", "credit", "group"])
+        for i, ((group, placed, *rest), name) in enumerate(zip(pages, names), 1):
+            ratio = rest[0] if rest else s.ratio
+            scales = sorted({p.ratio for p in placed}) if s.mix_scales and placed else [ratio]
+            wr.writerow([i, os.path.splitext(name)[0], plate_text(s.title, i, len(pages), group, scale=ratio),
+                         ", ".join(p.caption or p.item.name for p in placed),
+                         ", ".join(f"1:{fmt(r)}" for r in scales), s.credit, group or ""])
+    return path
+
+
+CONTACT_DIR = "contact_sheets"
+
+
+def write_contact_sheets(folder, s, out_dir=None, progress=None):
+    """Contact sheets: every photo of a folder (JPEG, TIFF, PNG; Gerbil's own results left out) on pages,
+    s.contact_columns per row, each fitted in its cell (not to scale) with its caption (s.caption:
+    {name} = file name without extension, or fields of the batch renaming of the folder) - by group
+    (s.group, e.g. the US) when asked, each group starting a row or a page. Page, margins, title,
+    fonts and files written (SVG, TIFF, JPEG, PDF) as for the plates. Returns (files, warnings)."""
+    photos = []
+    for n in sorted(os.listdir(folder), key=natural_key):
+        stem, ext = os.path.splitext(n)
+        if ext.lower() in IMAGE_EXTS and not re.search(GERBIL_SUFFIX, stem, re.I).group(0):
+            photos.append(Item(stem, os.path.join(folder, n), 0.0, 0.0, dict({"file": n}, **photo_fields(folder, n)),
+                               photo=True))
+    if not photos:
+        return [], ["no photo in this folder"]
+    photos = sort_items(photos, s)
+    W, H = s.page_size()
+    m, gap = s.margin_mm, s.gap_mm
+    cols = max(1, int(s.contact_columns))
+    cell_w = (W - 2 * m - gap * (cols - 1)) / cols
+    cap_h = s.caption_pt * PT * 1.6 if s.caption else 0.0
+    cell_h = cell_w * 0.75                              # room of a 4:3 photo
+    title_h = s.title_pt * PT * 1.8 if s.title else 0.0
+    rows_per_page = max(1, int((H - 2 * m - title_h + gap) // (cell_h + cap_h + gap)))
+    pages, rows, row, group = [], [], [], None           # a page is (group, rows of photos)
+
+    def flush_row():
+        nonlocal row
+        if row:
+            rows.append(row)
+        row = []
+
+    def flush_page(g):
+        nonlocal rows
+        flush_row()
+        while rows:
+            pages.append((g, rows[:rows_per_page]))
+            rows = rows[rows_per_page:]
+
+    for it in photos:
+        g = field_value(it, s.group) if s.group else ""
+        if s.group and group is not None and g != group:
+            if s.group_new_page:
+                flush_page(group)
+            else:
+                flush_row()
+        group = g
+        if len(row) == cols:
+            flush_row()
+        if len(rows) == rows_per_page and not row:
+            flush_page(group)
+        row.append(it)
+    flush_page(group)
+
+    def drawing(page, number, dpi):
+        g, page_rows = page
+        dr = Drawing(W, H)
+        if s.title:
+            a = {"centre": "m", "right": "r"}.get(s.title_align, "l")
+            dr.add("Title", "text", {"m": W / 2, "r": W - m}.get(a, m), m + s.title_pt * PT,
+                   plate_text(s.title, number, len(pages), g), s.caption_font, s.title_pt, s.caption_color, a, True)
+        px_mm = (dpi or s.dpi) / 25.4
+        y = m + title_h
+        for r in page_rows:
+            for c, it in enumerate(r):
+                x = m + c * (cell_w + gap)
+                try:
+                    with Image.open(it.path) as im:
+                        im.draft("RGB", (int(cell_w * px_mm) * 2, int(cell_h * px_mm) * 2))
+                        im = ImageOps.exif_transpose(im).convert("RGB")
+                        im.thumbnail((max(1, round(cell_w * px_mm)), max(1, round(cell_h * px_mm))), Image.LANCZOS)
+                except OSError:
+                    dr.add("Objects", "rect", x, y, cell_w, cell_h, None, "#999999", 0.2)
+                else:
+                    w, h = im.width / px_mm, im.height / px_mm
+                    dr.add("Objects", "image", x + (cell_w - w) / 2, y + cell_h - h, w, h, im, it.name)
+                if s.caption:
+                    dr.add("Captions", "text", x + cell_w / 2, y + cell_h + s.caption_pt * PT * 1.25,
+                           caption_text(s.caption, it), s.caption_font, s.caption_pt, s.caption_color, "m", False)
+            y += cell_h + cap_h + gap
+        return dr
+
+    out_dir = out_dir or os.path.join(folder, CONTACT_DIR)
+    os.makedirs(out_dir, exist_ok=True)
+    names = [f"contact_{i:02d}.svg" for i in range(1, len(pages) + 1)]
+    files = save_pages([lambda dpi, p=p, i=i: drawing(p, i, dpi) for i, p in enumerate(pages, 1)], names, out_dir,
+                       s, progress, pdf="contact_sheets.pdf")
+    return files, []
+
+
+def write_plates(folder, s, out_dir=None, progress=None, images=False):
+    """Writes plate_01.svg, plate_02.svg... and / or the same pages as TIFF and JPEG images and as one
+    PDF (settings svg, tiff, jpeg, pdf; SVG when none is chosen), with the list of figures
+    (figures.csv). images: free plates, from the photos of the folder that have a scale
+    (collect_images) instead of the outlined objects of a results folder. Returns (list of files,
+    warnings)."""
+    if images:
+        items, unscaled = collect_images(folder)
+        if not items:
+            return [], ["no photo with a scale in this folder"]
+    else:
+        items, unscaled = collect(folder, s.include_doubtful), []
+        if not items:
+            return [], ["no outlined object with a real size in this folder"]
+    pages, warnings = layout(items, s)
+    if unscaled:
+        warnings.append(f"{len(unscaled)} photo(s) without a scale left out")
+    out_dir = out_dir or os.path.join(folder, "plates")
+    os.makedirs(out_dir, exist_ok=True)
+    names = plate_file_names(s, pages)
+    files = save_pages([lambda dpi, page=page, i=i: page_drawing(s, page, i, len(pages), dpi=dpi)
+                        for i, page in enumerate(pages, 1)], names, out_dir, s, progress)
+    write_figures(out_dir, s, pages, names)
     with open(os.path.join(out_dir, "plates_settings.json"), "w", encoding="utf-8") as fh:
         json.dump(s.to_dict(), fh, indent=1, ensure_ascii=False)
     return files, warnings
@@ -1030,7 +1271,7 @@ def main(argv=None):
     """Command line of the plates: options or a settings file, then write_plates."""
     p = argparse.ArgumentParser(description="Gerbil plates: outlined objects laid out at a chosen scale "
                                             "(SVG, TIFF or JPEG).")
-    p.add_argument("folder", help="results folder (outlined_result)")
+    p.add_argument("folder", help="results folder (outlined_result), or folder of photos with --images")
     p.add_argument("-o", "--output", help="folder of the plates (default: FOLDER/plates)")
     p.add_argument("--ratio", type=float, default=1.0, help="plate scale 1:RATIO")
     p.add_argument("--page", default="A4", choices=list(PAGES) + ["custom"])
@@ -1042,7 +1283,14 @@ def main(argv=None):
     p.add_argument("--order", default="name")
     p.add_argument("--group", default="")
     p.add_argument("--dpi", type=int, default=600)
-    p.add_argument("--formats", default="svg", help="files written, separated by commas: svg, tif, jpg")
+    p.add_argument("--images", action="store_true",
+                   help="free plates: FOLDER holds photos (field photos, orthophotos) with a scale given by "
+                        "hand (gerbil_scales.json) or a world file, instead of outlined objects")
+    p.add_argument("--contact", action="store_true",
+                   help="contact sheets: every photo of FOLDER on pages, with its name (no scale needed)")
+    p.add_argument("--columns", type=int, default=4, help="contact sheets: photos per row")
+    p.add_argument("--credit", default="", help="credit of the photos, written in the list of figures")
+    p.add_argument("--formats", default="svg", help="files written, separated by commas: svg, tif, jpg, pdf")
     p.add_argument("--raster-dpi", type=int, default=600, help="resolution of the TIFF and JPEG plates")
     p.add_argument("--doubtful", action="store_true", help="include the _to_be_verified files")
     p.add_argument("--measurements", action="store_true",
@@ -1058,11 +1306,13 @@ def main(argv=None):
                           title=a.title, file_name=a.name)
         wanted = {f.strip().lower().lstrip(".") for f in a.formats.split(",")}
         s.svg, s.tiff, s.jpeg = "svg" in wanted, bool(wanted & {"tif", "tiff"}), bool(wanted & {"jpg", "jpeg"})
-        s.raster_dpi = a.raster_dpi
+        s.pdf, s.raster_dpi, s.credit, s.contact_columns = "pdf" in wanted, a.raster_dpi, a.credit, a.columns
         if a.size:
             s.page = "custom"
             s.width_mm, s.height_mm = (float(v) for v in a.size.lower().split("x"))
-    files, warnings = write_plates(a.folder, s, a.output, lambda i, n: print(f"plate {i}/{n}", flush=True))
+    show = lambda i, n: print(f"plate {i}/{n}", flush=True)
+    files, warnings = (write_contact_sheets(a.folder, s, a.output, show) if a.contact
+                       else write_plates(a.folder, s, a.output, show, a.images))
     for w in warnings:
         print("warning:", w)
     print(f"{len(files)} plate(s)" + (f" in {os.path.dirname(files[0])}" if files else ""))

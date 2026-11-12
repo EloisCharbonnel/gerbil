@@ -6,7 +6,7 @@ FR = {
     # ======================================================================== gerbil.py
     "gerbil.py:__module__": "Le moteur de Gerbil : détourage des objets photographiés avec une échelle, à leur taille "
         "réelle (1:1). Pour chaque photo NOM.JPG, dans un dossier « outlined_result » à côté des photos : la copie "
-        "de la photo, NOM.psd (calques « Original photo » masqué, « Scale », « Ceramic », avec masques de fusion "
+        "de la photo, NOM.psd (calques « Original photo » masqué, « Scale », « Object », avec masques de fusion "
         "modifiables), NOM_outlined.tif (l'objet seul), NOM_outlined_scale.tif (l'objet et l'échelle), l'aperçu de "
         "contrôle (to_control) et une ligne du rapport outlined_report.csv. En cas de doute, les fichiers "
         "reçoivent le suffixe « _to_be_verified ». L'échelle donne la résolution réelle de chaque photo, inscrite "
@@ -116,12 +116,12 @@ FR = {
         "sous le réglet), les éléments partout plus fins que 1,7 mm (écriture au feutre, lignes d'un sachet), et "
         "les petits éléments isolés loin de l'objet (sauf sur fond sombre, où ce sont de petits tessons).",
     "gerbil.py:translucent_supports": "Les supports en plexiglas : régions de la couleur du fond, qui dépassent de "
-        "l'objet ; un reflet du fond sur une glaçure noire est distingué (plus sombre, le long de la céramique).",
+        "l'objet ; un reflet du fond sur une glaçure noire est distingué (plus sombre, le long de l'objet).",
     "gerbil.py:colour_chart": "Reconnaît une charte couleur (colorimètre Pantone, ColorChecker…) : beaucoup de teintes "
         "saturées différentes, alors qu'une céramique, même peinte, reste dans quelques teintes voisines.",
     "gerbil.py:chart_disc": "Le cercle d'une charte ronde, ajusté sur ses encres de couleur.",
     "gerbil.py:remove_charts": "Retire les chartes couleur du masque, avec leur ombre portée quand une charte touche "
-        "la céramique.",
+        "l'objet.",
     "gerbil.py:label_card": "Une étiquette papier sur fond sombre : claire, blanche, bleutée (azurants) ou jaune pâle, "
         "et rectangulaire ; ou très rectangulaire et claire, quelle que soit sa couleur (un tesson cassé ne remplit "
         "jamais autant son rectangle).",
@@ -137,14 +137,33 @@ FR = {
         "lui ; la tache est coupée à ses jonctions étroites et la partie « étiquette » est retirée.",
     "gerbil.py:edge_at_half_contrast": "Fond sombre : le bord d'un objet clair est un dégradé de plusieurs pixels ; le "
         "bord du détourage est placé au milieu de ce dégradé (pas de liseré sombre), sans toucher l'intérieur.",
-    "gerbil.py:outline_ceramic": "Le détourage : premier masque sur la photo réduite (distance de couleur au fond, "
+    "gerbil.py:outline_object": "Le détourage : premier masque sur la photo réduite (distance de couleur au fond, "
         "hystérésis, trous bouchés), tri des morceaux (zone de l'échelle, étiquettes, supports, chartes, éléments "
         "isolés), affinage à pleine résolution, bord adouci. Renvoie le masque et ce qui a été écarté. Avec "
         "ai_first (et le masque du réseau), le premier masque est ce que le réseau voit comme objets au lieu de "
         "la distance de couleur : les ombres, le bord de la table et un objet de la couleur du fond sont alors "
         "distingués ; les morceaux sont triés de la même façon et le bord reste tracé à pleine résolution.",
-    "gerbil.py:find_putty": "Cherche la pâte à fixe accrochée à la céramique : une partie du contour séparée par deux "
-        "concavités, nettement plus lisse, plus claire et moins colorée que la céramique. Seul le masque change.",
+    "gerbil.py:srgb_to_linear": "Valeurs sRGB (0-1) vers la lumière linéaire.",
+    "gerbil.py:linear_to_srgb": "Lumière linéaire (0-1) vers les valeurs sRGB.",
+    "gerbil.py:chart_white": "La case blanche d'une charte couleur faite de cases plates (SpyderCheckr, "
+        "ColorChecker, Farbkarte : une grille ou une bande de couleurs dont une blanche) : parmi ses cases plates "
+        "et compactes, celle dont le canal le plus faible est le plus fort - le blanc est plus clair que toute "
+        "couleur, tout gris ou toute teinte pastel dans ses trois canaux, quelle que soit la lumière. Renvoie "
+        "ses R, V, B en lumière linéaire, ou None quand la charte ne montre pas de telles cases.",
+    "gerbil.py:white_reference": "Le blanc de la photo sur lequel équilibrer les couleurs, tel que l'utilisateur l'a "
+        "choisi : ses R, V, B en lumière linéaire, ou None quand la photo ne le contient pas. chart : le blanc "
+        "d'une charte couleur trouvée par le détourage (centre blanc d'une charte ronde, case blanche d'une "
+        "charte à cases), la seule référence faite pour cela ; scale : le blanc de l'échelle, la partie la plus claire de sa face imprimée (juste quand "
+        "l'échelle est vraiment blanche : certaines sont crème) ; background : le fond lui-même (juste sur "
+        "papier blanc, faux sur un fond coloré ou sombre).",
+    "gerbil.py:colour_correction": "Les gains des trois canaux (lumière linéaire) qui rendent neutre le blanc de "
+        "référence, sa luminance gardée, ou amenée à COLOUR_WHITE_Y avec l'exposition. Renvoie (gains, facteur "
+        "d'exposition appliqué), ou None quand un gain de la balance sortirait de COLOUR_GAIN (référence "
+        "colorée : ce n'est pas un blanc). Une exposition hors de COLOUR_EXPOSURE n'est pas appliquée.",
+    "gerbil.py:apply_colour": "La photo dont chaque canal est multiplié par son gain en lumière linéaire (une table "
+        "de 256 valeurs par canal ; ce qui dépasse le blanc est écrêté).",
+    "gerbil.py:find_putty": "Cherche la pâte à fixe accrochée à l'objet : une partie du contour séparée par deux "
+        "concavités, nettement plus lisse, plus claire et moins colorée que l'objet. Seul le masque change.",
     "gerbil.py:ai_model_path": "Le fichier d'un modèle d'IA, dans le dossier « models » ; téléchargé la première fois "
         "et vérifié par sa somme MD5.",
     "gerbil.py:ai_providers": "Carte graphique si onnxruntime en propose une (CUDA, ou DirectML sous Windows), sinon le "
@@ -155,7 +174,7 @@ FR = {
         "ou BiRefNet) sur la photo réduite à 1 024 × 1 024.",
     "gerbil.py:click_model_path": "Le fichier du modèle « un clic », téléchargé la première fois (vérifié par SHA-256).",
     "gerbil.py:ClickCutout": "Le détourage de l'objet sur lequel l'archéologue clique : Segment Anything sait quel "
-        "objet détourer et n'a plus à deviner ce qui est un tesson, une étiquette, une ombre ou le fond. Son bord "
+        "objet détourer et n'a plus à deviner ce qui est un objet, une étiquette, une ombre ou le fond. Son bord "
         "étant grossier, le bord du détourage calculé est gardé là où il est d'accord.",
     "gerbil.py:ClickCutout.__init__": "Charge les deux parties de MobileSAM (encodeur d'image, décodeur de masque).",
     "gerbil.py:ClickCutout.set_image": "Encode la photo une fois (environ une seconde) : les clics sont ensuite immédiats.",
@@ -226,7 +245,7 @@ FR = {
     "gerbil.py:edits_entry": "Les corrections faites à la main pour cette photo (masque corrigé, angle).",
     "gerbil.py:cutout_from_mask": "Le détourage à partir d'un masque corrigé à la main, avec le même bord adouci.",
     "gerbil.py:write_review": "Écrit le masque et le contour de l'échelle d'une photo pour la fenêtre de vérification.",
-    "gerbil.py:rotated_ceramic": "L'objet tourné de l'angle décidé dans la fenêtre de vérification (une seule "
+    "gerbil.py:rotated_object": "L'objet tourné de l'angle décidé dans la fenêtre de vérification (une seule "
         "rééchantillonnage).",
     "gerbil.py:process_photo": "Traite une photo de bout en bout : lecture, modèle du fond, échelle, détourage, pâte à "
         "fixe, fichiers PSD et TIFF, aperçu, métadonnées, ligne du rapport.",

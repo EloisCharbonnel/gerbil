@@ -10,10 +10,10 @@ redistribute it under the conditions of the licence.
 
 For each photo NAME.JPG, in an "outlined_result" folder next to the photos:
   * NAME.JPG                        copy of the original photo;
-  * NAME.psd                        layers "Original photo" (hidden), "Scale", "Ceramic"
+  * NAME.psd                        layers "Original photo" (hidden), "Scale", "Object"
                                     (editable layer masks in Photoshop);
-  * NAME_outlined.tif               outlined ceramic;
-  * NAME_outlined_scale.tif         ceramic + scale;
+  * NAME_outlined.tif               outlined object;
+  * NAME_outlined_scale.tif         object + scale;
   * to_control/NAME_to_control.jpg  control preview;
   * outlined_report.csv             one row per photo.
 When something is doubtful, the output files get the "_to_be_verified" suffix.
@@ -1760,7 +1760,7 @@ def detect_ruler(rgb, robust=False):
 
 
 # --------------------------------------------------------------------------
-# Ceramic outlining
+# Object outlining
 # --------------------------------------------------------------------------
 
 def poly_mask(shape, poly, aa=True):
@@ -1772,7 +1772,7 @@ def poly_mask(shape, poly, aa=True):
 
 
 def discard_labels(keep, lab, stats, f, scale, dark=False):
-    """Discards what is not ceramic (modifies `keep`):
+    """Discards what is not an object (modifies `keep`):
       * what lies entirely on the other side of the scale from the main object
         (labels, notes placed under the ruler);
       * elements that are nowhere thicker than ~1.7 mm (felt-pen writing, printed lines
@@ -1826,10 +1826,10 @@ def discard_labels(keep, lab, stats, f, scale, dark=False):
 
 def translucent_supports(obj, d_small, dl_small, db_small, cm_small):
     """Plexiglass (translucent) supports: regions whose colour stays close to the background colour
-    (distance < SUPPORT_T, whereas the ceramic differs clearly), at least 0.015 cm² in area,
+    (distance < SUPPORT_T, whereas the object differs clearly), at least 0.015 cm² in area,
     which stick out of the object (at least half of their perimeter on the background or an opening).
     A reflection of the background on a black gloss also has the background colour, but it runs
-    along the ceramic, it is clearly darker and of the same hue; a support is as light as the
+    along the object, it is clearly darker and of the same hue; a support is as light as the
     background, or whiter than it (lavender background). Returns their mask (low resolution) or None."""
     weak = ((obj > 0) & (d_small < SUPPORT_T)).astype(np.uint8)
     weak = cv2.morphologyEx(weak, cv2.MORPH_OPEN, disk(max(1.0, 0.025 * cm_small)))
@@ -1867,7 +1867,7 @@ def colour_chart(lab, m, sector_px):
     A ceramic, even glazed or painted, stays within a few neighbouring hues (2 sectors at most
     over 1763 photos, against 5 to 9 for the charts).
     Returns None (not a chart), "alone" (regular, convex outline: the chart only)
-    or "attached" (irregular outline: the chart touches something else, e.g. the ceramic)."""
+    or "attached" (irregular outline: the chart touches something else, e.g. the object)."""
     a, b = lab[..., 1][m], lab[..., 2][m]
     sat = np.hypot(a, b) > CHART_CHROMA
     hue = (np.degrees(np.arctan2(b[sat], a[sat])) + 360.0) % 360.0
@@ -1914,12 +1914,12 @@ def chart_disc(lab, m):
 
 def remove_charts(obj, lab_small, bg_small, f, cm_small):
     """Removes the colour charts from the analysis mask `obj` (in place): a chart alone is discarded
-    whole; a round chart touching the ceramic is cut out along its circle, together with its cast
+    whole; a round chart touching the object is cut out along its circle, together with its cast
     shadow (the chart is a thick disc). Shadow = pixels of the object having the colour of the
     background darkened (a* and b* of the background scaled by the lightness ratio, distance < SHADOW_T),
     within 1.6 radius, connected to the edge of the disc. Returns the outlines to show (image frame),
     the circles cut out (polygons, image frame, also applied at full resolution) and whether a chart
-    touching the ceramic could not be separated."""
+    touching the object could not be separated."""
     charts, discs, attached = [], [], False
     hp, wp = obj.shape
     n, lab, stats, _ = cv2.connectedComponentsWithStats(obj, connectivity=8)
@@ -2147,7 +2147,7 @@ def edge_at_half_contrast(m, d, depth):
     return m & ~(weak & outside[lab])
 
 
-def outline_ceramic(photo, small, f, background, scale, ai=None, ai_first=False):
+def outline_object(photo, small, f, background, scale, ai=None, ai_first=False):
     """The cut-out of the object(s): first mask on the reduced photo (colour distance to the
     background, hysteresis, holes filled), sorting of the pieces (scale zone, labels,
     supports, colour charts, isolated elements), refinement at full resolution, edge
@@ -2259,7 +2259,7 @@ def outline_ceramic(photo, small, f, background, scale, ai=None, ai_first=False)
         keep[label_ids] = True
         labels, label_kept = [], True
     if keep.sum() == 0:
-        return None, "no ceramic kept"
+        return None, "no object kept"
     isolated = discard_labels(keep, lab, stats, f, scale, background.dark) if scale.found else []
     a_max = max(stats[i, cv2.CC_STAT_AREA] for i in range(1, n) if keep[i])
     for i in range(1, n):
@@ -2267,7 +2267,7 @@ def outline_ceramic(photo, small, f, background, scale, ai=None, ai_first=False)
             keep[i] = False
     obj = keep[lab]
     n_pieces = int(keep.sum())
-    # removed supports that touched the kept ceramic (for the preview and the report)
+    # removed supports that touched the kept object (for the preview and the report)
     support_outlines = []
     if supports is not None:
         near = cv2.dilate(obj.astype(np.uint8), disk(3)) > 0
@@ -2407,7 +2407,7 @@ def outline_ceramic(photo, small, f, background, scale, ai=None, ai_first=False)
         "supports": support_outlines,           # translucent supports removed (outlines, image frame)
         "shadows": shadow_outlines,             # cast shadows removed (idem)
         "charts": charts,                       # colour charts discarded (outlines, image frame)
-        "chart_attached": chart_attached,       # a colour chart seems to touch the kept ceramic
+        "chart_attached": chart_attached,       # a colour chart seems to touch the kept object
         "ai_removed": ai_removed,               # background removed on the AI's advice (outlines, image frame)
         "ai_area": ai_area,                     # ... and its area (cm²)
         "ai_first": ai_first,                   # first mask drawn by the network
@@ -2415,12 +2415,166 @@ def outline_ceramic(photo, small, f, background, scale, ai=None, ai_first=False)
     }, ""
 
 
+# --------------------------------------------------------------------------
+# Colour: white balance and exposure from a white reference of the photo
+# --------------------------------------------------------------------------
+
+COLOUR_WHITE_Y = 0.85        # exposure: luminance given to the white reference (0-1, linear; L* = 94: the
+                             # white patch of a chart is exposed at Y 83-88 % for a calibration, darktable manual)
+COLOUR_GAIN = (0.5, 2.0)     # balance: a channel is never multiplied by less or more than this (beyond: the
+                             # reference is not a white, nothing is corrected)
+COLOUR_EXPOSURE = (0.4, 3.0) # exposure: the photo is never darkened or lightened beyond this (balance only)
+COLOUR_BACKGROUND_D = 4.0    # background as the white: the pixels within this colour distance of its model
+COLOUR_MIN_Y = 0.15          # a white reference darker than this (linear luminance) is not trusted
+COLOUR_SCALE_TOP = 0.30      # scale: its white is the lightest 30 % of its printed face
+COLOUR_CHART_CENTRE = 0.20   # round chart: its white centre, within this share of its radius
+COLOUR_CHART_ROUND = 0.85    # ... the chart fills at least this share of its enclosing circle
+COLOUR_PATCH_FLAT = 2.5      # chart with patches: a patch is flat (gradient of the chart, levels per pixel, under
+COLOUR_PATCH_AREA = 0.004    # this), covers at least this share of the chart, fills its own rectangle
+COLOUR_PATCH_FILL = 0.6      # (a frame around the patches does not), and the chart shows at least
+COLOUR_PATCHES = 4           # this many of them
+
+
+def srgb_to_linear(v):
+    """sRGB values (0-1) to linear light."""
+    v = np.asarray(v, np.float64)
+    return np.where(v <= 0.04045, v / 12.92, ((v + 0.055) / 1.055) ** 2.4)
+
+
+def linear_to_srgb(v):
+    """Linear light (0-1) to sRGB values."""
+    v = np.clip(np.asarray(v, np.float64), 0.0, 1.0)
+    return np.where(v <= 0.0031308, v * 12.92, 1.055 * v ** (1 / 2.4) - 0.055)
+
+
+def chart_white(rgb, poly):
+    """The white patch of a colour chart made of flat patches (SpyderCheckr, ColorChecker, Farbkarte: a
+    grid or a strip of colours with a white one), poly being its outline in the photo: among its flat,
+    compact patches, the one whose weakest channel is the strongest - white is lighter than every
+    colour, grey or pastel tint in its three channels, whatever the light. Returns its R, G, B in
+    linear light, or None when the chart shows no such patches."""
+    H, W = rgb.shape[:2]
+    poly = np.asarray(poly, np.float64)
+    x0, y0 = max(0, int(poly[:, 0].min())), max(0, int(poly[:, 1].min()))
+    x1, y1 = min(W, int(poly[:, 0].max()) + 1), min(H, int(poly[:, 1].max()) + 1)
+    if x1 - x0 < 40 or y1 - y0 < 40:
+        return None
+    k = min(1.0, 500.0 / max(x1 - x0, y1 - y0))
+    crop = cv2.resize(rgb[y0:y1, x0:x1], (max(1, round((x1 - x0) * k)), max(1, round((y1 - y0) * k))),
+                      interpolation=cv2.INTER_AREA)
+    inside = poly_mask(crop.shape[:2], (poly - [x0, y0] + 0.5) * k - 0.5, aa=False) > 0
+    blur = cv2.GaussianBlur(crop, (0, 0), 1.0).astype(np.float32)
+    grad = np.max(np.hypot(cv2.Sobel(blur, cv2.CV_32F, 1, 0, ksize=3), cv2.Sobel(blur, cv2.CV_32F, 0, 1, ksize=3)),
+                  axis=2) / 4.0
+    flat = cv2.erode((inside & (grad < COLOUR_PATCH_FLAT)).astype(np.uint8), disk(1))
+    n, lab, stats, _ = cv2.connectedComponentsWithStats(flat, connectivity=4)
+    best, patches = None, 0
+    for i in range(1, n):
+        x, y, w, h, a = stats[i]
+        if a < COLOUR_PATCH_AREA * inside.sum() or a < COLOUR_PATCH_FILL * w * h:
+            continue
+        patches += 1
+        colour = np.median(srgb_to_linear(crop[y:y + h, x:x + w][lab[y:y + h, x:x + w] == i] / 255.0), axis=0)
+        if best is None or colour.min() > best.min():
+            best = colour
+    return best if patches >= COLOUR_PATCHES and best @ LUMA > COLOUR_MIN_Y else None
+
+
+def white_reference(rgb, scale, cer, source="chart", small=None, background=None):
+    """The white of the photo to balance the colours on, as the user chose it (source): its R, G, B in
+    linear light, or None when the photo does not hold it.
+      chart: the white of a colour chart found by the cut-out - the white centre of a round one
+             (Archaeo Colorimeter: a disc whose centre is white), the white patch of one made of
+             patches (chart_white) - the only reference made for this;
+      scale: the white of the scale, the lightest part of its printed face (its white squares, or the
+             paper of a ruler) - right when the scale is really white (some are cream);
+      background: the background itself (the reduced photo `small`, its pixels close to the background
+             model) - right on white paper, wrong on a coloured or a dark background."""
+    H, W = rgb.shape[:2]
+    if source == "background":
+        if small is None or background is None or background.dark:
+            return None
+        d = distance(to_lab(cv2.GaussianBlur(small, (3, 3), 0)), background.small_model)
+        px = small[d < COLOUR_BACKGROUND_D]
+        if len(px) < 500:
+            return None
+        white = np.median(srgb_to_linear(px.reshape(-1, 3) / 255.0), axis=0)
+        return white if white @ LUMA > COLOUR_MIN_Y else None
+
+    def median_linear(pixels):
+        return np.median(srgb_to_linear(pixels.reshape(-1, 3) / 255.0), axis=0)
+
+    for poly in ((cer or {}).get("charts") or []) if source == "chart" else []:
+        poly = np.asarray(poly, np.float32)
+        (cx, cy), r = cv2.minEnclosingCircle(poly)
+        if r < 20:
+            continue
+        if cv2.contourArea(poly) < COLOUR_CHART_ROUND * math.pi * r * r:
+            white = chart_white(rgb, poly)                  # not a disc: a chart made of patches
+            if white is not None:
+                return white
+            continue
+        rc = COLOUR_CHART_CENTRE * r
+        x0, y0, x1, y1 = int(cx - rc), int(cy - rc), int(cx + rc) + 1, int(cy + rc) + 1
+        if x0 < 0 or y0 < 0 or x1 > W or y1 > H:
+            continue
+        yy, xx = np.ogrid[y0:y1, x0:x1]
+        white = median_linear(rgb[y0:y1, x0:x1][np.hypot(xx - cx, yy - cy) <= rc])
+        ring = median_linear(rgb[max(0, int(cy - 0.9 * r)):int(cy - 0.75 * r) + 1, x0:x1])   # its coloured ring
+        if white @ LUMA > max(COLOUR_MIN_Y, 1.5 * (ring @ LUMA)):
+            return white
+    if source == "scale" and scale is not None and scale.found and scale.poly is not None:
+        poly = np.asarray(scale.poly, np.float64)
+        x0, y0 = max(0, int(poly[:, 0].min())), max(0, int(poly[:, 1].min()))
+        x1, y1 = min(W, int(poly[:, 0].max()) + 1), min(H, int(poly[:, 1].max()) + 1)
+        if x1 - x0 > 8 and y1 - y0 > 8:
+            inside = poly_mask((y1 - y0, x1 - x0), poly - [x0, y0], aa=False) > 0
+            inside = cv2.erode(inside.astype(np.uint8), disk(max(1, round(0.03 * min(x1 - x0, y1 - y0))))) > 0
+            px = srgb_to_linear(rgb[y0:y1, x0:x1][inside] / 255.0)
+            if len(px) >= 200:
+                y = px @ LUMA
+                white = np.median(px[y >= np.quantile(y, 1 - COLOUR_SCALE_TOP)], axis=0)
+                if white @ LUMA > COLOUR_MIN_Y:
+                    return white
+    return None
+
+
+LUMA = np.array([0.2126, 0.7152, 0.0722])     # luminance of linear sRGB
+
+
+def colour_correction(white, exposure=False):
+    """Gains of the three channels (linear light) that make the white reference neutral, its luminance
+    kept - or brought to COLOUR_WHITE_Y with exposure. Returns (gains, exposure factor applied: 1 when
+    none), or None when a gain of the balance would leave COLOUR_GAIN (reference coloured: not a
+    white). An exposure beyond COLOUR_EXPOSURE is not applied (the balance alone is)."""
+    y = float(white @ LUMA)
+    if y <= 0 or white.min() <= 0:
+        return None
+    gains = y / white
+    if gains.min() < COLOUR_GAIN[0] or gains.max() > COLOUR_GAIN[1]:
+        return None
+    k = COLOUR_WHITE_Y / y if exposure else 1.0
+    if not COLOUR_EXPOSURE[0] <= k <= COLOUR_EXPOSURE[1]:
+        k = 1.0
+    return gains * k, k
+
+
+def apply_colour(rgb, gains):
+    """The photo with each channel multiplied by its gain in linear light (one table of 256 values per
+    channel; what goes beyond white is clipped)."""
+    v = srgb_to_linear(np.arange(256) / 255.0)
+    out = np.empty_like(rgb)
+    for c in range(3):
+        out[..., c] = np.round(linear_to_srgb(v * gains[c]) * 255).astype(np.uint8)[rgb[..., c]]
+    return out
+
+
 def find_putty(rgb, cer, px_cm):
-    """Looks for a visible support (mounting putty) attached to the ceramic.
+    """Looks for a visible support (mounting putty) attached to the object.
 
     A part of the outline is a candidate only if:
       * it separates from the rest at two concavities of the outline (straight cut between them);
-      * it is clearly smoother than the ceramic (texture < 50 %);
+      * it is clearly smoother than the object (texture < 50 %);
       * its colour differs (Delta E > 6), it is less saturated (chroma < 80 %) and lighter.
     The pixels stay in the PSD layer: only the layer mask changes.
     Returns (cer without the putty, removed polygons in image coordinates, area in cm²)."""
@@ -2526,6 +2680,10 @@ AI_MODELS = {
     "birefnet": ("birefnet-general",
                  "https://github.com/danielgatis/rembg/releases/download/v0.0.0/BiRefNet-general-epoch_244.onnx",
                  "7a35a0141cbbc80de11d9c9a28f52697", (0.485, 0.456, 0.406), (0.229, 0.224, 0.225), True),
+    "birefnet-lite": ("birefnet-general-lite",
+                      "https://github.com/danielgatis/rembg/releases/download/v0.0.0/"
+                      "BiRefNet-general-bb_swin_v1_tiny-epoch_232.onnx",
+                      "4fab47adc4ff364be1713e97b7e66334", (0.485, 0.456, 0.406), (0.229, 0.224, 0.225), True),
 }
 AI_DIR = os.path.join(os.path.dirname(sys.executable) if getattr(sys, "frozen", False)   # .exe version:
                       else os.path.dirname(os.path.abspath(__file__)), "models")         # next to the .exe
@@ -2567,10 +2725,10 @@ def ai_model_path(model):
 def ai_providers(device, model):
     """Graphics card when onnxruntime offers one (CUDA, or DirectML on Windows), else the processor.
     BiRefNet (1 GB) is too large for DirectML on an 8 GB card: it fails, or crawls in shared memory;
-    it only uses CUDA."""
+    BiRefNet-lite fails there too (tried on an RTX 4070 and on the integrated chip). They only use CUDA."""
     import onnxruntime as ort
     gpu = [p for p in ("CUDAExecutionProvider", "DmlExecutionProvider") if p in ort.get_available_providers()]
-    if model == "birefnet":
+    if model.startswith("birefnet"):
         gpu = [p for p in gpu if p != "DmlExecutionProvider"]
     return ["CPUExecutionProvider"] if device == "cpu" or not gpu else [gpu[0], "CPUExecutionProvider"]
 
@@ -2811,7 +2969,7 @@ def layout(photo, cer, scale, opts):
     angle = cer.get("angle", 0.0)
     if angle:
         # object turned as decided in the review window, around the centre of its box
-        cer_rgb, cer_mask, cw, ch = rotated_ceramic(rgb, cer, border, angle)
+        cer_rgb, cer_mask, cw, ch = rotated_object(rgb, cer, border, angle)
         cx0, cy0 = int(round((cx0 + cx1 - cw) / 2)), int(round((cy0 + cy1 - ch) / 2))
         cx1, cy1 = cx0 + cw, cy0 + ch
     cer["size"] = (cw, ch)
@@ -2850,7 +3008,7 @@ def layout(photo, cer, scale, opts):
             scale_mask = poly_mask((py1 - py0, px1 - px0), scale.poly - [px0, py0])
             scale_x, scale_y = px0 + shift[0], py0 + shift[1]
 
-    # Ceramic layer: original pixels + layer mask (can be retouched)
+    # Object layer: original pixels + layer mask (can be retouched)
     gx0, gy0, gx1, gy1 = cx0 - border, cy0 - border, cx1 + border, cy1 + border
     if not angle:
         cer_rgb = extract(rgb, gx0, gy0, gx1, gy1)
@@ -2868,11 +3026,11 @@ def layout(photo, cer, scale, opts):
         layers.append(Layer("Original photo", shift[0], shift[1], rgb, None, visible=False))
     if scale_rgb is not None:
         layers.append(Layer("Scale", scale_x, scale_y, scale_rgb, scale_mask))
-    layers.append(Layer("Ceramic", gx0 + shift[0], gy0 + shift[1], cer_rgb, cer_mask))
+    layers.append(Layer("Object", gx0 + shift[0], gy0 + shift[1], cer_rgb, cer_mask))
 
-    # Version without the scale: ceramic alone, cropped
+    # Version without the scale: object alone, cropped
     Ws, Hs = cw + 2 * margin, ch + 2 * margin
-    alone = [Layer("Ceramic", margin - border, margin - border, cer_rgb, cer_mask)]
+    alone = [Layer("Object", margin - border, margin - border, cer_rgb, cer_mask)]
     return layers, (Wc, Hc), alone, (Ws, Hs)
 
 
@@ -3287,18 +3445,21 @@ DOUBT_SUFFIX = "_to_be_verified"
 REPORT_NAME = "outlined_report.csv"
 
 REPORT_FIELDS = ["file", "output_name", "status", "to_verify", "scale_found", "scale_type", "squares",
-                 "scale_length_cm", "px_per_cm", "ppi_1_1", "ceramic_width_cm", "ceramic_height_cm",
+                 "scale_length_cm", "px_per_cm", "ppi_1_1", "object_width_cm", "object_height_cm",
                  "pieces", "camera", "lens", "focal_mm", "date_taken", "notes", "duration_s"]
-DECIMAL_FIELDS = ("scale_length_cm", "px_per_cm", "ppi_1_1", "ceramic_width_cm", "ceramic_height_cm", "duration_s")
-# column names written by version 1.0 of this script, so that its reports can be updated (the column
-# of the former DDN naming rule, name_ok, is dropped)
+DECIMAL_FIELDS = ("scale_length_cm", "px_per_cm", "ppi_1_1", "object_width_cm", "object_height_cm", "duration_s")
+# column names written by earlier versions, so that their reports can be updated: French names of
+# version 1.0 (the column of the former DDN naming rule, name_ok, is dropped), and the size columns
+# called ceramic_... up to version 2.1
 LEGACY_COLUMNS = dict(zip(
     ["fichier", "statut", "a_verifier", "nom_conforme", "echelle_detectee", "type_echelle", "cases",
      "longueur_echelle_cm", "px_par_cm", "ppi_1_1", "largeur_ceramique_cm", "hauteur_ceramique_cm",
-     "morceaux", "appareil", "objectif", "focale_mm", "date_prise", "remarques", "duree_s"],
+     "morceaux", "appareil", "objectif", "focale_mm", "date_prise", "remarques", "duree_s",
+     "ceramic_width_cm", "ceramic_height_cm"],
     ["file", "status", "to_verify", "name_ok", "scale_found", "scale_type", "squares",
-     "scale_length_cm", "px_per_cm", "ppi_1_1", "ceramic_width_cm", "ceramic_height_cm",
-     "pieces", "camera", "lens", "focal_mm", "date_taken", "notes", "duration_s"]))
+     "scale_length_cm", "px_per_cm", "ppi_1_1", "object_width_cm", "object_height_cm",
+     "pieces", "camera", "lens", "focal_mm", "date_taken", "notes", "duration_s",
+     "object_width_cm", "object_height_cm"]))
 
 # end-of-run summary: the reasons for doubt, grouped (first matching pattern wins)
 PROBLEMS = [
@@ -3306,7 +3467,7 @@ PROBLEMS = [
     ("Scale doubtful (length, irregular or hidden graduations)",
      ("squares detected (not", "cm read (neither", "irregular scale squares", "irregular graduations",
       "graduations partly hidden")),
-    ("No object kept", ("no ceramic kept", "no object detected", "empty outline")),
+    ("No object kept", ("no object kept", "no ceramic kept", "no object detected", "empty outline")),
     ("Object cut by the photo edge", ("cut by the photo edge",)),
     ("Mounting putty (flagged or removed)", ("mounting putty",)),
     ("Colour chart touching the object", ("colour chart touching",)),
@@ -3527,7 +3688,7 @@ def edits_entry(path):
 
 
 def cutout_from_mask(mask, cer):
-    """Cut-out from a mask corrected by hand (photo size): same softened edge as outline_ceramic
+    """Cut-out from a mask corrected by hand (photo size): same softened edge as outline_object
     (Gaussian blur 0.8 px of the 0 / 255 mask). The other fields of `cer` are kept (or emptied)."""
     m = (mask > 127).astype(np.uint8)
     if not m.any():
@@ -3570,7 +3731,7 @@ def write_review(out_dir, path, shape, cer, scale, status, doubts, angle, output
         json.dump(info, fh, indent=1)
 
 
-def rotated_ceramic(rgb, cer, border, angle):
+def rotated_object(rgb, cer, border, angle):
     """The object turned by `angle` degrees (counterclockwise, as decided in the review window): pixels
     (bicubic) and layer mask (bilinear) resampled once. Returns rgb, mask (with `border` around the
     object), and the width and height of the turned object."""
@@ -3654,11 +3815,11 @@ def process_photo(path, opts, out_dir, plan=None):
                 ai = ai_mask(rgb, opts)
             except Exception as e:
                 notes.append(f"AI not used ({type(e).__name__}: {e})")
-        ai_first = getattr(opts, "cutout", "colour") == "ai"
-        cer, msg = outline_ceramic(photo, small, f, background, scale, ai, ai_first)
+        ai_first = getattr(opts, "cutout", "colour") != "colour"
+        cer, msg = outline_object(photo, small, f, background, scale, ai, ai_first)
         if ai_first and cer is None and ai is not None:
             # the network saw nothing to keep: the colour rule is tried
-            cer, msg = outline_ceramic(photo, small, f, background, scale, ai)
+            cer, msg = outline_object(photo, small, f, background, scale, ai)
             if cer is not None:
                 notes.append("the AI saw no object: cut-out by the colour")
         elif ai_first and cer is not None and cer.get("ai_first"):
@@ -3700,14 +3861,35 @@ def process_photo(path, opts, out_dir, plan=None):
         if cer is not None and cer.get("charts"):
             notes.append("colour chart discarded (red outline in preview)")
         if cer is not None and cer.get("chart_attached"):
-            doubts.append("colour chart touching the ceramic (kept with it)")
+            doubts.append("colour chart touching the object (kept with it)")
         if cer is not None and cer.get("ai_removed"):
             notes.append(f"AI ({AI_MODELS[opts.ai_model][0]}) removed background: {len(cer['ai_removed'])} area(s), "
                          f"{cer['ai_area']:.2f} cm² (cyan outline in preview)")
         if cer is not None:
             x0, y0, x1, y1 = cer["box"]
             if x0 <= 1 or y0 <= 1 or x1 >= W - 1 or y1 >= H - 1:
-                doubts.append("ceramic cut by the photo edge")
+                doubts.append("object cut by the photo edge")
+        colour = getattr(opts, "colour", "none")
+        if cer is not None and colour != "none":
+            # colours corrected after the cut-out (which is therefore the same with or without it), on
+            # everything written from here on: layers, TIFF files, preview; the copy of the original
+            # photo is not touched
+            source = getattr(opts, "white", "chart")
+            where = {"chart": "colour chart", "scale": "scale", "background": "background"}[source]
+            white = white_reference(rgb, scale, cer, source, small, background)
+            fix = colour_correction(white, colour == "exposure") if white is not None else None
+            if fix is None:
+                notes.append("colours not corrected: " + (
+                    {"chart": "no colour chart with a white", "scale": "no scale",
+                     "background": "no light background"}[source] if white is None
+                    else f"the white of the {where} is too coloured"))
+            else:
+                gains, k = fix
+                photo.rgb = rgb = apply_colour(rgb, gains)
+                notes.append(f"colours balanced on the white of the {where} "
+                             f"(R x{gains[0] / k:.2f}, G x{gains[1] / k:.2f}, B x{gains[2] / k:.2f}"
+                             + (f"; exposure x{k:.2f})" if k != 1.0 else
+                                "; exposure left: too far)" if colour == "exposure" else ")"))
         doubtful = bool(doubts)
         paths = output_paths(out_dir, base, doubtful, plan.get("ext_case") or "")
 
@@ -3726,8 +3908,8 @@ def process_photo(path, opts, out_dir, plan=None):
             layers, (Wc, Hc), alone, (Ws, Hs) = layout(photo, cer, scale, opts)
             if scale.found:
                 w_px, h_px = cer["size"]            # (turned object: its new width and height)
-                row["ceramic_width_cm"] = f"{w_px / scale.px_cm:.1f}"
-                row["ceramic_height_cm"] = f"{h_px / scale.px_cm:.1f}"
+                row["object_width_cm"] = f"{w_px / scale.px_cm:.1f}"
+                row["object_height_cm"] = f"{h_px / scale.px_cm:.1f}"
             comp_rgb, comp_a = composite(layers, Wc, Hc)
             if not opts.no_psd:
                 write_psd(paths["psd"], Wc, Hc, layers, comp_rgb, comp_a, ppi, icc, exif, xmp)
@@ -3750,8 +3932,8 @@ def process_photo(path, opts, out_dir, plan=None):
             if scale.found:
                 txt.append(f"{scale.kind.capitalize()} {scale.length_cm:g} cm: "
                            f"{scale.px_cm:.1f} px/cm = {ppi:.0f} ppi")
-            if row["ceramic_width_cm"]:
-                txt.append(f"Ceramic: {row['ceramic_width_cm']} x {row['ceramic_height_cm']} cm")
+            if row["object_width_cm"]:
+                txt.append(f"Object: {row['object_width_cm']} x {row['object_height_cm']} cm")
             txt += [f"TO VERIFY: {d}" for d in doubts] + notes
             control_image(paths["control"], photo, cer, scale, txt)
             written.add(paths["control"])
@@ -3850,23 +4032,36 @@ def main(argv=None):
                    help="remove the suspected mounting putty (Patafix) automatically instead of only "
                         "flagging it")
     p.add_argument("--layout", choices=["recompose", "original"], default="recompose",
-                   help="recompose: scale straightened and centred under the sherd; "
+                   help="recompose: scale straightened and centred under the object; "
                         "original: scale left where it was photographed")
     p.add_argument("--margin-cm", type=float, default=0.5, help="margin around the objects")
-    p.add_argument("--gap-cm", type=float, default=0.5, help="gap between sherd and scale")
+    p.add_argument("--gap-cm", type=float, default=0.5, help="gap between object and scale")
     p.add_argument("--compression", choices=list(TIFF_COMPRESSIONS), default="lzw", help="TIFF compression")
     p.add_argument("--default-ppi", type=float, default=300, help="resolution used when no scale is found")
-    p.add_argument("--cutout", choices=["colour", "ai"], default="colour",
+    p.add_argument("--cutout", choices=["colour", "ai-lite", "ai"], default="colour",
                    help="colour: the objects are what differs from the background (the usual way, fast); "
                         "ai: the BiRefNet network says what is an object, the edge is still drawn from the "
                         "photo - surer with cast shadows, a table border or a white object on white, but "
-                        "about 15 s more per photo (needs the onnxruntime package)")
+                        "about 8 s more per photo; ai-lite: the same with the lighter BiRefNet-lite network "
+                        "(224 MB instead of 970, about 4 s more per photo, a little less sure on difficult "
+                        "photos). Both need the onnxruntime package")
+    p.add_argument("--colour", choices=["none", "balance", "exposure"], default="none",
+                   help="none: the colours of the photo are kept; balance: white balance on a white of the "
+                        "photo (see --white); exposure: white balance, and that white brought to the same "
+                        "lightness on every photo. The cut-out is the same; the copy of the original photo "
+                        "is not touched")
+    p.add_argument("--white", choices=["chart", "scale", "background"], default="chart",
+                   help="the white the colours are balanced on. chart: the white of a colour chart (the "
+                        "white patch of a SpyderCheckr, ColorChecker or Farbkarte, the white centre of an "
+                        "Archaeo Colorimeter); scale: the white of the scale (when it is really white: some "
+                        "are cream); background: the background itself (white paper only)")
     p.add_argument("--ai", action="store_true",
                    help="AI second opinion (needs the onnxruntime package): the network may only remove "
                         "background the script kept (perforations, gaps, halos), never add anything")
     p.add_argument("--ai-model", choices=list(AI_MODELS), default="isnet",
-                   help="isnet: fast, uses the graphics card; birefnet: more precise on perforations, much "
-                        "slower. Downloaded once into the 'models' folder next to the script")
+                   help="model of the second opinion. isnet: fast, uses the graphics card; birefnet: more "
+                        "precise on perforations, much slower; birefnet-lite: in between. Downloaded once "
+                        "into the 'models' folder next to the script")
     p.add_argument("--ai-device", choices=["auto", "cpu"], default="auto",
                    help="auto: graphics card when available, else processor; cpu: processor only")
     p.add_argument("--refresh-names", action="store_true",
@@ -3887,8 +4082,9 @@ def main(argv=None):
     p.add_argument("--open", action="store_true", help="open the result folder(s) when done")
     p.add_argument("-v", "--verbose", action="store_true", help="print error details")
     opts = p.parse_args(argv)
-    if opts.cutout == "ai":                    # the cut-out drawn from the AI needs the precise network
-        opts.ai, opts.ai_model = True, "birefnet"
+    if opts.cutout != "colour":                # the cut-out drawn from the AI needs a BiRefNet network
+        opts.ai = True                         # (IS-Net misses whole objects)
+        opts.ai_model = "birefnet" if opts.cutout == "ai" else "birefnet-lite"
 
     files = list_photos(opts.inputs)
     if not files:
@@ -3908,7 +4104,7 @@ def main(argv=None):
             print(f"AI model not available: {e}")
             return 1
         device = ai_providers(opts.ai_device, opts.ai_model)[0].replace("ExecutionProvider", "")
-        print(f"{'Cut-out drawn from the AI' if opts.cutout == 'ai' else 'AI second opinion'}: "
+        print(f"{'Cut-out drawn from the AI' if opts.cutout != 'colour' else 'AI second opinion'}: "
               f"{AI_MODELS[opts.ai_model][0]} ({'processor' if device == 'CPU' else device})")
     # result folder of each photo: forced (-o) or "outlined_result" next to the photo
     tasks = [(fp, os.path.abspath(opts.output) if opts.output else

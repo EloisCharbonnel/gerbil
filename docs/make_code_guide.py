@@ -57,7 +57,7 @@ gerbil_gui.pyw  (windows)  --runs-->  gerbil.py / gerbil_cli.exe  (engine, one p
 3. **The scale**: a manual scale if one was given (`manual_scale`), else `detect_scale` (checkerboards,
    rulers through `detect_ruler`, dark backgrounds through `_scale_on_dark`), else a learned scale of the
    site profile (`detect_learned_scale`). The result is a `Scale`: px/cm, outline, straightened image.
-4. **The cut-out**: `outline_ceramic` (colour distance to the background, pieces sorted, labels and
+4. **The cut-out**: `outline_object` (colour distance to the background, pieces sorted, labels and
    supports discarded, refined at full resolution), or the mask corrected by hand (`cutout_from_mask`).
 5. `find_putty` flags (or removes) mounting putty.
 6. `layout` builds the layers; `write_psd` and `write_tiff` write the files at the 1:1 resolution with

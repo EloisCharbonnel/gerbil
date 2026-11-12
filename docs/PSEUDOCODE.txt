@@ -19,7 +19,7 @@ Contents
   7. Background model (BackgroundModel)
   8. Square scale: black/white/red checkerboard or single row (detect_scale)
   9. Ruler graduated in millimetres (detect_ruler)
- 10. Outlining the ceramic (outline_ceramic)
+ 10. Outlining the object (outline_object)
  11. Mounting putty (find_putty)
  12. Layout and compositing (layout, composite)
  13. Writing the PSD (write_psd)
@@ -38,7 +38,7 @@ Contents
 1. OVERVIEW
 ------------------------------------------------------------------------------
 
-  JPG photo (6000 x 4000 px, plain light background, ceramic + scale)
+  JPG photo (6000 x 4000 px, plain light background, object + scale)
       |
       |-- reading, EXIF orientation, metadata (camera body, lens...)
       |
@@ -54,10 +54,10 @@ Contents
       |-- (--ai) AI second opinion: removes background the script kept
       |-- search for mounting putty (flagged, removed if --remove-putty)
       |
-      |-- layout: ceramic at the top, straightened scale centred under it
+      |-- layout: object at the top, straightened scale centred under it
       |-- PSD with 3 layers + layer masks   (NAME.psd)
-      |-- TIFF ceramic alone                (NAME_outlined.tif)
-      |-- TIFF ceramic + scale              (NAME_outlined_scale.tif)
+      |-- TIFF object alone                (NAME_outlined.tif)
+      |-- TIFF object + scale              (NAME_outlined_scale.tif)
       |-- control preview                   (to_control/NAME_to_control.jpg)
       |-- row of the CSV report             (outlined_report.csv)
       |
@@ -65,7 +65,7 @@ Contents
           in Illustrator or when printing.
 
   When something is doubtful (scale not found, not 5, 10 or 20 cm, possible
-  mounting putty, ceramic cut by the edge...), all the files written get the
+  mounting putty, object cut by the edge...), all the files written get the
   "_to_be_verified" suffix.
 
 
@@ -137,7 +137,7 @@ Python standard library
   d = sqrt( (0.5 x ΔL*)² + Δa*² + Δb*² )
   where Δ = colour of the pixel - colour of the background expected there.
   The 0.5 weight on lightness makes soft shadows (darker but of the same hue
-  as the background) less visible than the ceramic (different hue).
+  as the background) less visible than the object (different hue).
   For unweighted measurements: ΔE = sqrt(ΔL*² + Δa*² + Δb*²).
 
 3.3 2D polynomial regression by least squares (background model)
@@ -169,7 +169,7 @@ Python standard library
   high_pass = g - gaussian_blur(g, σ = 1.2)        (g = grey level)
   texture   = sqrt( mean_7x7(high_pass²) )         (local standard deviation)
   The high-pass removes slow variations (shading, curvature) and keeps the
-  grain. Mounting putty or plexiglass is smooth; a ceramic is grainy.
+  grain. Mounting putty or plexiglass is smooth; an object is grainy.
 
 3.7 Mathematical morphology (disc-shaped structuring element, function disk(r))
   - Erosion: a pixel stays "object" if the whole disc around it is object
@@ -184,14 +184,14 @@ Python standard library
 3.8 Hysteresis thresholding (function hysteresis)
   Two thresholds on the distance to the background: low = 8, high = 18.
   "Weak" areas (d > 8) are kept only if they contain at least one "strong"
-  pixel (d > 18). The pale edges of a sherd are thus kept (connected to the
-  sherd), but an isolated spot slightly different from the background (dust,
+  pixel (d > 18). The pale edges of an object are thus kept (connected to the
+  object), but an isolated spot slightly different from the background (dust,
   shadow) is rejected.
 
 3.9 Connected components (cv2.connectedComponentsWithStats)
   Labelling of the groups of touching pixels (8-connectivity: the 8
   neighbours; 4-connectivity: up/down/left/right). Gives for each group its
-  area, its bounding rectangle and its centre. Used to separate sherds,
+  area, its bounding rectangle and its centre. Used to separate objects,
   labels, scale, holes of the mask...
 
 3.10 Distance transform (cv2.distanceTransform)
@@ -338,27 +338,27 @@ Python standard library
 
   IF --ai: ai <- ai_mask(photo)                                   [§10.3]
            (on failure: note "AI not used", the processing goes on without it)
-  ceramic <- outline_ceramic(photo, small, f, bg, scale, ai)      [§10]
+  object <- outline_object(photo, small, f, bg, scale, ai)      [§10]
   IF a scale is found:
-      putty <- find_putty(photo, ceramic, px/cm)                  [§11]
+      putty <- find_putty(photo, object, px/cm)                  [§11]
       IF putty is found:
           IF --remove-putty: remove it; doubt "mounting putty removed"
           OTHERWISE: flag it (red area); doubt "possible mounting putty"
   Notes: small isolated element discarded; translucent support removed;
          colour chart discarded; background removed by the AI
-  IF a colour chart touches the ceramic: doubt "colour chart touching the ceramic"
-  IF the cut-out touches the edge of the photo: doubt "ceramic cut by the photo edge"
+  IF a colour chart touches the object: doubt "colour chart touching the object"
+  IF the cut-out touches the edge of the photo: doubt "object cut by the photo edge"
 
   doubtful <- there is at least one doubt
   file names <- output_paths(NAME, doubtful)   (_to_be_verified suffix)
 
-  IF a ceramic is found:
+  IF an object is found:
       size in cm = size of the cut-out / px/cm (for the report)
-      layers, canvas <- layout(photo, ceramic, scale)             [§12]
+      layers, canvas <- layout(photo, object, scale)             [§12]
       image_with_scale <- composite(visible layers)
       IF not --no-psd: write_psd(NAME.psd)                        [§13]
       IF scale: write_tiff(NAME_outlined_scale.tif, image_with_scale)
-      write_tiff(NAME_outlined.tif, ceramic alone)                [§14]
+      write_tiff(NAME_outlined.tif, object alone)                [§14]
       status <- "to verify" if doubtful, otherwise "ok"
   OTHERWISE status <- "failed"
 
@@ -366,11 +366,11 @@ Python standard library
       and write_review: the cut-out mask (photo size, PNG) and the scale
       outline, in outlined_result/gerbil_review, for the review window
   Corrections made in the review window (gerbil_edits next to the photos,
-  read by edits_entry, right after outline_ceramic):
+  read by edits_entry, right after outline_object):
       corrected mask (0 / 255, photo size) -> cutout_from_mask: replaces
           the cut-out (edge softened as in §10.2: Gaussian blur 0.8 px);
           no putty search; note "cut-out corrected by hand"
-      angle -> the object is turned at the layout (rotated_ceramic:
+      angle -> the object is turned at the layout (rotated_object:
           rotation around the centre of its box, bicubic for the pixels,
           bilinear for the layer mask, one resampling; the scale and the
           hidden original photo are not turned); note "object turned by
@@ -505,7 +505,7 @@ Python standard library
   REJECT if: square < 3 px; a square differs by more than 30 % from the
              mean; height/square outside [0.15; 3]; or, for a single row, if
              the light squares are not white (it would be painted bands on a
-             ceramic)
+             object)
   turn over <- the red is in the bottom row (the scale is upside down)
   RETURN face (y0, y1), start, end, n, square, boundaries, irregularity
 
@@ -533,7 +533,7 @@ Python standard library
       [0.15; 3], or (single row) light squares not white, or (two rows) the
       row that is not inked is coloured: median chroma C* > 20 (CARD_CHROMA;
       the white of the cards measured 3 to 11, an orange sherd under written
-      strokes 42: handwriting on a sherd is not a scale)
+      strokes 42: handwriting on an object is not a scale)
   never turned over: the red row is on top on some scales (DDN) and below on
       others (digits upright): the scale keeps its orientation in the photo
   The measurement uses all the boundaries (least squares): the ends of the
@@ -566,7 +566,7 @@ Python standard library
       right, only the outline of the scale changes
       IF the length is not 5, 10 or 20 cm (SCALE_LENGTHS): look for a ruler
           (§9, §9.2b); a ruler of 5 or 10 cm without doubt is kept instead
-          (a number written on the sherd may look like a few squares);
+          (a number written on the object may look like a few squares);
           otherwise doubt
   IF irregularity > 15 %: doubt "irregular scale squares"
   outline of the scale <- rectangle of the printed face (flush with the
@@ -656,7 +656,7 @@ Python standard library
   Rulers with thick, long ticks hanging from the edge of the card (another
   make of ruler, or a closer shot):
   _tick_combs(long_ticks): grid cell sized on the LONGEST strokes (1.7 x)
-      instead of the 95th percentile of all of them: on a sherd, hundreds of
+      instead of the 95th percentile of all of them: on an object, hundreds of
       short strokes of its surface make the cell too small, and one tick
       missing breaks the chain of neighbours
   analyze_ruler(robust): band of the graduations <- rows where the density
@@ -682,7 +682,7 @@ Python standard library
 
 
 ------------------------------------------------------------------------------
-10. OUTLINING THE CERAMIC (outline_ceramic)
+10. OUTLINING THE OBJECT (outline_object)
 ------------------------------------------------------------------------------
 
 10.1 First mask (photo reduced to 1500 px)
@@ -702,7 +702,7 @@ Python standard library
       object), and as light as the background (ΔL ≥ -8) or whiter than it
       (Δb ≥ +6)
       -> a reflection of the background on a black gloss is excluded: it runs
-         along the ceramic, it is darker and of the same hue
+         along the object, it is darker and of the same hue
       -> these areas are removed from the object
   cast_shadows (light background only; a shadow does not show on velvet):
       k = L / L_background; cd = sqrt((a - k a_bg)² + (b - k b_bg)²) (distance
@@ -736,11 +736,11 @@ Python standard library
           sector present = at least 0.1 cm² of saturated pixels
           chart IF at least 5 sectors are present, with at least one warm
           (red, orange, yellow, magenta), one green and one blue
-          (a ceramic, even glazed or painted, covers 2 neighbouring sectors at
+          (an object, even glazed or painted, covers 2 neighbouring sectors at
           most: 1,763 photos tested; the charts 5 to 9)
       -> regular outline (solidity = area / area of the convex hull ≥ 0.95):
          chart alone, removed whole, red outline
-      -> irregular outline: chart stuck to something else (sherd):
+      -> irregular outline: chart stuck to something else (object):
          chart_disc (round chart):
              inks of a hue foreign to ceramics: C* > 40 and h outside 30-90°
              (pinks, yellows, greens, blues)
@@ -797,8 +797,8 @@ Python standard library
         outline, note "paper label discarded". Before that, split_labels cuts
         each blob that is not a label at its narrow joins (opening, disc of
         2 % of its size) and removes a part (≥ 2 % of the blob) that is a label (label touching a
-        sherd by a corner). If every object is a "label", they are kept and
-        the photo flagged (a small pale square sherd alone)
+        object by a corner). If every object is a "label", they are kept and
+        the photo flagged (a small pale square object alone)
   discard_labels:
       main object = the largest component (always kept)
       normal to the scale n; signed distance s = (point - centre) . n
@@ -844,7 +844,7 @@ Python standard library
          discarded elements, of the removed supports, of the colour charts and
          of the areas removed by the AI (and their area)
 
-10.3 AI second opinion (--ai option: ai_mask, then end of outline_ceramic)
+10.3 AI second opinion (--ai option: ai_mask, then end of outline_object)
   "Object / background" segmentation networks trained on millions of images
   (convolutional / transformer neural networks), in the ONNX format:
       isnet    : IS-Net, from the DIS project (Dichotomous Image Segmentation),
@@ -862,14 +862,14 @@ Python standard library
       birefnet: p <- sigmoid(p) = 1 / (1 + e^-p)
       p <- (p - min) / (max - min); ai <- 255 x p
       if the graphics card fails (memory): done again on the processor
-  Rule (in outline_ceramic, at full resolution):
+  Rule (in outline_object, at full resolution):
       ai_object <- ai brought back to the useful area (affine transformation,
                    bilinear interpolation) > 127
       to_remove <- mask AND NOT dilation(ai_object, 3 px) AND d < 12
           = what the script keeps, that the AI sees as background, more than
             3 px from the edges it draws, and whose colour stays close to the
             background (background seen in a shadowed perforation, between two
-            sherds, halo of a blurred edge)
+            objects, halo of a blurred edge)
       opening (disc 3); keep the areas ≥ 0.02 cm²
       mask <- mask AND NOT to_remove
   The AI never adds anything: when it is wrong, it is by keeping too much
@@ -878,9 +878,12 @@ Python standard library
   outline in preview)".
 
 
-10.4 Cut-out drawn from the AI (--cutout ai: ai_first in outline_ceramic)
-  The BiRefNet network (§10.3: ai_mask) is run first; the option turns --ai on
-  with the birefnet model. Its map replaces the colour distance where the
+10.4 Cut-out drawn from the AI (--cutout ai or ai-lite: ai_first in
+     outline_object)
+  A BiRefNet network (§10.3: ai_mask) is run first; the option turns --ai on
+  with the birefnet model (ai), or with birefnet-lite (ai-lite: Swin-tiny
+  backbone, 224 MB, about twice as fast, the same cut-out on 51 of 53 open
+  photos). Its map replaces the colour distance where the
   colour misleads: cast shadows, border of the table, object of the colour of
   the background.
   First mask (reduced photo):
@@ -899,7 +902,7 @@ Python standard library
            ≥ 0.6, filling of its rectangle ≥ 0.9): a blank card,
       or   rather straight-sided (≥ 0.4) with writing: 0.4 % to 25 % of dark
            uncoloured pixels (L* < 45, chroma < 15)
-      (13 test photos: labels 0.82-0.86 / 0.94-0.97, sherds 0.10-0.33)
+      (13 test photos: labels 0.82-0.86 / 0.94-0.97, objects 0.10-0.33)
   Edge at full resolution (useful area, r as in §10.2):
       sure      <- erosion(object, r)                  (the network decides)
       allowed   <- dilation(object, r)
@@ -913,9 +916,45 @@ Python standard library
             (shadow, pale object) the network does, when it is sure of itself
       then as in §10.2: pieces linked to "sure", scale, charts, supports,
       holes, finishing. No second opinion (§10.3) in this mode.
-  When the network sees nothing to keep, outline_ceramic is run again by the
+  When the network sees nothing to keep, outline_object is run again by the
   colour (note "the AI saw no object: cut-out by the colour"). Note of the
   report: "cut-out drawn from the AI (model)".
+
+
+10.5 Colours (--colour balance or exposure: white_reference,
+     colour_correction, apply_colour) - after the cut-out, which it does not
+     change; applied to the photo before the layout (§12), so to everything
+     written; the copy of the original photo is not touched
+  white <- the white chosen (--white), median of its pixels in linear light
+           (sRGB decoded: v/12.92 under 0.04045, else ((v+0.055)/1.055)^2.4):
+      chart      : a colour chart found by the cut-out.
+                   Round (it fills 85 % of its enclosing circle: Archaeo
+                   Colorimeter): disc of 0.20 radius at its centre, 1.5 times
+                   lighter than its coloured ring.
+                   Made of patches (chart_white: SpyderCheckr, ColorChecker,
+                   Farbkarte): the chart reduced to 500 px, blurred (sigma
+                   1); flat pixels = gradient (Sobel / 4, strongest channel)
+                   < 2.5; patches = their connected pieces of at least 0.4 %
+                   of the chart filling 60 % of their rectangle (the frame
+                   does not); at least 4 patches; white = the patch whose
+                   weakest channel is the strongest (white is lighter than
+                   every colour, grey or pastel tint in its three channels)
+      scale      : the lightest 30 % (luminance) of the printed face of the
+                   scale, eroded by 3 % of its width
+      background : the pixels of the reduced photo within a colour distance
+                   of 4 of the background model (light backgrounds only)
+      a white of luminance under 0.15 is not used
+  luminance Y = 0.2126 R + 0.7152 G + 0.0722 B
+  gains <- Y / (R, G, B) of the white: the white becomes neutral, as light
+           as before; a gain under 0.5 or over 2 -> not a white: no
+           correction (note)
+  exposure: gains <- gains x 0.85 / Y (the white brought to L* = 94, where
+           a calibration exposes the white patch of a chart), unless
+           that factor leaves [0.4; 3]: the balance alone
+  every pixel: channel <- sRGB(linear(channel) x gain), clipped at white
+           (one table of 256 values per channel)
+  Note: "colours balanced on the white of the ... (R x.., G x.., B x..;
+  exposure x..)" or "colours not corrected: ...".
 
 
 ------------------------------------------------------------------------------
@@ -948,26 +987,26 @@ Python standard library
 12. LAYOUT AND COMPOSITING (layout, composite)
 ------------------------------------------------------------------------------
 
-  margin = 0.5 cm (--margin-cm); gap ceramic/scale = 0.5 cm (--gap-cm)
+  margin = 0.5 cm (--margin-cm); gap object/scale = 0.5 cm (--gap-cm)
   (without a scale: 2 % of the photo)
   "recompose" layout (default):
       Scale layer <- straightened crop of the scale + anti-aliased rectangular
                      mask (§3.11)
-      canvas: width = max(ceramic, scale) + 2 margins;
-              height = margin + ceramic + gap + scale + margin
-      ceramic centred at the top; scale centred under it
+      canvas: width = max(object, scale) + 2 margins;
+              height = margin + object + gap + scale + margin
+      object centred at the top; scale centred under it
   "original" layout: scale left where it is; canvas = rectangle around
-      ceramic + scale + margins
-  Ceramic layer <- original pixels of the rectangle of the ceramic + 0.15 cm,
+      object + scale + margins
+  Object layer <- original pixels of the rectangle of the object + 0.15 cm,
       with the alpha mask as layer mask
   Original photo layer <- the whole original photo, placed where it falls on
       the canvas ("photo -> canvas" offset): the scale stays where it was
-      photographed, even when moved under the sherd; the layer goes beyond the
+      photographed, even when moved under the object; the layer goes beyond the
       canvas (negative coordinates are allowed in the PSD: Photoshop keeps these
       pixels); hidden (unless --no-original-layer)
   composite: "over" merging of the visible layers on a transparent
       background (§3.17)
-  version without the scale: Ceramic layer alone, canvas = ceramic + 2 margins
+  version without the scale: Object layer alone, canvas = object + 2 margins
 
 
 ------------------------------------------------------------------------------
@@ -982,7 +1021,7 @@ Python standard library
       0x040F ICC profile (sRGB)
       0x0422 EXIF
       0x0424 XMP (description of the measurement + shooting information)
-  layers (from bottom to top: Original photo, Scale, Ceramic):
+  layers (from bottom to top: Original photo, Scale, Object):
       rectangle (signed coordinates: may go beyond the canvas), channels
       (-1 full opacity, 0 R, 1 G, 2 B, -2 layer mask), "normal" mode, opacity
       255, visible / hidden, mask data (20 bytes), blending ranges (40 bytes),
@@ -1032,8 +1071,8 @@ Python standard library
       The rows of the other photos already present are kept (merged by file
       name); an older report with French column names is converted.
       Columns: file, status, to_verify, scale_found, scale_type,
-      squares, scale_length_cm, px_per_cm, ppi_1_1, ceramic_width_cm,
-      ceramic_height_cm, pieces, camera, lens, focal_mm, date_taken, notes,
+      squares, scale_length_cm, px_per_cm, ppi_1_1, object_width_cm,
+      object_height_cm, pieces, camera, lens, focal_mm, date_taken, notes,
       duration_s
 
   The former DDN naming rule (name_ok column) is removed: naming rules will be
@@ -1075,14 +1114,14 @@ Python standard library
   crumbs                         < 4 % of the largest component
   colour chart                   C* > 30; ≥ 5 sectors of 30° (≥ 0.1 cm²
                                  each); alone if solidity ≥ 0.95
-  round chart stuck to a sherd   inks C* > 40 over ≥ 20 sectors of 10°
+  round chart stuck to an object   inks C* > 40 over ≥ 20 sectors of 10°
   shadow of the chart            < 1.6 radius; ΔL < -3; distance to the
                                  darkened background < 6
   AI (--ai)                      1024 x 1024 input; object if > 127; margin
                                  3 px; d < 12; areas ≥ 0.02 cm²
   mounting putty                 texture < 50 %, ΔE > 6, chroma < 80 %, lighter
   margin / gap                   0.5 cm / 0.5 cm
-  border of the Ceramic layer    0.15 cm around the mask
+  border of the Object layer    0.15 cm around the mask
   blur of the edge (alpha)       σ = 0.8 px
   resolution without a scale     300 ppi
 
@@ -1092,7 +1131,7 @@ Python standard library
 ------------------------------------------------------------------------------
 
   - The measurement is right only if the scale is in the plane of the object.
-  - The background must be plain and different from the ceramic. A light
+  - The background must be plain and different from the object. A light
     background is the intended situation. On black velvet the scale is found
     from its light squares (§8.0): 41 of 42 photos of a 2025 sample (5, 10
     and 20 cm checkerboards with digits in the squares); on 15 old photos of
@@ -1104,8 +1143,8 @@ Python standard library
     digits inside the squares allowed, 5, 10 or 20 cm), ruler graduated in
     millimetres. Another form is most often flagged _to_be_verified.
   - Opaque white or cream supports (putty, foam) lodged in a hollow or behind
-    a handle look too much like a light ceramic: they are not recognised and
-    are retouched with the brush on the mask of the Ceramic layer.
+    a handle look too much like a light object: they are not recognised and
+    are retouched with the brush on the mask of the Object layer.
   - Mounting putty is only flagged by default: a light, smooth vessel base
     looks too much like it to remove it straight away.
   - The --ai option only opens background whose colour is close to the
@@ -1167,6 +1206,29 @@ Python standard library
 19. PLATES (gerbil_plates.py)
 ------------------------------------------------------------------------------
 
+  collect_images(folder of photos) - free plates (--images): every JPEG, TIFF
+      or PNG of the folder (Gerbil's own results left out) whose scale is
+      known, as a whole photo shown upright:
+          px/cm <- distance of the two points clicked / their length in cm
+                   (gerbil_scales.json, as the manual scale of §8)
+                   else 1 / (pixel size of the world file in m x 100)
+                   (photo.jgw, .tfw, .pgw, .wld: orthophoto)
+          real size (cm) = pixels of the upright photo / px/cm
+          fields = those of the batch renaming of the folder (label: value)
+      the photos without a scale are left out (and counted in a warning)
+      then the same sort, layout and writing as below; usual scales up to
+      1:100, bar lengths up to 10 m, bar unit cm, mm or m
+  save_pages: each page as SVG, TIFF (LZW) and / or JPEG (95) at
+      raster_dpi; with "pdf", every page is also appended to one PDF as an
+      image (JPEG 92), one page in memory at a time
+  write_figures: figures.csv, one row per plate: number, file, title,
+      captions of its objects, scale(s), credit, group
+  write_contact_sheets(folder of photos): photos in their order (group,
+      order field, name); columns per row; cell = (page width - margins -
+      gaps) / columns, 3/4 as high; rows per page from the height left; a
+      new row or page at each group; each photo reduced to fit its cell
+      (not to scale), bottom-aligned, caption under it; pages written by
+      save_pages (contact_01..., contact_sheets.pdf)
   collect(results folder): every NAME_outlined.tif (and _to_be_verified if
       wanted) with a resolution; the object = bounding box of its alpha > 0
       (the transparent margin left out; white background: the whole image);
@@ -1282,6 +1344,16 @@ Python standard library
   gerbil_tools.thumbnails: RAW developed at half size (rawpy), others opened
       at a reduced size (draft), turned upright; alpha cropped to its box;
       LANCZOS to the size; PNG, or JPEG 90 on white
+  gerbil_tools.deposit (check before a deposit; nothing changed): os.walk
+      (gerbil_review, gerbil_edits and the output folder skipped); for each
+      file: extension in the accepted list; name matches ^[A-Za-z0-9_.-]+$;
+      photos: naming rule of gerbil_project.json of its folder (or of the
+      folder above), on the name without Gerbil's suffixes; size 0; path
+      > 240 characters; SHA-256 (blocks of 1 MB) already met -> "same
+      content as"; images: XMP packet or IPTC block in the first or last
+      megabyte -> metadata yes / no. Writes deposit_inventory.csv,
+      checksums.sha256 ("hash *relative/path", read by sha256sum -c) and
+      deposit_report.txt (counts by format and by remark)
 
 ------------------------------------------------------------------------------
 22. ONE-CLICK CUT-OUT (review window)

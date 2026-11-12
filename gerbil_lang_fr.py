@@ -350,6 +350,28 @@ FR = {
         'Échelle par matière',
     'Scale of the drawings on their own paper (usually 1:1).':
         'Échelle des dessins sur leur propre papier (souvent 1:1).',
+    'Scale of the photos…':
+        'Échelle des photographies…',
+    'Scale of the photos':
+        'Échelle des photographies',
+    'The list of the photos of the folder: measure the scale of each one by clicking the two ends of a known length (pole, scale, measurement taken in the field).':
+        "La liste des photographies du dossier : mesurer l'échelle de chacune en cliquant les deux extrémités d'une longueur connue (jalon, mire, mesure prise sur le terrain).",
+    'Double-click a photo to measure its scale: click the two ends of a known length and give that length. An orthophoto with its world file (.jgw, .tfw) needs nothing.':
+        "Double-cliquez sur une photographie pour mesurer son échelle : cliquez les deux extrémités d'une longueur connue et donnez cette longueur. Une orthophoto accompagnée de son fichier de géoréférencement (.jgw, .tfw) n'a besoin de rien.",
+    'Real size':
+        'Taille réelle',
+    'no scale':
+        'sans échelle',
+    'Measure the scale…':
+        "Mesurer l'échelle…",
+    'Measure the scale on the photo…':
+        "Mesurer l'échelle sur la photographie…",
+    'Another scale…':
+        'Autre échelle…',
+    "No photo with a scale yet: 'Scale of the photos…'":
+        "Aucune photographie à l'échelle pour l'instant : « Échelle des photographies… »",
+    'Click the two ends of a length you know on the photo: a ranging pole, a scale, or a measurement taken in the field (the length of the grave). Give that length in centimetres (1 m = 100). The scale holds in the plane of these two points.':
+        "Cliquez les deux extrémités d'une longueur que vous connaissez sur la photographie : un jalon, une mire, ou une mesure prise sur le terrain (la longueur de la fosse). Donnez cette longueur en centimètres (1 m = 100). L'échelle vaut dans le plan de ces deux points.",
     'Scale of the plates (automatic)':
         'Échelle des planches (automatique)',
     'Scale per object':
