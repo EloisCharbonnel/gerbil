@@ -93,6 +93,14 @@ photos — choosing an `outlined_result` folder opens the folder of its photos; 
   an empty field are merged. Two photos giving the same name get a suffix (`_2`, `_3`…) and are flagged.
   Without a template, the names of the photos are kept. When a name changes, the files written under the
   former name are removed.
+- **Extension of the files written**: as usual (`.tif`, `.psd`, `.jpg`; the copy of the original keeps
+  its own), all in lowercase (the copy too: `NAME.jpg`) or all in capitals (`.TIF`, `.PSD`, `.JPG`). It
+  applies to the files Gerbil writes in the results folder only: the original photos are never renamed.
+- **After a change** of the alerts (required field, naming rule, extension in lowercase) or of the
+  extension case, *Save* applies it at once to the photos already processed, without processing them
+  again: their files get or lose `_to_be_verified`, the report and the list of step 04 follow (the text
+  drawn on the control preview stays until the next run). When the name or the information of a photo
+  changed, Gerbil offers to process it again. From the command line: `gerbil.py FOLDER --refresh-names`.
 - **Naming rule** (optional): a regular expression the output names must match, read **as PowerShell's
   `-match`**: case-insensitive, found anywhere in the name unless anchored with `^` and `$`, .NET named
   groups `(?<name>…)` accepted, `(?-i)` at the start makes it case-sensitive (a rule written for PowerShell
@@ -174,6 +182,10 @@ profile chosen (to share with the team). Command line: `--profile FILE`.
 **Plates…** (main window) lays out the outlined objects of a results folder on pages at a chosen scale
 (1:1, 1:2, 1:3…) and writes them as **SVG files** in `plates\` that open in Illustrator or Inkscape at
 their true size: 1 cm of the object = 1 cm / scale on the paper.
+
+- **Files written**: SVG (layers, text and drawings stay editable), and / or the whole page as one image
+  on white, in **TIFF** (LZW, lossless) or **JPEG**, at 300, 600 or 1200 dpi (*TIFF / JPEG (dpi)*): for a
+  report, a slide or a quick print. Command line: `--formats svg,tif,jpg --raster-dpi 300`.
 
 - **Plate title** (optional) at the top of each plate, left, centred or right, with `{page}`, `{pages}`
   and `{group}` replaced (e.g. `QSR25 - US 1209 - Plate {page}`).
@@ -342,6 +354,31 @@ cannot be found (rectangular chart stuck to the sherd), the chart is kept and th
 Holes through which the background shows (opening between the attachments of a handle, perforation)
 stay transparent. The other holes of the cut-out (gloss reflections, light concretions) are filled.
 
+## Cut-out drawn from the AI (`--cutout ai` option, setting *Cut-out: ai*)
+
+By default (*Cut-out: colour*) the objects are what differs from the background by its colour: fast, and
+exact on a plain background, but a cast shadow, the border of the table or a white object on a white
+background mislead it. With `--cutout ai`, the **BiRefNet** network (a neural network trained to tell
+objects from backgrounds, run on this computer: no photo is sent anywhere) says what is an object, and
+Gerbil does the rest as usual:
+
+- the pieces are sorted by the same rules: scale, colour chart, translucent support, isolated elements. A
+  paper label is an object for the network: it is discarded when it is a light, uncoloured card with
+  straight sides, or bearing writing ("paper label discarded", red outline in the preview);
+- the edge is still drawn from the photo at full resolution: within a few pixels of the outline of the
+  network, a pixel belongs to the object when its colour differs from the background and is not that of a
+  shadow. Where the colour cannot tell (a shadow, or an object of the colour of the background), the
+  network decides;
+- the report says "cut-out drawn from the AI (birefnet-general)". When the network sees no object, the
+  colour rule is used instead ("the AI saw no object: cut-out by the colour").
+
+It costs about 15 s more per photo (BiRefNet runs on the processor; processing several photos in parallel
+does not make it faster) and needs onnxruntime and the BiRefNet model (970 MB, downloaded once). On 13
+photos of sherds with cast shadows, a table border and a white glazed sherd on white paper, the colour rule
+gave 13 photos to correct and this one 13 clean cut-outs; on 53 open photos of finds it was better on the
+9 where the two differ by more than 15 % and the same elsewhere. The results of the default cut-out are
+not changed by this option.
+
 ## AI second opinion (`--ai` option)
 
 Without the option, nothing changes. With `--ai`, a neural cut-out network gives a second opinion (the
@@ -386,7 +423,9 @@ order:
 The sections below describe each window in detail, with the English names of their buttons (all the windows also exist in French; their texts are in `gerbil_lang_fr.py`):
 
 - **Photos**: *Add folder…* / *Add photos…* add folders or photos (the number of photos of each folder is
-  shown); *Remove* (or the Delete key) and *Clear* empty the list.
+  shown); a path can also be pasted or typed in the field under them (*Add*, or Enter; the quotes of the
+  Explorer's *Copy as path* are accepted, several paths separated by `;`); *Remove* (or the Delete key) and
+  *Clear* empty the list.
 - **Set scale…**: when the scale of a photo is not found or wrongly read, give it by hand. Select the photo
   in the list (or choose it), click the two ends of a known length on the scale (for example 0 and 5 cm,
   along its middle), give that length and the width of the scale, then *Save*: the photo can be processed
@@ -484,6 +523,7 @@ In the .exe version, `gerbil_cli.exe` takes the same arguments (`gerbil_cli.exe 
 | `--compression zip` | slightly smaller TIFF files (LZW by default, the most compatible) |
 | `--default-ppi 300` | resolution used when there is no scale |
 | `--no-scale` | do not look for a scale |
+| `--cutout ai` | the BiRefNet network says what is an object (shadows, table border, white on white); about 15 s more per photo (see above) |
 | `--ai` | AI second opinion, which can only remove background (see above) |
 | `--ai-model birefnet` | with `--ai`: BiRefNet model instead of IS-Net (more precise, much slower) |
 | `--ai-device cpu` | with `--ai`: processor instead of the graphics card |
@@ -501,8 +541,8 @@ In the .exe version, `gerbil_cli.exe` takes the same arguments (`gerbil_cli.exe 
   doubtful length; the last one, squares of 13 px in three rows, needs the manual scale).
 - A very light object on a white background (white paste, flint cortex, chalk spindle whorl) cannot be
   told from the background by its colour or its grain where it is almost white: parts of it may be lost.
-  Photograph such objects on a darker background (grey or black), or use *One click on the object* in
-  *Review…*, which is told which object to cut out.
+  Photograph such objects on a darker background (grey or black), choose *Cut-out: ai* (the network sees
+  them), or use *One click on the object* in *Review…*, which is told which object to cut out.
 - When the ceramic fills almost the whole frame (close-up of a vessel base), the background is taken from
   the edges of the photo.
 - Scale forms tested: black/white/red checkerboard (one or two rows, digits inside the squares allowed),
@@ -517,8 +557,10 @@ also keeps the transparency and the 1:1 resolution.
 
 ## RAW photos
 
-RAW files straight from the camera are read as well: DNG, CR2, CR3 (Canon), NEF, NRW (Nikon), ARW
-(Sony), ORF (Olympus), RW2 (Panasonic), RAF (Fujifilm), PEF (Pentax), SRW (Samsung), 3FR, IIQ. They are
+RAW files straight from the camera are read as well: DNG, CR2, CR3, CRW (Canon), NEF, NRW (Nikon), ARW,
+SR2, SRF (Sony), ORF (Olympus), RW2, RAW (Panasonic), RWL (Leica), RAF (Fujifilm), PEF (Pentax), SRW
+(Samsung), 3FR, FFF (Hasselblad), IIQ (Phase One), MOS (Leaf), MEF (Mamiya), ERF (Epson), MRW (Minolta),
+DCR, KDC (Kodak). Not read: X3F (Sigma Foveon) and GPR (GoPro); convert those to DNG first. They are
 developed by LibRaw (the `rawpy` package) with the white balance of the camera, in sRGB, 8 bits, turned
 upright; the camera, lens and date are read from them for the report. The windows (*Set scale…*,
 *Review…*, *Batch renaming…*) show them developed the same way. The original copy in `outlined_result` is

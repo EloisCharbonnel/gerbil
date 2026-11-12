@@ -102,6 +102,7 @@ FR = {
         "(les cases contiennent les valeurs propres à chaque photo, qui la remplacent).",
     "gerbil_gui.pyw:ProjectWindow.set_value": "Donne la valeur d'un champ pour une photo (tableau et projet).",
     "gerbil_gui.pyw:ProjectWindow.ext_changed": "« Extension in lowercase » coché ou non.",
+    "gerbil_gui.pyw:ProjectWindow.case_changed": "La casse de l'extension des fichiers écrits a été choisie.",
     "gerbil_gui.pyw:ProjectWindow.ext_feedback": "Le nombre de photos dont l'extension a des majuscules.",
     "gerbil_gui.pyw:ProjectWindow.helper_changed": "Morceaux cochés → règle écrite dans le champ de la règle (qui reste "
         "modifiable à la main).",
@@ -296,6 +297,12 @@ FR = {
     "gerbil_gui.pyw:App._sync": "Active les options qui dépendent d'une autre.",
     "gerbil_gui.pyw:App.add_paths": "Ajoute des dossiers / photos à la liste (avec leur nombre de photos).",
     "gerbil_gui.pyw:App.add_folder": "Ajoute un dossier de photos.",
+    "gerbil_gui.pyw:App.add_typed_path": "Ajoute le dossier ou la photo dont le chemin a été tapé ou collé à "
+        "l'étape 01 (guillemets de « Copier en tant que chemin » acceptés ; plusieurs chemins séparés par « ; »).",
+    "gerbil_gui.pyw:App.naming_saved": "Renommage en lot d'un dossier enregistré : les photos déjà traitées suivent "
+        "sans être retraitées (alertes des noms, « _to_be_verified », casse des extensions) ; les tableaux des "
+        "étapes 03 et 04 sont redessinés. Les photos dont le nom ou les informations ont changé doivent être "
+        "retraitées : elles sont renvoyées quand l'utilisateur l'accepte.",
     "gerbil_gui.pyw:App.add_files": "Ajoute des photos.",
     "gerbil_gui.pyw:App.project": "Le projet du dossier sélectionné dans la liste (ou du dossier de la photo "
         "sélectionnée).",
@@ -518,6 +525,17 @@ FR = {
         "photo est quand même écartée : un seul morceau, le tesson, à 3 % près de sa vraie surface.",
     "tests/test_gerbil.py:test_cast_shadow_removed": "Une ombre portée douce est retirée : le détourage a la "
         "surface du tesson seul, à 3 % près.",
+    "tests/test_gerbil.py:network": "Tient lieu de réseau BiRefNet : il répond « objects » (le masque de ce qu'il "
+        "verrait comme objets).",
+    "tests/test_gerbil.py:test_cutout_drawn_from_the_ai": "Le réseau voit le tesson et l'étiquette comme objets, "
+        "ni l'ombre ni l'échelle. Gerbil doit écarter l'étiquette et tracer le bord du tesson d'après la photo.",
+    "tests/test_gerbil.py:test_white_object_kept_by_the_ai": "Un tesson de la couleur du fond : la règle de couleur "
+        "ne le voit pas, le réseau si.",
+    "tests/test_gerbil.py:test_plates_tiff_and_jpeg": "Les planches s'écrivent aussi en TIFF et en JPEG, à la "
+        "taille de la page et à la résolution demandée.",
+    "tests/test_gerbil.py:test_naming_refresh_and_extension_case": "Après un changement du renommage en lot, les "
+        "alertes des noms et la casse des extensions suivent sans retraiter la photo ; un nouveau nom demande un "
+        "retraitement.",
     "tests/test_gerbil.py:test_learned_scale": "Une échelle apprise est retrouvée sur une autre photo, à 0,5 % près.",
     "tests/test_gerbil.py:test_iptc_and_lossless_jpeg": "Les champs IPTC sont remplis d'après le modèle, et le XMP "
         "inscrit dans un JPEG laisse son image identique pixel pour pixel.",

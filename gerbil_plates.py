@@ -100,6 +100,10 @@ class PlateSettings:
     title_align: str = "left"          # "left", "centre", "right"
     file_name: str = "plate_{page}"    # name of the SVG files; {page} (01, 02…), {pages}, {group}
     dpi: int = 600                     # resolution of the embedded images on the paper
+    svg: bool = True                   # files written: SVG (layers, text and drawings kept as vectors),
+    tiff: bool = False                 # TIFF (LZW, lossless) and / or
+    jpeg: bool = False                 # JPEG, the whole page as one image at raster_dpi
+    raster_dpi: int = 600              # resolution of the TIFF and JPEG pages
     include_doubtful: bool = False     # also the _to_be_verified files
     fit_large: bool = True             # an object too large for the page at 1:ratio goes to 1:2, 1:3...
     object_ratios: dict = field(default_factory=dict)   # output name -> its own scale (1:r), chosen by hand
@@ -175,7 +179,7 @@ def collect(folder, include_doubtful=False):
     report = read_report(folder)
     items = []
     for n in sorted(os.listdir(folder), key=natural_key):
-        suffix = next((s for s in TIFF_SUFFIXES if n.endswith(s)), None)
+        suffix = next((s for s in TIFF_SUFFIXES if n.lower().endswith(s)), None)
         if suffix is None:
             continue
         doubtful = suffix != TIFF_SUFFIXES[0]
@@ -370,8 +374,9 @@ def svg_shape(s):
     raise ValueError(kind)
 
 
-def render(drawing, px_per_mm, hidden=(), show_hidden=False):
-    """The page as a Pillow image (preview); the hidden layers only with show_hidden."""
+def render(drawing, px_per_mm, hidden=(), show_hidden=False, final=False):
+    """The page as a Pillow image (preview, or TIFF / JPEG plate with final: the drawings are then
+    rasterised at the resolution of the page); the hidden layers only with show_hidden."""
     W, H = max(1, round(drawing.width * px_per_mm)), max(1, round(drawing.height * px_per_mm))
     page = Image.new("RGB", (W, H), "white")
     d = ImageDraw.Draw(page)
@@ -410,7 +415,7 @@ def render(drawing, px_per_mm, hidden=(), show_hidden=False):
                 page.paste(tile, (round(x * k - asc), round(y * k - tw / 2)), tile)
             elif kind == "svgfile":
                 _, x, y, w, h, svg, _ = s
-                png = drawing_png(svg, max(2.0, min(16.0, k * 1.5)))
+                png = drawing_png(svg, k if final else max(2.0, min(16.0, k * 1.5)))
                 box = [x * k, y * k, (x + w) * k, (y + h) * k]
                 if png:
                     with Image.open(png) as im:
@@ -986,7 +991,8 @@ LAYER_NAMES = {"Objects": "Objects", "Drawings": "Drawings", "Captions": "Captio
 
 
 def write_plates(folder, s, out_dir=None, progress=None):
-    """Writes plate_01.svg, plate_02.svg... Returns (list of files, warnings)."""
+    """Writes plate_01.svg, plate_02.svg... and / or the same pages as TIFF and JPEG images (settings svg,
+    tiff, jpeg; SVG when none is chosen). Returns (list of files, warnings)."""
     items = collect(folder, s.include_doubtful)
     if not items:
         return [], ["no outlined object with a real size in this folder"]
@@ -999,8 +1005,20 @@ def write_plates(folder, s, out_dir=None, progress=None):
         if progress:
             progress(i - 1, len(pages))
         path = os.path.join(out_dir, names[i - 1])
-        write_svg(page_drawing(s, page, i, len(pages)), path, LAYER_NAMES)
-        files.append(path)
+        if s.svg or not (s.tiff or s.jpeg):
+            write_svg(page_drawing(s, page, i, len(pages)), path, LAYER_NAMES)
+            files.append(path)
+        if s.tiff or s.jpeg:                    # the whole page as one image, on white
+            dpi = max(72, int(s.raster_dpi))
+            image = render(page_drawing(s, page, i, len(pages), dpi=dpi), dpi / 25.4, final=True)
+            stem = os.path.splitext(path)[0]
+            if s.tiff:
+                image.save(stem + ".tif", compression="tiff_lzw", dpi=(dpi, dpi))
+                files.append(stem + ".tif")
+            if s.jpeg:
+                image.save(stem + ".jpg", quality=95, subsampling=0, dpi=(dpi, dpi))
+                files.append(stem + ".jpg")
+            del image
     if progress:
         progress(len(pages), len(pages))
     with open(os.path.join(out_dir, "plates_settings.json"), "w", encoding="utf-8") as fh:
@@ -1010,7 +1028,8 @@ def write_plates(folder, s, out_dir=None, progress=None):
 
 def main(argv=None):
     """Command line of the plates: options or a settings file, then write_plates."""
-    p = argparse.ArgumentParser(description="Gerbil plates: outlined objects laid out at a chosen scale (SVG).")
+    p = argparse.ArgumentParser(description="Gerbil plates: outlined objects laid out at a chosen scale "
+                                            "(SVG, TIFF or JPEG).")
     p.add_argument("folder", help="results folder (outlined_result)")
     p.add_argument("-o", "--output", help="folder of the plates (default: FOLDER/plates)")
     p.add_argument("--ratio", type=float, default=1.0, help="plate scale 1:RATIO")
@@ -1023,6 +1042,8 @@ def main(argv=None):
     p.add_argument("--order", default="name")
     p.add_argument("--group", default="")
     p.add_argument("--dpi", type=int, default=600)
+    p.add_argument("--formats", default="svg", help="files written, separated by commas: svg, tif, jpg")
+    p.add_argument("--raster-dpi", type=int, default=600, help="resolution of the TIFF and JPEG plates")
     p.add_argument("--doubtful", action="store_true", help="include the _to_be_verified files")
     p.add_argument("--measurements", action="store_true",
                    help="width and height of each object as guides, on a hidden layer")
@@ -1035,6 +1056,9 @@ def main(argv=None):
         s = PlateSettings(ratio=a.ratio, page=a.page, landscape=a.landscape, caption=a.caption, order=a.order,
                           group=a.group, dpi=a.dpi, include_doubtful=a.doubtful, measurements=a.measurements,
                           title=a.title, file_name=a.name)
+        wanted = {f.strip().lower().lstrip(".") for f in a.formats.split(",")}
+        s.svg, s.tiff, s.jpeg = "svg" in wanted, bool(wanted & {"tif", "tiff"}), bool(wanted & {"jpg", "jpeg"})
+        s.raster_dpi = a.raster_dpi
         if a.size:
             s.page = "custom"
             s.width_mm, s.height_mm = (float(v) for v in a.size.lower().split("x"))

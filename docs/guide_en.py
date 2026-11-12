@@ -91,7 +91,8 @@ PARTS = [
           "The steps can be visited in any order. The interface is in French and English (FR / EN at the bottom "
           "of the column)."),
     ("ol", ["**01 Source photographs**: *Add folder…* and choose the folder of the photos (their number is "
-            "shown). Several can be added, or folders dropped on the Gerbil icon.",
+            "shown). Several can be added, folders dropped on the Gerbil icon, or the path of a folder pasted "
+            "in the field provided (*Add*, or the Enter key).",
             "**02 Naming and metadata** (optional): the summary of the batch renaming of the folder, and the button "
             "that opens it.",
             "**03 Processing**: keep the default settings for a first try (resting the mouse on a setting shows its "
@@ -224,7 +225,8 @@ PARTS = [
     ("h2", "12. Plates"),
     ("p", "*Plates* lays out the outlined objects of a results folder at a chosen scale (1:1, 1:2, 1:3…) and "
           "writes them as **SVG** files (`plates` folder), which open in Illustrator or Inkscape at their true size: "
-          "1 cm of the object = 1 cm ÷ scale on the paper."),
+          "1 cm of the object = 1 cm ÷ scale on the paper. *Files written* also gives each page as one image, "
+          "in **TIFF** (lossless) or **JPEG**, at 300, 600 or 1200 dpi: for a report or a slide."),
     ("ul", ["Objects in **rows**, in the chosen order (name, US, material…), with a **caption** under each one "
             "(`{name}`, or `{site}_{us}_{number}`…). *Group by* starts a row or a page at each value.",
             "Graphic **scale bar** set as in QGIS (style, length, segments, colours, font), remembered as your "
@@ -264,6 +266,8 @@ PARTS = [
                ["`--compression zip`", "Slightly smaller TIFF files (LZW by default, the most compatible)."],
                ["`--default-ppi 300`", "Resolution used when there is no scale."],
                ["`--no-scale`", "Does not look for a scale."],
+               ["`--cutout ai`", "Cut-out drawn from the AI: the BiRefNet network says what is an object "
+                    "(shadows, table border, white on white); about 15 s more per photo."],
                ["`--ai`, `--ai-model birefnet`, `--ai-device cpu`", "AI second opinion (it can only remove "
                     "background); more precise but slower model; force the processor."],
                ["`--profile FILE`", "Site profile to use."],
@@ -286,8 +290,8 @@ PARTS = [
             "in a hollow is not recognised: erase it in *Review* or in Photoshop.",
             "A very light object on a white background (white paste, flint cortex, chalk spindle whorl) cannot be "
             "told from the background by its colour or its grain where it is almost white: parts may be lost. "
-            "Photograph such objects on a darker background (grey or black), or use *One click on the object* in "
-            "*Review*, which is told which object to cut out.",
+            "Photograph such objects on a darker background (grey or black), choose *Cut-out: ai* (the network "
+            "sees them), or use *One click on the object* in *Review*, which is told which object to cut out.",
             "Another form of scale will most often be flagged to verify: learn it in a site profile, or give it by "
             "hand.",
             "For a precise colour rendering of RAW files, develop them yourself (Lightroom, darktable) and give "
@@ -428,6 +432,19 @@ PARTS = [
           "part is possible putty when it is at once **smoother** (half the texture), **of another colour**, **less "
           "coloured** and **lighter** than the rest. By default it is only flagged (red area): a light, smooth "
           "vessel base looks too much like it to be removed without a check."),
+
+    ("h2", "10 bis. The cut-out drawn from the AI (setting Cut-out: ai)"),
+    ("p", "By default (*Cut-out: colour*) the object is what differs from the background by its colour: fast, and "
+          "exact on a plain background, but a cast shadow, the border of the table or a white object on a white "
+          "background mislead it. With *Cut-out: ai* (`--cutout ai`), the **BiRefNet** neural network first says "
+          "what is an object; Gerbil then sorts the pieces as usual (scale, label, chart, support) and still "
+          "draws the edge from the photo, at full resolution. Where the colour cannot tell (a shadow, an object "
+          "of the colour of the background), the network decides."),
+    ("ul", ["Everything runs on the computer: no photo is sent over the internet.",
+            "Allow about 15 seconds more per photo, and the BiRefNet model (970 MB, downloaded once).",
+            "A label is an object for the network: Gerbil discards it when it is a light, uncoloured card with "
+            "straight sides or bearing writing (red outline in the preview).",
+            "The results of the default cut-out are not changed by this setting."]),
 
     ("h2", "11. The AI second opinion (option)"),
     ("p", "With `--ai`, a neural cut-out network (IS-Net or BiRefNet) gives its opinion. It can **only remove** "

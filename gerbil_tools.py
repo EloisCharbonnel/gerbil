@@ -27,8 +27,9 @@ import re
 import sys
 
 KINDS = {
-    "photos": (".jpg", ".jpeg", ".tif", ".tiff", ".png", ".dng", ".cr2", ".cr3", ".nef", ".nrw", ".arw", ".orf",
-               ".rw2", ".raf", ".pef", ".srw", ".3fr", ".iiq"),
+    "photos": (".jpg", ".jpeg", ".tif", ".tiff", ".png", ".dng", ".cr2", ".cr3", ".crw", ".nef", ".nrw", ".arw",
+               ".sr2", ".srf", ".orf", ".rw2", ".raw", ".rwl", ".raf", ".pef", ".srw", ".3fr", ".fff", ".iiq", ".mos",
+               ".mef", ".erf", ".mrw", ".dcr", ".kdc"),
     "drawings": (".ai", ".svg", ".pdf", ".eps"),
     "3d": (".ply", ".obj", ".stl", ".glb", ".gltf", ".dae", ".fbx", ".e57", ".las", ".laz"),
 }

@@ -878,6 +878,46 @@ Python standard library
   outline in preview)".
 
 
+10.4 Cut-out drawn from the AI (--cutout ai: ai_first in outline_ceramic)
+  The BiRefNet network (§10.3: ai_mask) is run first; the option turns --ai on
+  with the birefnet model. Its map replaces the colour distance where the
+  colour misleads: cast shadows, border of the table, object of the colour of
+  the background.
+  First mask (reduced photo):
+      object <- ai (resized to the reduced photo, mean of the pixels) > 127
+      opening (disc 1), closing (disc 2), holes filled as in §10.1
+      the scale is removed as in §10.1
+      translucent supports (§10.1): kept only when they cover at most 40 % of
+          the piece of the network they stick out of (AI_SUPPORT_MAX) - a pale
+          object or a label has the colour of the background all over
+      no search for cast shadows (the network leaves them out)
+  Sorting of the pieces: as in §10.1, and on a light background a piece is a
+  paper label (discarded, red outline) when written_card says so:
+      light: median L* ≥ 75, or ≥ L* of the background - 6 (dim photos)
+      uncoloured: median chroma ≤ 14, in itself or compared with the background
+      and  straight-sided and full (straight_outline: share of straight sides
+           ≥ 0.6, filling of its rectangle ≥ 0.9): a blank card,
+      or   rather straight-sided (≥ 0.4) with writing: 0.4 % to 25 % of dark
+           uncoloured pixels (L* < 45, chroma < 15)
+      (13 test photos: labels 0.82-0.86 / 0.94-0.97, sherds 0.10-0.33)
+  Edge at full resolution (useful area, r as in §10.2):
+      sure      <- erosion(object, r)                  (the network decides)
+      allowed   <- dilation(object, r)
+      shade     <- pixel of the colour of a shadow on this background (§10.2)
+      weak      <- at least 25 % of the sure pixels within 2 r have the colour
+                   of the background (d ≤ 8): pale object (AI_WEAK)
+      confident <- ai ≥ 204 (0.8)                       (AI_SURE)
+      mask <- sure OR (allowed AND ((d > 8 AND NOT shade)
+                                    OR (confident AND (shade OR weak))))
+          = near the outline the colour draws the edge; where it cannot tell
+            (shadow, pale object) the network does, when it is sure of itself
+      then as in §10.2: pieces linked to "sure", scale, charts, supports,
+      holes, finishing. No second opinion (§10.3) in this mode.
+  When the network sees nothing to keep, outline_ceramic is run again by the
+  colour (note "the AI saw no object: cut-out by the colour"). Note of the
+  report: "cut-out drawn from the AI (model)".
+
+
 ------------------------------------------------------------------------------
 11. MOUNTING PUTTY (find_putty)
 ------------------------------------------------------------------------------

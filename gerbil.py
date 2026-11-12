@@ -62,7 +62,8 @@ except ImportError as _e:
 
 VERSION = "2.1"
 EXTENSIONS = {".jpg", ".jpeg", ".tif", ".tiff", ".png"}
-RAW_EXTENSIONS = {".dng", ".cr2", ".cr3", ".nef", ".nrw", ".arw", ".orf", ".rw2", ".raf", ".pef", ".srw", ".3fr", ".iiq"}
+RAW_EXTENSIONS = {".dng", ".cr2", ".cr3", ".crw", ".nef", ".nrw", ".arw", ".sr2", ".srf", ".orf", ".rw2", ".raw", ".rwl",
+                  ".raf", ".pef", ".srw", ".3fr", ".fff", ".iiq", ".mos", ".mef", ".erf", ".mrw", ".dcr", ".kdc"}
 EXTENSIONS |= RAW_EXTENSIONS
 ANALYSIS_SIZE = 1500           # longest side of the reduced image used for the analysis
 BG_DEGREE = 2                  # degree of the polynomial modelling the background gradient
@@ -2009,6 +2010,34 @@ def label_card(lab_small, m, origin):
     return fill >= LABEL_FILL
 
 
+CARD_L, CARD_C = 75.0, 14.0       # light card: median lightness at least, chroma at most
+CARD_BG_L = 6.0                   # ... or as light as the background of the photo, within this (dim photos)
+CARD_RECT, CARD_FILL = 0.6, 0.9   # ... with straight sides filling its rectangle (rounded corners allowed)
+CARD_INK = (0.004, 0.25)          # ... or bearing writing: this share of dark, uncoloured pixels (L* < 45)
+CARD_INK_RECT = 0.4               #     and still rather straight-sided
+
+
+def written_card(lab_small, m, origin, size, bg):
+    """AI first, light background: a paper label or card, which the network takes for an object. It is
+    light (CARD_L, or as light as the background bg = its median L*, a*, b*: CARD_BG_L) and uncoloured
+    (CARD_C, in itself or compared with the background: coloured lighting), and either straight-sided
+    and full (a blank card), or rather straight-sided with writing on it (dark ink strokes, CARD_INK).
+    A white sherd is not straight-sided on its broken edges and bears no ink."""
+    ys, xs = np.nonzero(m)
+    if len(xs) < 50:
+        return False
+    px = lab_small[ys + origin[1], xs + origin[0]]
+    L, chroma = px[:, 0], np.hypot(px[:, 1], px[:, 2])
+    tint = min(float(np.median(chroma)), float(np.median(np.hypot(px[:, 1] - bg[1], px[:, 2] - bg[2]))))
+    if float(np.median(L)) < min(CARD_L, bg[0] - CARD_BG_L) or tint > CARD_C:
+        return False
+    rect, fill = straight_outline(m, origin, size)
+    if rect >= CARD_RECT and fill >= CARD_FILL:
+        return True
+    ink = float(((L < 45) & (chroma < 15)).mean())
+    return rect >= CARD_INK_RECT and CARD_INK[0] <= ink <= CARD_INK[1]
+
+
 def straight_outline(m, origin, size):
     """Share of the outline of a piece (away from the photo border) made of long straight sides parallel
     or perpendicular to its main direction: near 1 for a scale bar, a ruler, a label or a chart (even
@@ -2118,17 +2147,25 @@ def edge_at_half_contrast(m, d, depth):
     return m & ~(weak & outside[lab])
 
 
-def outline_ceramic(photo, small, f, background, scale, ai=None):
+def outline_ceramic(photo, small, f, background, scale, ai=None, ai_first=False):
     """The cut-out of the object(s): first mask on the reduced photo (colour distance to the
     background, hysteresis, holes filled), sorting of the pieces (scale zone, labels,
     supports, colour charts, isolated elements), refinement at full resolution, edge
-    softened. Returns the alpha mask and what was discarded (see PSEUDOCODE §10)."""
+    softened. Returns the alpha mask and what was discarded (see PSEUDOCODE §10).
+    ai_first (with the mask of the network): the first mask is what the network sees as objects
+    instead of the colour distance - shadows, the border of the table and an object of the colour of
+    the background are then told apart; the pieces are sorted the same way (a label is an object for
+    the network) and the edge is still drawn at full resolution (see PSEUDOCODE §10b)."""
     rgb = photo.rgb
     H, W = rgb.shape[:2]
     hp, wp = small.shape[:2]
     lab_small = to_lab(cv2.GaussianBlur(small, (3, 3), 0))
     d_small = distance(lab_small, background.small_model)
-    obj = hysteresis(d_small, LOW_T, HIGH_T).astype(np.uint8)
+    ai_first = bool(ai_first and ai is not None)
+    if ai_first:
+        obj = (cv2.resize(ai, (wp, hp), interpolation=cv2.INTER_AREA) > 127).astype(np.uint8)
+    else:
+        obj = hysteresis(d_small, LOW_T, HIGH_T).astype(np.uint8)
     obj = cv2.morphologyEx(obj, cv2.MORPH_OPEN, disk(1))
     obj = cv2.morphologyEx(obj, cv2.MORPH_CLOSE, disk(2))
     opening_area = 0.02 * (scale.px_cm * f) ** 2 if scale.found else 20      # at least 0.02 cm²
@@ -2142,9 +2179,20 @@ def outline_ceramic(photo, small, f, background, scale, ai=None):
     lab_dev = lab_small - background.small_model
     supports = (translucent_supports(obj, d_small, lab_dev[..., 0], lab_dev[..., 2], scale.px_cm * f)
                 if scale.found else None)
+    if supports is not None and ai_first:
+        # AI first: a support sticks out of an object. A piece of the network mostly of the colour of
+        # the background is a pale object (or a label), not a support: it is left whole
+        np_, lp = cv2.connectedComponents(obj, connectivity=8)
+        total = np.bincount(lp.ravel(), minlength=np_)
+        pale = np.bincount(lp[supports], minlength=np_) > AI_SUPPORT_MAX * total
+        pale[0] = False
+        supports &= ~pale[lp]
+        if not supports.any():
+            supports = None
     if supports is not None:
         obj[supports] = 0
-    shadows = None if background.dark else cast_shadows(obj > 0, lab_small, background.small_model)
+    shadows = (None if background.dark or ai_first       # (the network leaves the shadows out by itself)
+               else cast_shadows(obj > 0, lab_small, background.small_model))
     if shadows is not None:
         obj[shadows] = 0
     charts, chart_discs, chart_attached = remove_charts(obj, lab_small, background.small_model, f,
@@ -2159,6 +2207,7 @@ def outline_ceramic(photo, small, f, background, scale, ai=None):
     areas = stats[1:, cv2.CC_STAT_AREA].astype(float)
     keep = np.zeros(n, bool)
     label_ids = []                            # components taken for paper labels
+    bg_median = np.median(background.small_model.reshape(-1, 3), axis=0)
     printed, printed_ids = [], []             # scales, labels, cards recognised without a scale (outlines)
     face_dist, near_scale = None, 0           # distance to the printed face; objects kept near the scale
     px_cm_small = scale.px_cm * f if scale.found else None
@@ -2189,8 +2238,11 @@ def outline_ceramic(photo, small, f, background, scale, ai=None):
             printed += [(c.reshape(-1, 2) + [x, y] + 0.5) / f - 0.5 for c in cs]
             printed_ids.append(i)
             continue
-        if background.dark and label_card(lab_small, lab[y:y + h, x:x + w] == i, (x, y)):
-            # paper label on black velvet: white, uncoloured and rectangular
+        if ((background.dark and label_card(lab_small, lab[y:y + h, x:x + w] == i, (x, y)))
+                or (ai_first and not background.dark
+                    and written_card(lab_small, lab[y:y + h, x:x + w] == i, (x, y), (wp, hp), bg_median))):
+            # paper label on black velvet: white, uncoloured and rectangular; AI first, light background:
+            # the network takes the label for an object - a light card with straight sides or writing
             cs, _ = cv2.findContours((lab[y:y + h, x:x + w] == i).astype(np.uint8), cv2.RETR_EXTERNAL,
                                      cv2.CHAIN_APPROX_SIMPLE)
             labels += [(c.reshape(-1, 2) + [x, y] + 0.5) / f - 0.5 for c in cs]
@@ -2248,7 +2300,7 @@ def outline_ceramic(photo, small, f, background, scale, ai=None):
     model = background.evaluate(X0, Y0, w, h, W, H)
     d = distance(lab_roi, model)
     shade = None
-    if shadows is not None:                   # pixels of the colour of a shadow on this background
+    if shadows is not None or (ai_first and not background.dark):   # pixels of the colour of a shadow on this background
         kr = (lab_roi[..., 0] + 1) / (model[..., 0] + 1)
         shade = ((kr > SHADOW_K[0]) & (kr < SHADOW_K[1])
                  & (np.hypot(lab_roi[..., 1] - kr * model[..., 1], lab_roi[..., 2] - kr * model[..., 2])
@@ -2259,10 +2311,30 @@ def outline_ceramic(photo, small, f, background, scale, ai=None):
     Mup = np.array([[f, 0, gx0], [0, f, gy0]], np.float64)
     big = cv2.warpAffine(obj.astype(np.float32), Mup, (w, h), flags=cv2.INTER_LINEAR | cv2.WARP_INVERSE_MAP) > 0.5
     r = int(math.ceil(1.5 / f)) + 2
-    sure = (cv2.erode(big.astype(np.uint8), disk(r)) > 0) & (d >= 0.4 * LOW_T)   # background seen between two parts is never "sure"
     allowed = cv2.dilate(big.astype(np.uint8), disk(r)) > 0
+    if ai_first:
+        # AI first: the inside is what the network says. Within r pixels of its outline the colour
+        # draws the edge (differs from the background, and is not a shadow); where the colour cannot
+        # tell - a shadow, or an object of the colour of the background (AI_WEAK of the nearby inside
+        # looks like it) - the network decides, when it is sure of itself (AI_SURE).
+        sure = cv2.erode(big.astype(np.uint8), disk(r)) > 0
+        sx, sy = AI_SIZE / W, AI_SIZE / H
+        Mai = np.array([[sx, 0, (X0 + 0.5) * sx - 0.5], [0, sy, (Y0 + 0.5) * sy - 0.5]], np.float64)
+        confident = cv2.warpAffine(ai, Mai, (w, h), flags=cv2.INTER_LINEAR | cv2.WARP_INVERSE_MAP) >= AI_SURE
+        k = 4 * r + 1
+        inside = cv2.boxFilter(sure.astype(np.float32), -1, (k, k))
+        pale = cv2.boxFilter((sure & (d <= LOW_T)).astype(np.float32), -1, (k, k))
+        weak = pale > AI_WEAK * np.maximum(inside, 1e-6)
+        del inside, pale
+        doubt = weak if shade is None else (weak | shade)
+        clear = d > LOW_T if shade is None else (d > LOW_T) & ~shade
+        m = sure | (allowed & (clear | (confident & doubt)))
+        del confident, weak, doubt, clear
+        shade = None
+    else:
+        sure = (cv2.erode(big.astype(np.uint8), disk(r)) > 0) & (d >= 0.4 * LOW_T)   # background seen between two parts is never "sure"
+        m = ((d > LOW_T) & allowed) | sure
     del big
-    m = ((d > LOW_T) & allowed) | sure
     nlab, labm = cv2.connectedComponents(m.astype(np.uint8), connectivity=8)
     linked = np.zeros(nlab, bool)
     linked[np.unique(labm[sure])] = True
@@ -2290,7 +2362,7 @@ def outline_ceramic(photo, small, f, background, scale, ai=None):
     if background.dark:
         m = edge_at_half_contrast(m, d, max(8, round(max(H, W) / 600)))
     ai_removed, ai_area = [], 0.0
-    if ai is not None:
+    if ai is not None and not ai_first:
         # AI second opinion, subtraction only: background kept by the colour rule because it is
         # enclosed or shadowed (perforation, gap between two sherds, blurred halo), that the network
         # sees as background, whose colour stays close to the background (d < AI_D_MAX), 3 px away
@@ -2338,6 +2410,7 @@ def outline_ceramic(photo, small, f, background, scale, ai=None):
         "chart_attached": chart_attached,       # a colour chart seems to touch the kept ceramic
         "ai_removed": ai_removed,               # background removed on the AI's advice (outlines, image frame)
         "ai_area": ai_area,                     # ... and its area (cm²)
+        "ai_first": ai_first,                   # first mask drawn by the network
         "removed": [],
     }, ""
 
@@ -2458,6 +2531,9 @@ AI_DIR = os.path.join(os.path.dirname(sys.executable) if getattr(sys, "frozen", 
                       else os.path.dirname(os.path.abspath(__file__)), "models")         # next to the .exe
 AI_SIZE = 1024        # input size of both networks
 AI_D_MAX = 12.0       # the AI only removes what stays close to the background colour
+AI_SURE = 204         # AI first: the network is sure of an object from this value (0.8) on
+AI_WEAK = 0.25        # AI first: the nearby inside looks like the background on this share at least
+AI_SUPPORT_MAX = 0.4  # AI first: a translucent support is at most this share of the piece it sticks out of
 AI_MIN_AREA = 0.02    # cm²: smaller disagreements are ignored (edges)
 _ai_session = None    # one session per process
 
@@ -3241,37 +3317,59 @@ PROBLEMS = [
 ]
 
 
-def output_paths(folder, base, doubtful):
-    """Paths of the files of a photo (PSD, TIFF, preview), with _to_be_verified when doubtful."""
+def cased(path, case):
+    """The path with its extension in lowercase ("lower") or in capitals ("upper"); any other value leaves
+    it as it is. Setting "ext_case" of the project (batch renaming)."""
+    if case not in ("lower", "upper"):
+        return path
+    root, ext = os.path.splitext(path)
+    return root + (ext.lower() if case == "lower" else ext.upper())
+
+
+def true_case(path):
+    """Windows keeps the former spelling of a file rewritten under a name that differs only by its case
+    (NAME.TIF written over NAME.tif stays NAME.tif): the file is renamed to the spelling asked for."""
+    try:
+        real = os.path.basename(os.path.realpath(path))
+        if real != os.path.basename(path) and real.lower() == os.path.basename(path).lower():
+            os.rename(os.path.join(os.path.dirname(path), real), path)
+    except OSError:
+        pass
+
+
+def output_paths(folder, base, doubtful, case=""):
+    """Paths of the files of a photo (PSD, TIFF, preview), with _to_be_verified when doubtful; case:
+    extensions in lowercase (the usual ones) or in capitals (see cased)."""
     s = DOUBT_SUFFIX if doubtful else ""
     return {
-        "psd": os.path.join(folder, f"{base}{s}.psd"),
-        "outlined": os.path.join(folder, f"{base}_outlined{s}.tif"),
-        "outlined_scale": os.path.join(folder, f"{base}_outlined_scale{s}.tif"),
-        "control": os.path.join(folder, CONTROL_DIR, f"{base}_to_control{s}.jpg"),
+        "psd": cased(os.path.join(folder, f"{base}{s}.psd"), case),
+        "outlined": cased(os.path.join(folder, f"{base}_outlined{s}.tif"), case),
+        "outlined_scale": cased(os.path.join(folder, f"{base}_outlined_scale{s}.tif"), case),
+        "control": cased(os.path.join(folder, CONTROL_DIR, f"{base}_to_control{s}.jpg"), case),
     }
 
 
-def remove_stale(folder, base, written):
+def remove_stale(folder, base, written, case=""):
     """After a new run, deletes the obsolete variant (with / without "_to_be_verified")
     of the files that have just been rewritten."""
     for doubtful in (False, True):
-        for key, path in output_paths(folder, base, doubtful).items():
+        for key, path in output_paths(folder, base, doubtful, case).items():
             if path in written:
-                other = output_paths(folder, base, not doubtful)[key]
+                other = output_paths(folder, base, not doubtful, case)[key]
                 if other not in written and os.path.exists(other):
                     os.remove(other)
 
 
-def copy_original(path, folder):
-    """Copy of the original photo in the result folder; returns its path (None: same file)."""
-    dest = os.path.join(folder, os.path.basename(path))
+def copy_original(path, folder, case=""):
+    """Copy of the original photo in the result folder (its extension in the case asked for, see cased);
+    returns its path (None: same file)."""
+    dest = cased(os.path.join(folder, os.path.basename(path)), case)
     if os.path.normcase(os.path.abspath(dest)) == os.path.normcase(os.path.abspath(path)):
         return None
-    if (os.path.exists(dest) and os.path.getsize(dest) == os.path.getsize(path)
+    if not (os.path.exists(dest) and os.path.getsize(dest) == os.path.getsize(path)
             and int(os.path.getmtime(dest)) == int(os.path.getmtime(path))):
-        return dest
-    shutil.copy2(path, dest)
+        shutil.copy2(path, dest)
+    true_case(dest)
     return dest
 
 
@@ -3391,7 +3489,8 @@ def plan_names(tasks):
             meta = {f.get("label", f["key"]): vals.get(f["key"], "") for f in pr.get("fields", [])}
             iptc = iptc_values(pr, vals, base)
         plan[fp] = {"base": base, "doubts": doubts, "meta": meta, "iptc": iptc,
-                    "sidecar": bool(pr and pr.get("xmp_sidecar"))}
+                    "sidecar": bool(pr and pr.get("xmp_sidecar")),
+                    "ext_case": (pr or {}).get("ext_case") or ""}
     return plan
 
 
@@ -3555,7 +3654,15 @@ def process_photo(path, opts, out_dir, plan=None):
                 ai = ai_mask(rgb, opts)
             except Exception as e:
                 notes.append(f"AI not used ({type(e).__name__}: {e})")
-        cer, msg = outline_ceramic(photo, small, f, background, scale, ai)
+        ai_first = getattr(opts, "cutout", "colour") == "ai"
+        cer, msg = outline_ceramic(photo, small, f, background, scale, ai, ai_first)
+        if ai_first and cer is None and ai is not None:
+            # the network saw nothing to keep: the colour rule is tried
+            cer, msg = outline_ceramic(photo, small, f, background, scale, ai)
+            if cer is not None:
+                notes.append("the AI saw no object: cut-out by the colour")
+        elif ai_first and cer is not None and cer.get("ai_first"):
+            notes.append(f"cut-out drawn from the AI ({AI_MODELS[opts.ai_model][0]})")
         edited_mask, angle = edits_entry(path)
         if edited_mask is not None and edited_mask.shape[:2] == (H, W):
             # cut-out corrected by hand in the review window: it replaces the computed one
@@ -3602,7 +3709,7 @@ def process_photo(path, opts, out_dir, plan=None):
             if x0 <= 1 or y0 <= 1 or x1 >= W - 1 or y1 >= H - 1:
                 doubts.append("ceramic cut by the photo edge")
         doubtful = bool(doubts)
-        paths = output_paths(out_dir, base, doubtful)
+        paths = output_paths(out_dir, base, doubtful, plan.get("ext_case") or "")
 
         icc = photo.icc or srgb_profile()
         exif = output_exif(photo.exif, ppi)
@@ -3651,7 +3758,7 @@ def process_photo(path, opts, out_dir, plan=None):
             write_review(out_dir, path, rgb.shape, cer, scale, row["status"], doubts, angle, base)
         iptc = plan.get("iptc")
         if not opts.no_original_copy:
-            copy = copy_original(path, out_dir)
+            copy = copy_original(path, out_dir, plan.get("ext_case") or "")
             if copy and iptc:                       # IPTC in the copy: JPEG without recompression, else NAME.xmp
                 src_xmp = make_xmp(f"Original photo of {base}", photo.info["xmp"], row["_meta"], base, iptc)
                 if not (copy.lower().endswith((".jpg", ".jpeg")) and embed_xmp_jpeg(copy, src_xmp)):
@@ -3661,7 +3768,9 @@ def process_photo(path, opts, out_dir, plan=None):
             if not write_sidecar(path, make_xmp(f"Photo processed by Gerbil: {base}", {}, row["_meta"], base, iptc,
                                                 packet=False)):
                 notes.append("a .xmp file written by another program is next to the photo: not changed")
-        remove_stale(out_dir, base, written)
+        for f in written:
+            true_case(f)
+        remove_stale(out_dir, base, written, plan.get("ext_case") or "")
     except Exception as e:
         row["status"] = "error"
         notes.append(f"{type(e).__name__}: {e}")
@@ -3747,6 +3856,11 @@ def main(argv=None):
     p.add_argument("--gap-cm", type=float, default=0.5, help="gap between sherd and scale")
     p.add_argument("--compression", choices=list(TIFF_COMPRESSIONS), default="lzw", help="TIFF compression")
     p.add_argument("--default-ppi", type=float, default=300, help="resolution used when no scale is found")
+    p.add_argument("--cutout", choices=["colour", "ai"], default="colour",
+                   help="colour: the objects are what differs from the background (the usual way, fast); "
+                        "ai: the BiRefNet network says what is an object, the edge is still drawn from the "
+                        "photo - surer with cast shadows, a table border or a white object on white, but "
+                        "about 15 s more per photo (needs the onnxruntime package)")
     p.add_argument("--ai", action="store_true",
                    help="AI second opinion (needs the onnxruntime package): the network may only remove "
                         "background the script kept (perforations, gaps, halos), never add anything")
@@ -3755,6 +3869,9 @@ def main(argv=None):
                         "slower. Downloaded once into the 'models' folder next to the script")
     p.add_argument("--ai-device", choices=["auto", "cpu"], default="auto",
                    help="auto: graphics card when available, else processor; cpu: processor only")
+    p.add_argument("--refresh-names", action="store_true",
+                   help="do not process the photos: only apply a change of the batch renaming to the photos "
+                        "already processed (files with or without _to_be_verified, extension case, report)")
     p.add_argument("--no-scale", action="store_true", help="do not look for a scale")
     p.add_argument("--version", action="version", version=f"Gerbil {VERSION}")
     p.add_argument("--profile", metavar="FILE",
@@ -3770,6 +3887,8 @@ def main(argv=None):
     p.add_argument("--open", action="store_true", help="open the result folder(s) when done")
     p.add_argument("-v", "--verbose", action="store_true", help="print error details")
     opts = p.parse_args(argv)
+    if opts.cutout == "ai":                    # the cut-out drawn from the AI needs the precise network
+        opts.ai, opts.ai_model = True, "birefnet"
 
     files = list_photos(opts.inputs)
     if not files:
@@ -3789,11 +3908,18 @@ def main(argv=None):
             print(f"AI model not available: {e}")
             return 1
         device = ai_providers(opts.ai_device, opts.ai_model)[0].replace("ExecutionProvider", "")
-        print(f"AI second opinion: {AI_MODELS[opts.ai_model][0]} ({'processor' if device == 'CPU' else device})")
+        print(f"{'Cut-out drawn from the AI' if opts.cutout == 'ai' else 'AI second opinion'}: "
+              f"{AI_MODELS[opts.ai_model][0]} ({'processor' if device == 'CPU' else device})")
     # result folder of each photo: forced (-o) or "outlined_result" next to the photo
     tasks = [(fp, os.path.abspath(opts.output) if opts.output else
               os.path.join(os.path.dirname(os.path.abspath(fp)), RESULT_DIR)) for fp in files]
     out_dirs = sorted({s for _, s in tasks})
+    if opts.refresh_names:
+        changed, rerun = refresh_naming(tasks)
+        for r in changed:
+            print(f"{r['file']}: {r['status']}" + (f" | {r['to_verify']}" if r["to_verify"] else ""))
+        print(f"{len(changed)} photo(s) updated, {len(rerun)} to process again (name or information changed).")
+        return 0
     for s in out_dirs:
         os.makedirs(os.path.join(s, CONTROL_DIR), exist_ok=True)
 
@@ -3854,6 +3980,78 @@ def remove_renamed(tasks, plan, previous):
             for f in output_paths(s, old, doubtful).values():
                 if os.path.exists(f):
                     os.remove(f)
+
+
+NAMING_DOUBTS = ("missing information", "photo extension not in lowercase", "name does not match the naming rule",
+                 "naming rule is not a valid", "output name already used")
+
+
+def read_report(report):
+    """Rows of a report, by photo name ({} when there is none)."""
+    try:
+        with open(report, newline="", encoding="utf-8-sig") as fh:
+            return {r["file"]: {LEGACY_COLUMNS.get(k, k): v for k, v in r.items() if k is not None}
+                    for r in csv.DictReader(fh, delimiter=";") if r.get("file")}
+    except (OSError, KeyError):
+        return {}
+
+
+def refresh_naming(tasks):
+    """After a change of the batch renaming, without processing the photos again: the doubts that come
+    from the names (required field, naming rule, extension, name used twice) are worked out again for
+    the photos already processed. Their files get or lose _to_be_verified and take the extension case of
+    the project; the report and the review data follow. A photo whose output name or information changed
+    is left as it is: it has to be processed again (its files hold the former ones).
+    tasks: (photo, result folder). Returns (rows changed, photos to process again). The text drawn on
+    the control preview is not redrawn."""
+    plan = plan_names(tasks)
+    changed, rerun = [], []
+    for out_dir in sorted({s for _, s in tasks}):
+        report = os.path.join(out_dir, REPORT_NAME)
+        rows, updated = read_report(report), []
+        for fp, s in tasks:
+            name = os.path.basename(fp)
+            row = rows.get(name)
+            if s != out_dir or row is None or row.get("status") not in ("ok", "to verify"):
+                continue
+            new, base = plan[fp], row.get("output_name") or os.path.splitext(name)[0]
+            if new["base"] != base or any((row.get(k) or "") != (v or "") for k, v in new["meta"].items()):
+                rerun.append(fp)
+                continue
+            old = [d for d in (row.get("to_verify") or "").split(" ; ") if d]
+            doubts = new["doubts"] + [d for d in old if not d.startswith(NAMING_DOUBTS)]
+            was, now, moved = row["status"] == "to verify", bool(doubts), False
+            before, after = output_paths(out_dir, base, was), output_paths(out_dir, base, now, new["ext_case"])
+            for key, path in before.items():
+                found = next((f for f in (path, cased(path, "upper")) if os.path.exists(f)), None)
+                if found is None:
+                    continue
+                real = os.path.join(os.path.dirname(found), os.path.basename(os.path.realpath(found)))
+                if os.path.basename(real) != os.path.basename(after[key]):
+                    if was != now and os.path.exists(after[key]):
+                        os.remove(after[key])
+                    os.rename(real, after[key])
+                    moved = True
+            copy = os.path.join(out_dir, name)                       # copy of the original photo
+            if new["ext_case"] and os.path.exists(copy) and os.path.abspath(copy) != os.path.abspath(fp):
+                true_case(cased(copy, new["ext_case"]))
+            if doubts == old and not moved:
+                continue
+            row["status"], row["to_verify"] = ("to verify" if now else "ok"), " ; ".join(doubts)
+            updated.append(row)
+            info = os.path.join(out_dir, REVIEW_DIR, os.path.splitext(name)[0] + ".json")
+            try:
+                with open(info, encoding="utf-8") as fh:
+                    data = json.load(fh)
+                data.update(status=row["status"], to_verify=doubts)
+                with open(info, "w", encoding="utf-8") as fh:
+                    json.dump(data, fh, indent=1)
+            except (OSError, ValueError):
+                pass
+        if updated:
+            write_report(report, updated)
+            changed += updated
+    return changed, rerun
 
 
 def write_report(report, rows):

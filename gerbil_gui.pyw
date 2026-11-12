@@ -39,7 +39,8 @@ SETTINGS = os.path.join(os.path.expanduser("~"), ".gerbil.json")
 OLD_SETTINGS = [os.path.join(os.path.expanduser("~"), n)       # earlier names: settings taken over
                 for n in (".sherdcut.json", ".detourage_ceramique_gui.json")]
 EXTENSIONS = {".jpg", ".jpeg", ".tif", ".tiff", ".png"}
-RAW_EXTENSIONS = {".dng", ".cr2", ".cr3", ".nef", ".nrw", ".arw", ".orf", ".rw2", ".raf", ".pef", ".srw", ".3fr", ".iiq"}
+RAW_EXTENSIONS = {".dng", ".cr2", ".cr3", ".crw", ".nef", ".nrw", ".arw", ".sr2", ".srf", ".orf", ".rw2", ".raw", ".rwl",
+                  ".raf", ".pef", ".srw", ".3fr", ".fff", ".iiq", ".mos", ".mef", ".erf", ".mrw", ".dcr", ".kdc"}
 EXTENSIONS |= RAW_EXTENSIONS
 
 
@@ -67,6 +68,7 @@ NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 # palette: violet ink, ITINERA blue-green, light grey squared paper
 VIOLET, VIOLET_2, LILAS, LILAS_2, LILAS_PALE = "#34245A", "#5B4794", "#DCD5EC", "#C9BFE3", "#F1EEF7"
 TEAL, TERRA = "#215353", "#B5582F"
+SAGE, SAGE_2, SAGE_DARK = "#ABD6B4", "#97CBA2", "#80BA8D"   # the green behind the gerbil of the logo
 PAPER, GRID, GRID_2, LINE = "#F3F3F4", "#E5E5E8", "#D5D5DA", "#D3CEDC"
 # the earlier names, used by the other windows
 LAVENDER, MINT, TERRACOTTA = "#B5A8DA", "#9FD3CF", "#D9A58C"
@@ -137,6 +139,7 @@ STEPS = [("Photographies sources", "Source photographs"), ("Nommage et métadonn
 
 # settings of the processing: kind, label (fr, en), choices or (min, max, step)
 OPTION_SPECS = {
+    "cutout": ("choice", ("Détourage", "Cut-out"), ["colour", "ai"]),
     "psd": ("check", ("Fichier Photoshop (.psd)", "Photoshop file (.psd)"), None),
     "original_layer": ("check", ("Calque caché de la photographie entière", "Hidden layer of the whole photo"), None),
     "original_copy": ("check", ("Copie de la photographie originale", "Copy of the original photo"), None),
@@ -157,7 +160,7 @@ OPTION_SPECS = {
     "ai_device": ("choice", ("Processeur de l'IA", "AI device"), ["auto", "cpu"]),
 }
 OPTION_KEYS = list(OPTION_SPECS)
-ESSENTIAL_OPTIONS = ["psd", "background", "scale"]
+ESSENTIAL_OPTIONS = ["cutout", "psd", "background", "scale"]
 ADVANCED_OPTIONS = [(("Fichiers", "Files"), ["original_layer", "original_copy", "control", "compression"]),
                     (("Traitement", "Run"), ["jobs", "open"]),
                     (("Échelle et mise en page", "Scale and layout"),
@@ -193,8 +196,13 @@ HELP_FR = {
     "default_ppi": "Résolution utilisée quand aucune échelle n'est trouvée.",
     "remove_putty": "Retirer automatiquement la pâte à fixe soupçonnée (sinon elle est seulement signalée, zone "
                     "rouge sur l'aperçu).",
+    "cutout": "colour : les objets sont ce qui diffère du fond (rapide). ai : le réseau BiRefNet désigne les "
+              "objets et le bord reste tracé d'après la photographie. Plus sûr avec des ombres portées, un bord de "
+              "table ou un objet blanc sur fond blanc, mais environ 15 secondes de plus par photographie. Tout se "
+              "fait sur cet ordinateur.",
     "ai": "Second avis de l'IA : le réseau peut seulement retirer du fond que le script a gardé (perforations, "
-          "écarts entre tessons, halos), jamais ajouter. Nécessite onnxruntime.",
+          "écarts entre tessons, halos), jamais ajouter. Nécessite onnxruntime. Sans effet quand le détourage "
+          "est fait par l'IA.",
     "ai_model": "IS-Net : rapide, utilise la carte graphique. BiRefNet : plus précis sur les perforations, "
                 "beaucoup plus lent (processeur).",
     "ai_device": "auto : carte graphique si possible. cpu : processeur seulement.",
@@ -231,10 +239,14 @@ DOUBTS = [("scale not detected", "Échelle non trouvée", "Scale not found"),
           ("missing information", "Information manquante", "Missing information"),
           ("name does not match", "Nom hors de la règle", "Name off the rule"),
           ("output name already used", "Nom déjà utilisé", "Name already used"),
+          ("photo extension not in lowercase", "Extension en majuscules", "Extension in capitals"),
+          ("naming rule is not a valid", "Règle de nommage invalide", "Invalid naming rule"),
           ("looks like a paper label", "Objet pris pour une étiquette", "Object taken for a label"),
           ("no object detected", "Aucun objet trouvé", "No object found"),
           ("no ceramic kept", "Aucun objet trouvé", "No object found"),
           ("cast shadow removed", "Ombre retirée", "Shadow removed"),
+          ("cut-out drawn from the ai", "Détourage par l'IA", "Cut-out drawn from the AI"),
+          ("the ai saw no object", "IA sans objet : détourage par la couleur", "AI saw no object: cut-out by colour"),
           ("translucent support removed", "Support retiré", "Support removed"),
           ("scale, label or card discarded", "Échelle ou étiquette écartée", "Scale or label set aside"),
           ("paper label discarded", "Étiquette écartée", "Label set aside"),
@@ -258,7 +270,7 @@ DEFAULTS = {
     "psd": True, "original_layer": True, "original_copy": True, "control": True,
     "layout": "recompose", "margin_cm": 0.5, "gap_cm": 0.5,
     "scale": True, "scale_cm": "auto", "default_ppi": 300, "remove_putty": False,
-    "ai": False, "ai_model": "isnet", "ai_device": "auto",
+    "ai": False, "ai_model": "isnet", "ai_device": "auto", "cutout": "colour",
     "jobs": max(1, min(4, (os.cpu_count() or 2) // 2)), "open": True, "last_dir": "",
     "plates": {}, "profile": "", "lang": "",
 }
@@ -279,8 +291,13 @@ HELP = {
     "default_ppi": "Resolution used when no scale is found.",
     "remove_putty": "Remove the suspected mounting putty automatically (otherwise it is only flagged, "
                     "red area in the preview).",
+    "cutout": "colour: the objects are what differs from the background (fast). ai: the BiRefNet network "
+              "says what is an object and the edge is still drawn from the photo. Surer with cast shadows, a table "
+              "border or a white object on a white background, but about 15 seconds more per photo. Everything "
+              "runs on this computer.",
     "ai": "AI second opinion: the network may only remove background the script kept "
-          "(perforations, gaps between sherds, halos), never add anything. Needs onnxruntime.",
+          "(perforations, gaps between sherds, halos), never add anything. Needs onnxruntime. No effect when "
+          "the cut-out is drawn from the AI.",
     "ai_model": "IS-Net: fast, uses the graphics card. BiRefNet: more precise on perforations, "
                 "much slower (processor).",
     "ai_device": "Auto: graphics card when available. CPU: processor only.",
@@ -1056,6 +1073,17 @@ class ProjectWindow:
         self.ext_info = tk.StringVar()
         ttk.Label(helper, textvariable=self.ext_info, style="Muted.TLabel").grid(row=r + 9, column=0, columnspan=2,
                                                                                 sticky="w")
+        ttk.Label(helper, text=tr("Extension of the files written:")).grid(row=r + 10, column=0, sticky="w",
+                                                                           pady=(8, 0))
+        self.case_names = {"": tr("as usual (.tif, .psd, .jpg)"), "lower": tr("lowercase, also the copy (.jpg)"),
+                           "upper": tr("capitals (.TIF, .PSD, .JPG)")}
+        self.ext_case = tk.StringVar(value=self.case_names.get(self.pr.get("ext_case") or "", self.case_names[""]))
+        cb = ttk.Combobox(helper, textvariable=self.ext_case, state="readonly", width=30,
+                          values=list(self.case_names.values()))
+        cb.grid(row=r + 10, column=1, sticky="w", pady=(8, 0))
+        cb.bind("<<ComboboxSelected>>", lambda _: self.case_changed())
+        Tooltip(cb, tr("Case of the extension of the files Gerbil writes in the results folder: TIFF, PSD, "
+                       "previews and the copy of the original photo. The original photos are never renamed."))
         top.columnconfigure(3, weight=0)
 
         foot = ttk.Frame(win, style="Window.TFrame", padding=12)    # packed first at the bottom: always visible
@@ -1184,7 +1212,8 @@ class ProjectWindow:
             return
         names = [project_output_name(self.pr, n) for n in self.photos]
         dup = len(names) - len(set(n.lower() for n in names))
-        self.preview.set(T("Exemple : ", "Example: ") + f"{self.photos[0]}  ->  {names[0]}_outlined.tif"
+        self.preview.set(T("Exemple : ", "Example: ") + f"{self.photos[0]}  ->  {names[0]}_outlined"
+                         + (".TIF" if self.pr.get("ext_case") == "upper" else ".tif")
                          + (T(f"     ({dup} nom(s) utilisé(s) deux fois : un suffixe _2… sera ajouté)",
                               f"     ({dup} name(s) used twice: a suffix _2… will be added)") if dup else ""))
 
@@ -1239,6 +1268,12 @@ class ProjectWindow:
         self.pr["photo_ext_lower"] = bool(self.ext_lower.get())
         self.changed = True
         self.ext_feedback()
+
+    def case_changed(self):
+        """Extension case of the files written chosen."""
+        self.pr["ext_case"] = next((k for k, v in self.case_names.items() if v == self.ext_case.get()), "")
+        self.changed = True
+        self.update_preview()
 
     def ext_feedback(self):
         """Number of photos whose extension has capitals."""
@@ -1614,6 +1649,11 @@ class ProjectWindow:
         if run:
             self.win.destroy()
             self.app.run([self.folder])
+        else:
+            rerun = self.app.naming_saved(self.folder, self.win)
+            if rerun:                                   # photos whose name or information changed
+                self.win.destroy()
+                self.app.run(rerun)
         return True
 
     def close(self):
@@ -1622,7 +1662,8 @@ class ProjectWindow:
             ans = messagebox.askyesnocancel("Gerbil", tr("Save the changes of the batch renaming?"), parent=self.win)
             if ans is None or (ans and not self.save()):
                 return
-        self.win.destroy()
+        if self.win.winfo_exists():
+            self.win.destroy()
 
 
 REVIEW_DIR = "gerbil_review"                # in the result folder, written by gerbil.py (write_review)
@@ -2425,7 +2466,7 @@ class PlatesWindow:
 
         foot = ttk.Frame(win, style="Window.TFrame", padding=12)          # packed first: always visible
         foot.pack(side="bottom", fill="x")
-        self.write_btn = ttk.Button(foot, text=tr("Write the plates (SVG)"), style="Run.TButton", command=self.write)
+        self.write_btn = ttk.Button(foot, text=tr("Write the plates"), style="Run.TButton", command=self.write)
         self.write_btn.pack(side="left")
         self.open_btn = ttk.Button(foot, text=tr("Open the plates folder"), command=self.open_folder, state="disabled")
         self.open_btn.pack(side="left", padx=8)
@@ -2520,6 +2561,15 @@ class PlatesWindow:
         row(plate, tr("Caption size (pt)"), entry(plate, "caption_pt", gp.fmt(st.caption_pt)))
         row(plate, tr("Images (dpi)"), combo(plate, "dpi", str(st.dpi), ["300", "600", "1200"], 6),
             tr("Resolution of the embedded images on the paper (600: print quality; never enlarged)."))
+        ff = ttk.Frame(plate, style="Card.TFrame")
+        for key, label in (("svg", "SVG"), ("tiff", "TIFF"), ("jpeg", "JPEG")):
+            check(ff, key, getattr(st, key), label).pack(side="left", padx=(0, 10))
+        row(plate, tr("Files written"), ff,
+            tr("SVG: layers, text and drawings stay editable in Illustrator or Inkscape. TIFF (lossless) and "
+               "JPEG: the whole page as one image on white, for a report or a slide."))
+        row(plate, tr("TIFF / JPEG (dpi)"), combo(plate, "raster_dpi", str(st.raster_dpi), ["300", "600", "1200"], 6),
+            tr("Resolution of the TIFF and JPEG pages (300: screen and report; 600: print). An A4 page at 1200 dpi "
+               "is a very large file."))
         var("object_ratios", json.dumps(st.object_ratios or {}))
         row(plate, "", check(plate, "include_doubtful", st.include_doubtful,
                              tr("Also the photos to be verified (_to_be_verified)")))
@@ -2875,7 +2925,7 @@ class PlatesWindow:
             self.refresh()
 
     def write(self):
-        """Writes the SVG plates in a thread."""
+        """Writes the plates (SVG, TIFF, JPEG) in a thread."""
         st = self.settings()
         self.write_btn.state(["disabled"])
         self.msg.set(tr("Writing the plates…"))
@@ -2915,7 +2965,8 @@ class PlatesWindow:
 PROFILES_DIR = os.path.join(os.environ.get("APPDATA") or os.path.expanduser("~"), "Gerbil", "profiles")
 PROFILE_FILE = "gerbil_profile.json"           # a profile placed next to the photos is used by the engine
 PROFILE_SETTINGS = ("background", "compression", "psd", "original_layer", "original_copy", "control", "layout",
-                    "margin_cm", "gap_cm", "scale", "scale_cm", "default_ppi", "remove_putty", "ai", "ai_model")
+                    "margin_cm", "gap_cm", "scale", "scale_cm", "default_ppi", "remove_putty", "ai", "ai_model",
+                    "cutout")
 
 
 def profile_names():
@@ -3491,6 +3542,7 @@ class App:
         st.configure("Footer.TLabel", background=WINDOW_BG, foreground=MUTED, font=(FONT_SERIF, 9))
         for name, bg, hover, fg, border in (("TButton", "#FFFFFF", LILAS_PALE, VIOLET, VIOLET),
                                             ("Run.TButton", VIOLET, VIOLET_2, "#FFFFFF", VIOLET),
+                                            ("Next.TButton", SAGE, SAGE_2, VIOLET, SAGE_DARK),
                                             ("Cancel.TButton", "#FFFFFF", "#FBEFE9", TERRA, TERRA),
                                             ("Teal.TButton", "#FFFFFF", "#E6F0EF", TEAL, TEAL)):
             st.configure(name, background=bg, foreground=fg, borderwidth=1, padding=(12, 5),
@@ -3499,6 +3551,7 @@ class App:
                    foreground=[("disabled", "#A9A5B4")], bordercolor=[("disabled", LINE)],
                    lightcolor=[("active", hover)], darkcolor=[("active", hover)])
         st.configure("Run.TButton", font=(FONT_SERIF, 11, "bold"), padding=(24, 7))
+        st.configure("Next.TButton", font=(FONT_SERIF, 11, "bold"), padding=(24, 7))
         st.configure("Small.TButton", font=(FONT_SERIF, 9), padding=(6, 1))
         st.configure("Cancel.TButton", padding=(14, 7))
         st.configure("Teal.TButton", padding=(14, 7))
@@ -3731,6 +3784,15 @@ class App:
         ttk.Button(bar, text=T("Ajouter des photographies…", "Add photos…"), command=self.add_files).pack(side="left", padx=8)
         ttk.Button(bar, text=T("Vider", "Clear"), command=self.clear).pack(side="right")
         ttk.Button(bar, text=T("Retirer", "Remove"), command=self.remove).pack(side="right", padx=8)
+        prow = tk.Frame(left, bg=CARD_BG)
+        prow.pack(fill="x", pady=(0, 10))
+        tk.Label(prow, text=T("ou coller un chemin :", "or paste a path:"), bg=CARD_BG, fg=MUTED,
+                 font=(FONT_SERIF, 10)).pack(side="left")
+        self.path_var = tk.StringVar()
+        entry = ttk.Entry(prow, textvariable=self.path_var, font=(FONT_MONO, 10))
+        entry.pack(side="left", fill="x", expand=True, padx=8)
+        entry.bind("<Return>", lambda _: self.add_typed_path())
+        ttk.Button(prow, text=T("Ajouter", "Add"), command=self.add_typed_path).pack(side="left")
         tf = tk.Frame(left, bg=CARD_BG)
         tf.pack(fill="both", expand=True)
         self.tree = ttk.Treeview(tf, columns=("name", "photos", "where"), show="headings", selectmode="extended")
@@ -3772,7 +3834,7 @@ class App:
         self._section(right, T("Astuce", "Tip"), top=18)
         self._text(right, T("On peut aussi déposer des dossiers sur l'icône de Gerbil pour les ajouter.",
                             "Folders can also be dropped on the Gerbil icon to add them."))
-        nxt = ttk.Button(self.canvas, text=T("Continuer", "Continue"), style="Run.TButton",
+        nxt = ttk.Button(self.canvas, text=T("Continuer", "Continue"), style="Next.TButton",
                          command=lambda: self.show_page(1))
         self.sources_hint = tk.StringVar(value="")
         self._page(T("Étape 01", "Step 01"), T("Photographies sources", "Source photographs"),
@@ -3813,7 +3875,7 @@ class App:
                             "gerbil_project.json, à côté des photographies.",
                             "The original photos are never renamed. Everything is saved in gerbil_project.json, "
                             "next to the photos."))
-        nxt = ttk.Button(self.canvas, text=T("Continuer", "Continue"), style="Run.TButton",
+        nxt = ttk.Button(self.canvas, text=T("Continuer", "Continue"), style="Next.TButton",
                          command=lambda: self.show_page(2))
         self._page(T("Étape 02", "Step 02"), T("Nommage et métadonnées", "Naming and metadata"),
                    T("Facultatif : nommer les fichiers produits d'après l'inventaire, et y inscrire les "
@@ -3977,6 +4039,7 @@ class App:
         self.ai_ok = has_ai()
         if not self.ai_ok:
             self.v["ai"].set(False)
+            self.v["cutout"].set("colour")
         self._section(card, T("Réglages", "Settings"))
         grid = tk.Frame(card, bg=CARD_BG)
         grid.pack(fill="x")
@@ -4024,7 +4087,8 @@ class App:
                 lbl.grid(row=r, column=0, sticky="w", pady=2, padx=(0, 10))
                 if kind == "choice":
                     w = ttk.Combobox(parent, textvariable=self.v[key], values=extra, state="readonly", width=12)
-                    w.bind("<<ComboboxSelected>>", lambda _: self._sync())
+                    w.bind("<<ComboboxSelected>>", (lambda _: self._ai_ticked()) if key == "cutout"
+                           else (lambda _: self._sync()))
                 else:
                     lo, hi, step = extra
                     hi = max(1, os.cpu_count() or 1) if key == "jobs" else hi
@@ -4086,6 +4150,7 @@ class App:
             self.v[key].set(v if isinstance(v, bool) else ("%.1f" % v if key in ("margin_cm", "gap_cm") else str(v)))
         if not self.ai_ok:
             self.v["ai"].set(False)
+            self.v["cutout"].set("colour")
         self._sync()
 
     def set_lang(self, code):
@@ -4133,9 +4198,10 @@ class App:
         self.apply_profile()
 
     def _ai_ticked(self):
-        """AI ticked: offers to install onnxruntime when missing."""
-        if self.v["ai"].get() and not self.ai_ok:
+        """AI ticked, or cut-out by the AI chosen: offers to install onnxruntime when missing."""
+        if (self.v["ai"].get() or self.v["cutout"].get() == "ai") and not self.ai_ok:
             self.v["ai"].set(False)
+            self.v["cutout"].set("colour")
             if FROZEN:
                 messagebox.showinfo("Gerbil", T("Cette version a été construite sans le second avis de l'IA.",
                                                 "This version was built without the AI second opinion."))
@@ -4179,9 +4245,13 @@ class App:
             self.w["original_layer"].state(["!disabled"] if on("psd") else ["disabled"])
         if live("scale_cm"):
             self.w["scale_cm"].state(["!disabled", "readonly"] if on("scale") else ["disabled"])
-        for key in ("ai_model", "ai_device"):
-            if live(key):
-                self.w[key].state(["!disabled", "readonly"] if on("ai") else ["disabled"])
+        by_ai = self.v["cutout"].get() == "ai"         # cut-out drawn from the AI: always BiRefNet, no second opinion
+        if live("ai"):
+            self.w["ai"].state(["disabled"] if by_ai else ["!disabled"])
+        if live("ai_model"):
+            self.w["ai_model"].state(["!disabled", "readonly"] if on("ai") and not by_ai else ["disabled"])
+        if live("ai_device"):
+            self.w["ai_device"].state(["!disabled", "readonly"] if on("ai") or by_ai else ["disabled"])
         other = self.out_mode.get() == "other"
         self.out_entry.state(["!disabled"] if other else ["disabled"])
         self.out_btn.state(["!disabled"] if other else ["disabled"])
@@ -4258,7 +4328,46 @@ class App:
                                  + (T(f", {missing} incomplète(s)", f", {missing} incomplete") if missing else ""))
         self.naming_var.set(text)
         self.naming_example.set((T("Exemple : ", "Example: ") + photos[0] + "  →  "
-                                 + project_output_name(pr, photos[0]) + "_outlined.tif") if photos else "")
+                                 + project_output_name(pr, photos[0]) + "_outlined"
+                                 + (".TIF" if pr.get("ext_case") == "upper" else ".tif")) if photos else "")
+
+    def naming_saved(self, folder, parent=None):
+        """Batch renaming of a folder saved: the photos already processed follow without being processed
+        again (alerts of the names, _to_be_verified, extension case); the tables of steps 03 and 04 are
+        drawn again. Photos whose name or information changed have to be processed again: returned when
+        the user agrees to it."""
+        self._naming_summary()
+        out_dir = self.s["output_dir"] if self.s["output_mode"] == "other" else os.path.join(folder, "outlined_result")
+        if self.proc is not None or not os.path.isfile(os.path.join(out_dir, "outlined_report.csv")):
+            return []
+        try:
+            import gerbil as engine
+            photos = [os.path.join(folder, f) for f in sorted(os.listdir(folder))
+                      if os.path.splitext(f)[1].lower() in EXTENSIONS]
+            changed, rerun = engine.refresh_naming([(f, out_dir) for f in photos])
+        except Exception as e:
+            self._log(f"refresh of the names: {type(e).__name__}: {e}\n", "failed")
+            return []
+        for r in changed:
+            doubts = [d for d in r["to_verify"].split(" ; ") if d]
+            self.rows = [(row[0], r["status"], row[2], doubt_text(doubts[0]) if doubts else "", row[4],
+                          any(k in r["to_verify"] for k in SCALE_PROBLEMS)) if row[0] == r["file"] else row
+                         for row in self.rows]
+        if changed:
+            self.counts = {}
+            for tree in (self.table, self.todo_tree):
+                tree.delete(*tree.get_children())
+            for row in self.rows:
+                self.counts[row[1]] = self.counts.get(row[1], 0) + 1
+                self._add_row(*row)
+            self._refresh_steps()
+        if rerun and messagebox.askyesno(
+                "Gerbil", T(f"{len(rerun)} photographie(s) déjà traitée(s) ont un nouveau nom ou de nouvelles "
+                            "informations : leurs fichiers portent encore les anciens.\n\nLes retraiter maintenant ?",
+                            f"{len(rerun)} photo(s) already processed have a new name or new information: their "
+                            "files still hold the former ones.\n\nProcess them again now?"), parent=parent):
+            return rerun
+        return []
 
     # ---------------------------------------------------------------- photos
     def add_paths(self, paths):
@@ -4282,6 +4391,24 @@ class App:
                                  else T("Aucune photographie pour l'instant.", "No photo yet."))
         self.sources_hint.set(T(f"{n} photographie(s)", f"{n} photo(s)") if n else "")
         self._refresh_steps()
+
+    def add_typed_path(self):
+        """Adds the folder or the photo whose path was typed or pasted in step 01 (quotes of the Explorer's
+        'Copy as path' accepted; several paths separated by ';')."""
+        paths = [t.strip().strip('"').strip("'").strip() for t in self.path_var.get().split(";")]
+        paths = [os.path.expandvars(os.path.expanduser(t)) for t in paths if t]
+        if not paths:
+            return
+        missing = [t for t in paths if not os.path.exists(t)]
+        wrong = [t for t in paths if os.path.isfile(t) and os.path.splitext(t)[1].lower() not in EXTENSIONS]
+        if missing or wrong:
+            messagebox.showwarning("Gerbil", (T("Chemin introuvable :\n", "Path not found:\n") + "\n".join(missing)
+                                              if missing else
+                                              T("Ce fichier n'est pas une photographie :\n",
+                                                "This file is not a photo:\n") + "\n".join(wrong)))
+            return
+        self.add_paths(paths)
+        self.path_var.set("")
 
     def add_folder(self):
         """Adds a folder of photos."""
@@ -4465,7 +4592,11 @@ class App:
             a += ["--gap-cm", f"{s['gap_cm']:g}"]
         if s["remove_putty"]:
             a.append("--remove-putty")
-        if s["ai"]:
+        if s["cutout"] == "ai":
+            a += ["--cutout", "ai"]
+            if s["ai_device"] != "auto":
+                a += ["--ai-device", s["ai_device"]]
+        elif s["ai"]:
             a.append("--ai")
             if s["ai_model"] != "isnet":
                 a += ["--ai-model", s["ai_model"]]

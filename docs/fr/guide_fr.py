@@ -135,7 +135,8 @@ PARTS = [
           "page. On peut passer d'une étape à l'autre dans n'importe quel ordre. L'interface existe en français et "
           "en anglais (FR / EN en bas de la colonne)."),
     ("ol", ["**01 Photographies sources** : *Ajouter un dossier…* et choisir le dossier des photographies (leur "
-            "nombre s'affiche). On peut en ajouter plusieurs, ou déposer des dossiers sur l'icône de Gerbil.",
+            "nombre s'affiche). On peut en ajouter plusieurs, déposer des dossiers sur l'icône de Gerbil, ou "
+            "coller le chemin d'un dossier dans le champ prévu (*Ajouter*, ou la touche Entrée).",
             "**02 Nommage et métadonnées** (facultatif) : le résumé du renommage en lot du dossier, et le bouton "
             "qui l'ouvre.",
             "**03 Traitement** : garder les réglages par défaut pour un premier essai (laisser la souris sur un "
@@ -272,7 +273,9 @@ PARTS = [
     ("h2", "12. Les planches"),
     ("p", "*Planches* met en page les objets détourés d'un dossier de résultats à une échelle choisie (1:1, 1:2, "
           "1:3…) et les écrit en **SVG** (dossier `plates`), qui s'ouvrent dans Illustrator ou Inkscape à leur "
-          "vraie taille : 1 cm de l'objet = 1 cm ÷ échelle sur le papier."),
+          "vraie taille : 1 cm de l'objet = 1 cm ÷ échelle sur le papier. *Fichiers écrits* permet d'obtenir "
+          "aussi chaque page en une seule image, en **TIFF** (sans perte) ou en **JPEG**, à 300, 600 ou "
+          "1200 ppp : pour un rapport ou une diapositive."),
     ("ul", ["Objets en **rangées**, dans l'ordre choisi (nom, US, matière…), avec une **légende** sous chacun "
             "(`{name}`, ou `{site}_{us}_{number}`…). *Grouper par* commence une rangée ou une page à chaque valeur.",
             "**Barre d'échelle** graphique réglée comme dans QGIS (style, longueur, segments, couleurs, police), "
@@ -312,6 +315,8 @@ PARTS = [
                ["`--compression zip`", "TIFF un peu plus petits (LZW par défaut, le plus compatible)."],
                ["`--default-ppi 300`", "Résolution utilisée quand il n'y a pas d'échelle."],
                ["`--no-scale`", "Ne cherche pas d'échelle."],
+               ["`--cutout ai`", "Détourage par l'IA : le réseau BiRefNet désigne les objets (ombres, bord de "
+                    "table, blanc sur blanc) ; environ 15 s de plus par photographie."],
                ["`--ai`, `--ai-model birefnet`, `--ai-device cpu`", "Second avis de l'IA (il ne peut que retirer du "
                     "fond) ; modèle plus précis mais plus lent ; forcer le processeur."],
                ["`--profile FICHIER`", "Profil de site à utiliser."],
@@ -334,8 +339,9 @@ PARTS = [
             "n'est pas reconnu : l'effacer dans *Vérifier* ou dans Photoshop.",
             "Un objet très clair sur fond blanc (pâte blanche, cortex de silex, fusaïole en craie) ne se distingue "
             "du fond ni par sa couleur ni par son grain là où il est presque blanc : des parties peuvent manquer. "
-            "Photographier ces objets sur un fond plus sombre (gris ou noir), ou utiliser l'outil *One click on "
-            "the object* de *Vérifier*, à qui l'on indique l'objet.",
+            "Photographier ces objets sur un fond plus sombre (gris ou noir), choisir *Détourage : ai* (le "
+            "réseau les voit), ou utiliser l'outil *One click on the object* de *Vérifier*, à qui l'on indique "
+            "l'objet.",
             "Une autre forme d'échelle sera le plus souvent signalée à vérifier : l'apprendre dans un profil de "
             "site, ou la donner à la main.",
             "Pour un rendu des couleurs précis des RAW, les développer soi-même (Lightroom, darktable) et donner "
@@ -480,6 +486,20 @@ PARTS = [
           "est de la pâte possible si elle est à la fois **plus lisse** (texture moitié moindre), **d'une autre "
           "couleur**, **moins colorée** et **plus claire** que le reste. Par défaut elle est seulement signalée "
           "(zone rouge) : un fond de vase clair et lisse lui ressemble trop pour être retiré sans contrôle."),
+
+    ("h2", "10 bis. Le détourage par l'IA (réglage Détourage : ai)"),
+    ("p", "Par défaut (*Détourage : colour*), l'objet est ce qui diffère du fond par sa couleur : c'est rapide et "
+          "exact sur un fond uni, mais une ombre portée, le bord de la table ou un objet blanc sur fond blanc le "
+          "trompent. Avec *Détourage : ai* (`--cutout ai`), le réseau de neurones **BiRefNet** désigne d'abord "
+          "les objets ; Gerbil trie ensuite les morceaux comme d'habitude (échelle, étiquette, charte, support) "
+          "et trace toujours le bord d'après la photographie, à pleine résolution. Là où la couleur ne permet "
+          "pas de trancher (ombre, objet de la couleur du fond), c'est le réseau qui décide."),
+    ("ul", ["Tout se fait sur l'ordinateur : aucune photographie n'est envoyée sur internet.",
+            "Compter environ 15 secondes de plus par photographie, et le modèle BiRefNet (970 Mo, téléchargé une "
+            "fois).",
+            "Une étiquette est un objet pour le réseau : Gerbil l'écarte quand c'est une carte claire, sans "
+            "couleur, aux côtés droits ou portant une écriture (contour rouge sur l'aperçu).",
+            "Les résultats du détourage par défaut ne sont pas modifiés par ce réglage."]),
 
     ("h2", "11. Le second avis de l'IA (option)"),
     ("p", "Avec `--ai`, un réseau de neurones de détourage (IS-Net ou BiRefNet) donne son avis. Il ne peut **que "

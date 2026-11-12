@@ -139,7 +139,10 @@ FR = {
         "bord du détourage est placé au milieu de ce dégradé (pas de liseré sombre), sans toucher l'intérieur.",
     "gerbil.py:outline_ceramic": "Le détourage : premier masque sur la photo réduite (distance de couleur au fond, "
         "hystérésis, trous bouchés), tri des morceaux (zone de l'échelle, étiquettes, supports, chartes, éléments "
-        "isolés), affinage à pleine résolution, bord adouci. Renvoie le masque et ce qui a été écarté.",
+        "isolés), affinage à pleine résolution, bord adouci. Renvoie le masque et ce qui a été écarté. Avec "
+        "ai_first (et le masque du réseau), le premier masque est ce que le réseau voit comme objets au lieu de "
+        "la distance de couleur : les ombres, le bord de la table et un objet de la couleur du fond sont alors "
+        "distingués ; les morceaux sont triés de la même façon et le bord reste tracé à pleine résolution.",
     "gerbil.py:find_putty": "Cherche la pâte à fixe accrochée à la céramique : une partie du contour séparée par deux "
         "concavités, nettement plus lisse, plus claire et moins colorée que la céramique. Seul le masque change.",
     "gerbil.py:ai_model_path": "Le fichier d'un modèle d'IA, dans le dossier « models » ; téléchargé la première fois "
@@ -193,7 +196,22 @@ FR = {
     "gerbil.py:output_paths": "Les chemins des fichiers d'une photo, avec _to_be_verified en cas de doute.",
     "gerbil.py:remove_stale": "Après un nouveau traitement, supprime l'ancienne variante (avec ou sans "
         "« _to_be_verified ») des fichiers réécrits.",
-    "gerbil.py:copy_original": "Copie la photo originale dans le dossier de résultats.",
+    "gerbil.py:copy_original": "Copie la photo originale dans le dossier de résultats (son extension dans la casse "
+        "demandée, voir cased).",
+    "gerbil.py:written_card": "IA d'abord, fond clair : une étiquette ou une carte de papier, que le réseau prend "
+        "pour un objet. Elle est claire (ou aussi claire que le fond) et sans couleur, et soit aux côtés droits et "
+        "pleine (carte vierge), soit plutôt aux côtés droits avec une écriture (traits d'encre sombres). Un tesson "
+        "blanc n'a pas de côtés droits sur ses cassures et ne porte pas d'encre.",
+    "gerbil.py:cased": "Le chemin avec son extension en minuscules (« lower ») ou en majuscules (« upper ») ; toute "
+        "autre valeur le laisse tel quel. Réglage « ext_case » du projet (renommage en lot).",
+    "gerbil.py:true_case": "Windows garde l'ancienne graphie d'un fichier réécrit sous un nom qui n'en diffère que "
+        "par la casse (NAME.TIF écrit sur NAME.tif reste NAME.tif) : le fichier est renommé dans la graphie demandée.",
+    "gerbil.py:read_report": "Les lignes d'un rapport, par nom de photo ({} s'il n'y en a pas).",
+    "gerbil.py:refresh_naming": "Après un changement du renommage en lot, sans retraiter les photos : les doutes qui "
+        "viennent des noms (champ obligatoire, règle de nommage, extension, nom utilisé deux fois) sont recalculés "
+        "pour les photos déjà traitées. Leurs fichiers prennent ou perdent « _to_be_verified » et la casse "
+        "d'extension du projet ; le rapport et les données de vérification suivent. Une photo dont le nom de sortie "
+        "ou les informations ont changé est laissée telle quelle : elle doit être retraitée.",
     "gerbil.py:load_project": "Le projet de renommage d'un dossier (gerbil_project.json) : champs, modèle de nom, règle, "
         "valeurs communes et valeurs de chaque photo.",
     "gerbil.py:photo_values": "Les valeurs d'une photo : celles communes au projet, complétées par les siennes.",

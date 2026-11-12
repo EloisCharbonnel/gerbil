@@ -128,6 +128,16 @@ FR = {
         'Effacer (lasso)',
     'Extension in lowercase (.jpg, not .JPG)':
         'Extension en minuscules (.jpg, pas .JPG)',
+    'Extension of the files written:':
+        'Extension des fichiers produits :',
+    'as usual (.tif, .psd, .jpg)':
+        'habituelle (.tif, .psd, .jpg)',
+    'lowercase, also the copy (.jpg)':
+        'minuscules, copie comprise (.jpg)',
+    'capitals (.TIF, .PSD, .JPG)':
+        'majuscules (.TIF, .PSD, .JPG)',
+    'Case of the extension of the files Gerbil writes in the results folder: TIFF, PSD, previews and the copy of the original photo. The original photos are never renamed.':
+        "Casse de l'extension des fichiers que Gerbil écrit dans le dossier de résultats : TIFF, PSD, aperçus et copie de la photographie d'origine. Les photographies d'origine ne sont jamais renommées.",
     'FIELDS':
         'CHAMPS',
     'Field':
@@ -434,8 +444,16 @@ FR = {
         'En cours…',
     'Write the inventory…':
         "Écrire l'inventaire…",
-    'Write the plates (SVG)':
-        'Écrire les planches (SVG)',
+    'Write the plates':
+        'Écrire les planches',
+    'Files written':
+        'Fichiers écrits',
+    'TIFF / JPEG (dpi)':
+        'TIFF / JPEG (ppp)',
+    'SVG: layers, text and drawings stay editable in Illustrator or Inkscape. TIFF (lossless) and JPEG: the whole page as one image on white, for a report or a slide.':
+        "SVG : les calques, le texte et les dessins restent modifiables dans Illustrator ou Inkscape. TIFF (sans perte) et JPEG : la page entière en une seule image sur fond blanc, pour un rapport ou une diapositive.",
+    'Resolution of the TIFF and JPEG pages (300: screen and report; 600: print). An A4 page at 1200 dpi is a very large file.':
+        "Résolution des pages TIFF et JPEG (300 : écran et rapport ; 600 : impression). Une page A4 à 1200 ppp est un très gros fichier.",
     'Write the scale (1:2) after the bar':
         "Écrire l'échelle (1:2) après la barre",
     'Writing the plates…':
