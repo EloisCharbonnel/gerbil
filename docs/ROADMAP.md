@@ -29,6 +29,9 @@ Sources behind these choices: `docs/REFERENCES.md`.
 | 1.5 | Outlining on a light background, checkerboard and ruler scales, PSD + TIFF at 1:1, putty, plexiglass supports, colour charts discarded, AI second opinion, interface and .exe |
 | 1.6 | Checkerboard cut by the photo edge |
 | 1.7 | Second checkerboard reading (digits inside the squares, 5/10/20 cm), black velvet backgrounds, paper labels discarded on velvet, objects lying close to the scale kept, rulers with thick ticks |
+| 2.0 | First public version: review window, batch renaming and IPTC metadata, plates, site profiles and learned scales, one-click cut-out, RAW files, installer |
+| 2.1 | Main window in five steps, French and English, cast shadows removed, scale or label discarded on photos without a scale |
+| 2.2 | Cut-out drawn from the AI (BiRefNet), colour correction from a white of the photo, free plates of field photos, contact sheets, plates as PDF with a list of figures, check before a deposit, "object" instead of "ceramic", naming alerts updated without processing again |
 
 Measured on a 2025 sample from Qusur (42 photos, velvet and light backgrounds): 10 → 37 photos ready
 without retouching. On 1,764 reference photos: no scale already found changed; photos without a

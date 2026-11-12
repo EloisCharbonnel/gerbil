@@ -226,7 +226,7 @@ class Setup:
         titles = ttk.Frame(head)
         titles.pack(side="left")
         ttk.Label(titles, text="Gerbil", style="Title.TLabel").pack(anchor="w")
-        ttk.Label(titles, text=f"Archaeological photo toolkit · version {version()} · © 2026 {PUBLISHER}",
+        ttk.Label(titles, text=f"Archaeological photo toolkit, version {version()}, © 2026 {PUBLISHER}",
                   style="Muted.TLabel").pack(anchor="w")
 
         card = ttk.Frame(root, style="Card.TFrame", padding=16)
