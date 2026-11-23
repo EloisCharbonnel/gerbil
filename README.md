@@ -50,13 +50,15 @@ Gerbil apparaît ensuite dans le menu Démarrer.
 
 ### Démarrer
 
-La fenêtre suit les cinq étapes du travail, dans la colonne de gauche :
+La fenêtre suit les six étapes du travail, dans la colonne de gauche :
 
 1. **Photographies sources** : ajoutez le dossier de vos photographies.
-2. **Nommage et métadonnées** (facultatif) : décrivez vos objets et choisissez le nom des fichiers.
-3. **Traitement** : cliquez sur *Lancer*.
-4. **Vérification** : reprenez les photographies signalées.
-5. **Publication** : composez vos planches, votre inventaire et vos vignettes.
+2. **Nommage et métadonnées** (facultatif) : décrivez vos objets et choisissez le nom des fichiers, puis
+   relisez les métadonnées.
+3. **Détourer et mettre à l'échelle** : cliquez sur *Lancer*, puis reprenez les photographies signalées.
+4. **Convertir** : vos RAW en DNG, avec leurs métadonnées (et un JPG ou un TIFF si vous le souhaitez).
+5. **Revue finale** : les fichiers produits, et le contrôle avant versement.
+6. **Publication** : composez vos planches, votre inventaire et vos vignettes.
 
 Les résultats sont rangés dans un dossier `outlined_result`, à côté de vos photographies. Pour chaque
 photographie, vous obtenez :
@@ -117,13 +119,15 @@ Gerbil then appears in the Start menu. The interface is in French and English.
 
 ### Getting started
 
-The window follows the five steps of the work, in the left column:
+The window follows the six steps of the work, in the left column:
 
 1. **Source photographs**: add the folder of your photos.
-2. **Naming and metadata** (optional): describe your objects and choose the file names.
-3. **Processing**: click *Run*.
-4. **Review**: go over the flagged photos.
-5. **Publication**: make your plates, inventory and thumbnails.
+2. **Naming and metadata** (optional): describe your objects and choose the file names, then check the
+   metadata.
+3. **Outline and scale**: click *Run*, then go over the flagged photos.
+4. **Convert**: your RAW photos to DNG, with their metadata (and a JPG or a TIFF if wanted).
+5. **Final review**: the files written, and the check before a deposit.
+6. **Publication**: make your plates, inventory and thumbnails.
 
 The results go into an `outlined_result` folder next to your photos. For each photo you get:
 

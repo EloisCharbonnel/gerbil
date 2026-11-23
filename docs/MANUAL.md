@@ -75,6 +75,57 @@ line by line) and the reference of every function (`py -3 docs/make_guide_odt.py
 `docs\ROADMAP.md` lists what is planned next, and `docs\REFERENCES.md` the sources behind
 the choices (drawing conventions, graphic documentation, archiving of 2D and 3D data).
 
+## RAW to DNG conversion (step 04 *Convert*, or `gerbil.py --dng FOLDER_OR_RAW`)
+
+For teams that archive their RAW photos as DNG with their metadata (protocol of the MAFKF / QSR mission). Gerbil
+converts every RAW photo of step 01 (from the command line: the RAW photos given, or those of the folders given,
+sub-folders included):
+
+1. shooting date read from the EXIF (otherwise the date of the file);
+2. conversion by **Adobe DNG Converter** (free, to install from Adobe on each computer) with the settings of the
+   protocol: DNG 1.7, uncompressed, medium preview, fast load data, original RAW embedded; the DNG takes the
+   **output name of the batch renaming** (for instance `QSR26_A4_B20_U113_IMG_6373.dng`), in
+   `<folder>\<date>\DNG\<sub-folders>`;
+3. the **XMP sidecar** next to the RAW (`IMG.xmp` or `IMG.CR3.xmp`, written by Lightroom, Bridge or the camera)
+   embedded in the DNG, development settings and technical data included;
+4. the information of the batch renaming written as **IPTC** (XMP) through the IPTC mapping: a field given in
+   Gerbil replaces the one of the sidecar, the keywords are **added** to those already there (merge); the RAW and
+   the values given are also kept in the DNG (XMP namespace `gerbil`: `GerbilSource`, `GerbilFields`);
+5. a **JPG** with the same metadata (development settings left out), in `<date>\JPG\<sub-folders>`: the
+   ~1024 px preview of the DNG (default, as the protocol), developed at full size (`--jpg full`) or none
+   (`--jpg none`); and, if asked (`--tiff`), a **16-bit TIFF** developed at full size, in `<date>\TIFF`;
+6. a report `conversion_report_<date>.csv` at the root of the folder.
+
+The RAW files are never modified, and **nothing is written next to them**: the interface keeps the batch
+renaming in memory and gives it to the engine (`GERBIL_PROJECTS`, a temporary file); the DNG carries the rest.
+Running again only does what is missing: a DNG already made is found by the RAW it carries, **renamed** (with its
+JPG and TIFF) when its name changed, and its metadata written again when the values or the sidecar changed. When
+the batch renaming of a folder already converted is opened again, its values are **read back from the DNG
+files**. **ExifTool** (free) is needed for steps 1, 3, 4
+and 5: it ships with Gerbil (`exiftool` folder next to `Gerbil.exe`); otherwise it is looked for in a `1_Commons`
+folder above the photos, then in the PATH. Without it the DNG files are made, bare, and each photo is flagged.
+
+Photos are flagged *to verify* (not stopped) when a required field is empty or a value is not written as its
+field asks (see below), when a sidecar could not be embedded or a preview could not be made. Fields left empty
+that are not required are only **mentioned** (`not mentioned: Building / room, Unit`), the photo stays ok.
+
+**Profiles holding a batch renaming model.** A site profile can carry a whole batch renaming (key `project`):
+fields with their **meaning** on the site, their **IPTC field** and a **check** (`{"item": regex, "help": ...}`
+for each of several values separated by ` ; `, `{"value": regex}` for the whole text), the name template, the
+IPTC mapping, common values and **keyword lists** as a tree. A folder without a batch renaming then starts from it;
+the window shows a *guide of the fields* (meaning and IPTC field of each one), the photos whose values are not
+written as asked in terracotta with what is wrong under the preview, and a **Keywords…** button: the lists to
+tick (one branch per list), several photos at a time. The keywords are written as keywords (the last word) and
+as hierarchical keywords (`CONTEXT|Finds|pottery`, read by Bridge and Lightroom). *Import…* (step 01, site
+profile) adds a profile received from a team to the library, and step 01 shows what the profile chosen holds
+(work, fields, name template, keyword lists, settings). A profile can also set its settings (`settings`; `"mode":
+"dng"` for a team that converts: step 03 is then marked optional and *Continue* goes to step 04; `dng_jpg`,
+`dng_tiff`).
+
+**Name template filter.** `{field|first}` gives, of several values separated by ` ; `, the one with the smallest
+number among those of the same kind as the first (`B27 ; B20 ; R3` -> `B20`): one building in the name when a photo
+shows several.
+
 ## Batch renaming: names and information of the photos
 
 A folder of photos can be renamed in batch (button *Batch renaming…* of the interface, on the folder of the
@@ -99,7 +150,7 @@ photos — choosing an `outlined_result` folder opens the folder of its photos; 
   applies to the files Gerbil writes in the results folder only: the original photos are never renamed.
 - **After a change** of the alerts (required field, naming rule, extension in lowercase) or of the
   extension case, *Save* applies it at once to the photos already processed, without processing them
-  again: their files get or lose `_to_be_verified`, the report and the list of step 04 follow (the text
+  again: their files get or lose `_to_be_verified`, the report and the list of step 03 follow (the text
   drawn on the control preview stays until the next run). When the name or the information of a photo
   changed, Gerbil offers to process it again. From the command line: `gerbil.py FOLDER --refresh-names`.
 - **Naming rule** (optional): a regular expression the output names must match, read **as PowerShell's
@@ -274,7 +325,7 @@ The settings of a run are saved next to the plates (`plates_settings.json`). Com
 
 ### Free plates: field photos and orthophotos (`Free plates`, or `gerbil_plates.py --images`)
 
-*Free plates* (step 05) lays out **whole photos** of a folder instead of outlined objects: field photos of
+*Free plates* (step 06) lays out **whole photos** of a folder instead of outlined objects: field photos of
 graves or structures, orthophotos, any JPEG, TIFF or PNG. Each photo is brought to the scale of the plate
 (1:10, 1:20, 1:50…), so that a typological plate shows the graves at the same scale, sorted by type.
 
@@ -514,19 +565,26 @@ The `models` folder can also be copied from one computer to another.
 
 Double-clicking **`Gerbil.bat`** (or `gerbil_gui.pyw`, or `Gerbil.exe` in the .exe version) opens a
 window in French or English (FR / EN at the bottom of the column; it follows Windows the first time). A
-column on the left gives the five steps of the work, each with its page; the steps can be visited in any
-order:
+column on the left gives the six steps of the work, each with its page (two have a second page, indented);
+the steps can be visited in any order:
 
-1. **Source photographs**: folders or photos to process, and the site profile.
+1. **Source photographs**: folders or photos to process, the site profile and what it holds.
 2. **Naming and metadata** (optional): a summary of the batch renaming of the folder, and the button that
-   opens it.
-3. **Processing**: the essential settings (the others in *Advanced settings…*, and the settings changed
+   opens it (only the photos of step 01 are shown in it; a box shows the whole folder). Second page, **Check
+   the metadata**: each photo of step 01 with its output name and what to note (required field missing or
+   value written the wrong way: to verify; field left empty: only mentioned); double-click a row to fix it.
+3. **Outline and scale** (optional): the essential settings (the others in *Advanced settings…*, and the settings changed
    from the defaults listed, with *Back to the defaults*), where the results go, *Run*. The progress is a
    scale bar whose squares fill in; a table gives each photo, its state (ok, to verify, failed), its scale
    and what to do in a few words; double-click a row to fix it. The lines of the engine are in *Technical
    details*.
-4. **Review**: the photos to look at with their problem, the review window and the manual scale.
-5. **Publication**: plates, inventory (CSV), thumbnails.
+   Second page, **See the results**: the photos to look at with their problem, the review window and the
+   manual scale.
+4. **Convert**: the RAW photos of step 01 to DNG, with a JPG (preview or full size) and, if wanted, a 16-bit
+   TIFF; its own table of the results (double-click a row: the batch renaming, on that photo).
+5. **Final review**: every file written (cut-out results, DNG, JPG, TIFF; double-click to open one) and the
+   check before a deposit.
+6. **Publication**: plates at scale, free plates, contact sheets, inventory (CSV), thumbnails.
 
 The sections below describe each window in detail, with the English names of their buttons (all the windows also exist in French; their texts are in `gerbil_lang_fr.py`):
 

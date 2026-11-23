@@ -13,9 +13,9 @@ fonts = [(os.path.join(HERE, "fonts", f), "fonts") for f in os.listdir(os.path.j
          if f.endswith((".ttf", ".txt"))]                # interface fonts (SIL Open Font License)
 
 gui = Analysis([os.path.join(HERE, "gerbil_gui.pyw")], pathex=[HERE], datas=icons + fonts,
-               hiddenimports=["onnxruntime"])   # numpy, OpenCV, Pillow, onnxruntime: review (one click), plates…
+               hiddenimports=["onnxruntime", "gerbil_dng"])   # numpy, OpenCV, Pillow, onnxruntime: review (one click), plates…
 engine = Analysis([os.path.join(HERE, "gerbil.py")], pathex=[HERE],
-                  hiddenimports=["onnxruntime"], excludes=["tkinter", "matplotlib", "IPython"])
+                  hiddenimports=["onnxruntime", "gerbil_dng"], excludes=["tkinter", "matplotlib", "IPython"])
 
 gui_exe = EXE(PYZ(gui.pure), gui.scripts, [], exclude_binaries=True, name="Gerbil",
               console=False, icon=ICON, upx=False)

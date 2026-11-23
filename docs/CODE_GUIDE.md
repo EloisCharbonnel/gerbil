@@ -93,6 +93,7 @@ gerbil_gui.pyw  (windows)  --runs-->  gerbil.py / gerbil_cli.exe  (engine, one p
 - [gerbil_gui.pyw](#gerbil-gui-pyw) — The interface (windows) - it runs the engine as a separate program.
 - [gerbil_plates.py](#gerbil-plates-py) — The plates: objects laid out at a chosen scale, written as SVG.
 - [gerbil_tools.py](#gerbil-tools-py) — Inventory (CSV) and thumbnails.
+- [gerbil_dng.py](#gerbil-dng-py) — RAW photos to DNG, with their metadata and new names (Adobe DNG Converter, ExifTool).
 - [packaging/gerbil_setup.pyw](#packaging-gerbil-setup-pyw) — The installer (Gerbil_Setup.exe).
 - [tests/synthetic.py](#tests-synthetic-py) — Synthetic photos for the automatic tests.
 - [tests/test_gerbil.py](#tests-test-gerbil-py) — The automatic tests.
@@ -100,7 +101,7 @@ gerbil_gui.pyw  (windows)  --runs-->  gerbil.py / gerbil_cli.exe  (engine, one p
 
 ### gerbil.py
 
-The engine and the command line: everything that processes a photo. (4338 lines.)
+The engine and the command line: everything that processes a photo. (4420 lines.)
 
 Gerbil - archaeological photo toolkit (formerly SherdCut): outlining of finds photographed with a scale, at their real size (1:1). © 2026 Eloïs CHARBONNEL Licence: GNU General Public License v3 or later (SPDX: GPL-3.0-or-later), see LICENSE. This program comes with ABSOLUTELY NO WARRANTY; it is free software, and you are welcome to redistribute it under the conditions of the licence.
 
@@ -488,142 +489,158 @@ Usage:
 - **`iptc_values(pr, values, name)`** — function, line 3145  
   IPTC fields of a photo: the mapping of the project (else DEFAULT_IPTC) filled with its values.
 
-- **`_iptc_prop(prop, kind, value)`** — function, line 3165  
+- **`_iptc_prop(prop, kind, value)`** — function, line 3173  
   One XMP property as RDF: plain text, one-language alternative (Alt) or list (Bag/Seq).
 
-- **`make_xmp(description, fields, meta, title, iptc, packet)`** — function, line 3175  
+- **`make_xmp(description, fields, meta, title, iptc, packet)`** — function, line 3183  
   XMP packet: description of the scale + shooting information of the original photo + information of
   
   the project (title = output name; each field as gerbil:Name, and all of them as keywords) + the IPTC fields of the project (iptc_values), which take precedence. packet=False: no xpacket wrapper (sidecar .xmp file).
 
-- **`embed_xmp_jpeg(path, xmp)`** — function, line 3225  
+- **`embed_xmp_jpeg(path, xmp)`** — function, line 3236  
   Puts the XMP packet into a JPEG file without touching the image: the APP1 XMP segment is replaced or added after the EXIF / JFIF segments. False when the file is not a plain JPEG.
 
-- **`write_sidecar(photo_path, xmp, folder)`** — function, line 3252  
+- **`write_sidecar(photo_path, xmp, folder)`** — function, line 3263  
   NAME.xmp beside a photo (Bridge, Lightroom, darktable read it, above all for RAW files). A sidecar written by another program (Lightroom: develop settings) is never replaced. Returns the path or None.
 
-- **`write_psd(path, W, H, layers, comp_rgb, comp_a, dpi, icc, exif, xmp)`** — function, line 3268  
+- **`write_psd(path, W, H, layers, comp_rgb, comp_a, dpi, icc, exif, xmp)`** — function, line 3279  
   Writes the layered Photoshop file byte by byte: header, resolution in cm, ICC profile, EXIF and XMP, layers with their masks (PackBits), flattened image. See PSEUDOCODE §13.
 
 
 #### TIFF writing
 
-- **`write_tiff(path, rgb, a, dpi, icc, xmp, fields, description, background, compression)`** — function, line 3353  
+- **`write_tiff(path, rgb, a, dpi, icc, xmp, fields, description, background, compression)`** — function, line 3364  
   Writes a TIFF (transparent or on white, LZW / ZIP / none) at the 1:1 resolution, with the ICC profile, the XMP and the main text tags.
 
 
 #### Control preview
 
-- **`font(size)`** — function, line 3383  
+- **`font(size)`** — function, line 3394  
   A TrueType font for the texts of the control preview (Arial, Segoe UI, DejaVu...).
 
-- **`control_image(path, photo, cer, scale, text_lines)`** — function, line 3393  
+- **`control_image(path, photo, cer, scale, text_lines)`** — function, line 3404  
   The control preview (to_control): reduced photo, outline of the cut-out in green, scale in magenta with its marks, what was discarded in red, removed by the AI in cyan, and the main information written on top.
 
 
 #### Processing of one photo
 
-- **`cased(path, case)`** — function, line 3481  
+- **`cased(path, case)`** — function, line 3492  
   The path with its extension in lowercase ("lower") or in capitals ("upper"); any other value leaves it as it is. Setting "ext_case" of the project (batch renaming).
 
-- **`true_case(path)`** — function, line 3490  
+- **`true_case(path)`** — function, line 3501  
   Windows keeps the former spelling of a file rewritten under a name that differs only by its case (NAME.TIF written over NAME.tif stays NAME.tif): the file is renamed to the spelling asked for.
 
-- **`output_paths(folder, base, doubtful, case)`** — function, line 3501  
+- **`output_paths(folder, base, doubtful, case)`** — function, line 3512  
   Paths of the files of a photo (PSD, TIFF, preview), with _to_be_verified when doubtful; case: extensions in lowercase (the usual ones) or in capitals (see cased).
 
-- **`remove_stale(folder, base, written, case)`** — function, line 3513  
+- **`remove_stale(folder, base, written, case)`** — function, line 3524  
   After a new run, deletes the obsolete variant (with / without "_to_be_verified") of the files that have just been rewritten.
 
-- **`copy_original(path, folder, case)`** — function, line 3524  
+- **`copy_original(path, folder, case)`** — function, line 3535  
   Copy of the original photo in the result folder (its extension in the case asked for, see cased); returns its path (None: same file).
 
 
 #### Project: fields, naming template, naming rule, values of the photos (gerbil_project.json)
 
-- **`load_project(folder)`** — function, line 3554  
-  Project of a folder of photos, or None. Keys: fields (key, label, required, choices), template (e.g. "{site}_{us}_{number}"; empty: the names of the photos are kept), rule (regular expression the output names must match; empty: none), common (values of all the photos), photos (name -> values).
+- **`load_project(folder)`** — function, line 3565  
+  Project of a folder of photos, or None. Keys: fields (key, label, required, choices), template (e.g. "{site}_{us}_{number}"; empty: the names of the photos are kept), rule (regular expression the output names must match; empty: none), common (values of all the photos), photos (name -> values). The interface can also give the batch renamings it holds without writing them next to the photos: GERBIL_PROJECTS = a JSON file {folder: project}, read first.
 
-- **`photo_values(project, name)`** — function, line 3577  
+- **`photo_values(project, name)`** — function, line 3602  
   Values of a photo: those common to the project, completed / replaced by its own.
 
-- **`project_name(project, name)`** — function, line 3585  
-  Output name (without extension) built from the template, or None (template empty or giving nothing). Forbidden characters and spaces become "_"; the separators left by empty fields are merged ("{site}_{us}_{number}" without US: "QSR25_12").
+- **`first_item(value)`** — function, line 3610  
+  Of several values separated by ';' (B27 ; B20 ; R3), the one with the smallest number among those of the same kind as the first one, the letters before the number (B20); the first one when none has a number.
 
-- **`rule_regex(rule)`** — function, line 3599  
+- **`template_text(template, vals)`** — function, line 3623  
+  A template filled with values: {field} = its value, {field|first} = the value with the smallest
+  
+  number among several (first_item).
+
+- **`project_name(project, name)`** — function, line 3632  
+  Output name (without extension) built from the template, or None (template empty or giving nothing). Forbidden characters and spaces become "_"; the separators left by empty fields are merged ("{site}_{us}_{number}" without US: "QSR25_12"); {field|first}: of several values, the one with the smallest number.
+
+- **`rule_regex(rule)`** — function, line 3647  
   The naming rule as PowerShell's -match reads it: .NET regular expression, case-insensitive, found anywhere in the name unless anchored with ^ and $. .NET named groups (?<name>...) are accepted, and (?-i) at the start makes the rule case-sensitive (as in PowerShell).
 
-- **`project_checks(project, name, out_name)`** — function, line 3609  
-  Reasons for doubt about the information of a photo: required fields empty, name off the rule.
+- **`value_problems(field, value)`** — function, line 3657  
+  What is wrong with the value of a field, as its "check" says: {"item": regex} for each of several values separated by ';' (B20 ; B27), {"value": regex} for the whole text, "help" = how to write it. Returns a list of messages (empty: right).
 
-- **`plan_names(tasks)`** — function, line 3630  
+- **`project_checks(project, name, out_name)`** — function, line 3678  
+  Reasons for doubt about the information of a photo: required fields empty, values not written as the field asks (value_problems), name off the rule.
+
+- **`plan_names(tasks)`** — function, line 3702  
   Output name and information of every photo, decided before the processing: two photos of the same result folder cannot get the same name (a suffix _2, _3... is added, with a doubt).
 
 
 #### Review window: data written for it, corrections read back
 
-- **`edits_entry(path)`** — function, line 3667  
+- **`edits_entry(path)`** — function, line 3739  
   Corrections made by hand for this photo: (mask or None, angle in degrees). The mask (full photo, 0 / 255) replaces the computed cut-out; the angle turns the object (counterclockwise).
 
-- **`cutout_from_mask(mask, cer)`** — function, line 3690  
+- **`cutout_from_mask(mask, cer)`** — function, line 3762  
   Cut-out from a mask corrected by hand (photo size): same softened edge as outline_object (Gaussian blur 0.8 px of the 0 / 255 mask). The other fields of `cer` are kept (or emptied).
 
-- **`write_review(out_dir, path, shape, cer, scale, status, doubts, angle, output)`** — function, line 3714  
+- **`write_review(out_dir, path, shape, cer, scale, status, doubts, angle, output)`** — function, line 3786  
   Mask (photo size) and scale outline of the photo, for the review window of the interface.
 
-- **`rotated_object(rgb, cer, border, angle)`** — function, line 3734  
+- **`rotated_object(rgb, cer, border, angle)`** — function, line 3806  
   The object turned by `angle` degrees (counterclockwise, as decided in the review window): pixels (bicubic) and layer mask (bilinear) resampled once. Returns rgb, mask (with `border` around the object), and the width and height of the turned object.
 
-- **`process_photo(path, opts, out_dir, plan)`** — function, line 3760  
+- **`process_photo(path, opts, out_dir, plan)`** — function, line 3832  
   plan: output name, doubts and information of the photo decided by plan_names (project).
 
-- **`_init_worker()`** — function, line 3967  
+- **`_init_worker()`** — function, line 4039  
   Each worker process limits OpenCV to 2 threads (photos are already processed in parallel).
 
-- **`list_photos(inputs)`** — function, line 3976  
+- **`list_photos(inputs)`** — function, line 4048  
   Photos of the folders / files given. Gerbil's own results (NAME_outlined.tif, _to_control.jpg…) lying among the photos (result folder = photo folder) are left out: never processed again.
 
-- **`_HelpFormatter`** — class, line 3998  
+- **`_HelpFormatter`** — class, line 4070  
   Shows the default value only when it is meaningful.
 
-  - **`_get_help_string(self, action)`** — method, line 4001  
+  - **`_get_help_string(self, action)`** — method, line 4073  
     Help of an option: its default value shown only when it means
     
     something.
 
-- **`main(argv)`** — function, line 4009  
+- **`main(argv)`** — function, line 4081  
+  Command line: --dng hands the photos to the conversion of RAW photos to DNG (gerbil_dng), anything else
+  
+  to the processing of the photos (_main).
+
+- **`_main(argv)`** — function, line 4090  
   Command line: reads the options, lists the photos, plans their output names (batch
   
   renaming), processes them in parallel (process_photo), writes the report and prints the summary of the problems.
 
-- **`previous_output(path, out_dir)`** — function, line 4157  
+- **`previous_output(path, out_dir)`** — function, line 4238  
   Output name the photo had at its previous run (review data), or None.
 
-- **`remove_renamed(tasks, plan, previous)`** — function, line 4167  
+- **`remove_renamed(tasks, plan, previous)`** — function, line 4248  
   Files of a photo written under a former output name (the project name changed): removed, unless another photo now uses that name.
 
-- **`read_report(report)`** — function, line 4185  
+- **`read_report(report)`** — function, line 4267  
   Rows of a report, by photo name ({} when there is none).
 
-- **`refresh_naming(tasks)`** — function, line 4195  
+- **`refresh_naming(tasks)`** — function, line 4277  
   After a change of the batch renaming, without processing the photos again: the doubts that come from the names (required field, naming rule, extension, name used twice) are worked out again for the photos already processed. Their files get or lose _to_be_verified and take the extension case of the project; the report and the review data follow. A photo whose output name or information changed is left as it is: it has to be processed again (its files hold the former ones). tasks: (photo, result folder). Returns (rows changed, photos to process again). The text drawn on the control preview is not redrawn.
 
-- **`write_report(report, rows)`** — function, line 4253  
+- **`write_report(report, rows)`** — function, line 4335  
   CSV report (Excel: ";" separator, decimal comma). Rows already present for other photos are kept: the script can be run again on a few photos. The fields of the project come after the usual columns.
 
-- **`print_summary(rows)`** — function, line 4280  
+- **`print_summary(rows)`** — function, line 4362  
   What needs checking, grouped by problem, with the photos concerned (a photo may appear under several problems).
 
-- **`print_row(row, i, n)`** — function, line 4304  
+- **`print_row(row, i, n)`** — function, line 4386  
   One line of progress for a photo: [i/n] name: status (scale, time) | doubts and notes.
 
-- **`_own_console()`** — function, line 4313  
+- **`_own_console()`** — function, line 4395  
   True when the program has a visible console to itself: .exe double-clicked, or folders dropped on it (not when the interface runs it, with its output redirected).
 
 
 ### gerbil_gui.pyw
 
-The interface (windows) - it runs the engine as a separate program. (5426 lines.)
+The interface (windows) - it runs the engine as a separate program. (6200 lines.)
 
 Gerbil - archaeological photo toolkit (formerly SherdCut): graphical interface of gerbil.py © 2026 Eloïs CHARBONNEL Licence: GNU General Public License v3 or later (SPDX: GPL-3.0-or-later), see LICENSE. This program comes with ABSOLUTELY NO WARRANTY; it is free software, and you are welcome to redistribute it under the conditions of the licence.
 
@@ -631,91 +648,94 @@ Choose the photos (folders or files) and the options, then "Run": the script run
 
 Missing Python packages (numpy, OpenCV, Pillow, rawpy) are detected and can be installed from the window. Console use (Install.bat):  py -3 gerbil_gui.pyw --install   (or --check: exit code 1 if missing)
 
-- **`open_photo_image(path, small)`** — function, line 47  
+- **`open_photo_image(path, small)`** — function, line 48  
   The photo upright, as the engine sees it (RAW: developed by rawpy the same way; small: half size, for previews). Returns a PIL image in RGB.
 
-- **`load_fonts(root)`** — function, line 85  
+- **`load_fonts(root)`** — function, line 86  
   The fonts of the interface: those shipped in the fonts folder (loaded for this program only), else
   
   the closest ones installed (Garamond, Cambria, Georgia, Courier New).
 
-- **`system_lang()`** — function, line 109  
+- **`system_lang()`** — function, line 110  
   fr when Windows (or the locale) is in French, else en.
 
-- **`T(fr, en)`** — function, line 121  
+- **`T(fr, en)`** — function, line 122  
   The text in the language of the interface.
 
-- **`tr(en)`** — function, line 132  
+- **`tr(en)`** — function, line 133  
   An English text of the windows, in French when the interface is in French (gerbil_lang_fr.py).
 
-- **`choice_text(key, value)`** — function, line 177  
+- **`choice_text(key, value)`** — function, line 187  
   A choice of a setting in plain words, in the language of the interface (else the value itself).
 
-- **`option_value(key, v)`** — function, line 188  
+- **`option_value(key, v)`** — function, line 198  
   A setting in a comparable form (the fields give text).
 
-- **`help_text(key)`** — function, line 243  
+- **`help_text(key)`** — function, line 253  
   Help bubble of a setting, in the language of the interface.
 
-- **`scale_text(s)`** — function, line 248  
-  The scale part of an engine line ('checkerboard 10 cm, 100.00 px/cm, 1.3 s') in a few words.
+- **`scale_text(s)`** — function, line 258  
+  The scale part of an engine line ('checkerboard 10 cm, 100.00 px/cm, 1.3 s') in a few words; for a DNG conversion, what became of the DNG.
 
-- **`doubt_text(s)`** — function, line 292  
-  A doubt or a note of the engine in a few words, in the language of the interface.
+- **`share_columns(tree, shares)`** — function, line 319  
+  Columns of a table kept in proportion to its width (shares: column -> part of the width; the last column of the table takes what is left), so that the notes stay visible.
 
-- **`python_exe()`** — function, line 351  
+- **`doubt_text(s)`** — function, line 333  
+  A doubt or a note of the engine in a few words, in the language of the interface; the field and the value concerned kept when the engine gives them ('Valeur mal écrite : Context (SU) SU8200').
+
+- **`python_exe()`** — function, line 404  
   Console Python of the running installation (the GUI itself may run under pythonw).
 
-- **`missing_packages()`** — function, line 357  
+- **`missing_packages()`** — function, line 410  
   Python packages still to install (none in the .exe version, where all is inside).
 
-- **`has_ai()`** — function, line 365  
+- **`has_ai()`** — function, line 418  
   True when onnxruntime (the AI engine) is available.
 
-- **`pip_command(packages)`** — function, line 373  
+- **`pip_command(packages)`** — function, line 426  
   Command that installs packages with pip, for the Python found.
 
-- **`imports_ok(modules)`** — function, line 378  
+- **`imports_ok(modules)`** — function, line 431  
   Checked in a new process: a package just installed in the user folder is seen there.
 
-- **`console_install()`** — function, line 385  
+- **`console_install()`** — function, line 438  
   Install.bat: installs what is missing, in the Python running this file.
 
-- **`count_photos(folder)`** — function, line 419  
+- **`count_photos(folder)`** — function, line 472  
   Number of photos (known extensions) in a folder.
 
-- **`load_settings()`** — function, line 427  
+- **`load_settings()`** — function, line 480  
   Settings of the interface (~/.gerbil.json, or the files of older names), with the defaults for what is missing.
 
-- **`Tooltip`** — class, line 441  
+- **`Tooltip`** — class, line 494  
   Help text shown when the mouse rests on a widget. It goes away when the mouse leaves the widget (checked every 250 ms: a drop-down list or a window opened meanwhile can swallow the "leave" event), on a click, and after 8 s at most; one bubble at a time.
 
-  - **`__init__(self, widget, text)`** — method, line 448  
+  - **`__init__(self, widget, text)`** — method, line 501  
     Ties the bubble to the widget: shown when the mouse rests on it, hidden on leave,
     
     click, focus lost or destruction.
 
-  - **`_schedule(self, _)`** — method, line 458  
+  - **`_schedule(self, _)`** — method, line 511  
     The mouse enters: the bubble is shown after 450 ms.
 
-  - **`_pointer_inside(self)`** — method, line 463  
+  - **`_pointer_inside(self)`** — method, line 516  
     True when the mouse pointer is over the widget (or one of its children).
 
-  - **`_show(self)`** — method, line 476  
+  - **`_show(self)`** — method, line 529  
     Shows the bubble under the widget, if the mouse is still there; one bubble at a time.
 
-  - **`_watch(self)`** — method, line 494  
+  - **`_watch(self)`** — method, line 547  
     Every 250 ms: hides the bubble when the mouse has left, or after 8 s.
 
-  - **`_hide(self, _)`** — method, line 502  
+  - **`_hide(self, _)`** — method, line 555  
     Hides the bubble and cancels what was planned.
 
-- **`ScaleWindow`** — class, line 528  
+- **`ScaleWindow`** — class, line 581  
   Manual scale of one photo: two points of known distance, clicked on the photo (upright as the
   
   engine sees it). Saved in MANUAL_SCALES next to the photo; the engine then uses it instead of looking for the scale.
 
-  - **`__init__(self, app, path, seq, on_saved, learn, free)`** — method, line 535  
+  - **`__init__(self, app, path, seq, on_saved, learn, free)`** — method, line 588  
     seq: series of photos corrected one after the other (see App.scale_series), or None.
     
     on_saved: called after saving instead of offering to process the photo (review window).
@@ -724,767 +744,845 @@ Missing Python packages (numpy, OpenCV, Pillow, rawpy) are detected and can be i
     
     free: photo of the free plates (field photo): any known length, no printed scale to describe.
 
-  - **`fit(self)`** — method, line 618  
+  - **`fit(self)`** — method, line 671  
     Whole photo in the window.
 
-  - **`to_screen(self, x, y)`** — method, line 626  
+  - **`to_screen(self, x, y)`** — method, line 679  
     Photo pixel -> window position (zoom and offset of the view).
 
-  - **`to_image(self, sx, sy)`** — method, line 630  
+  - **`to_image(self, sx, sy)`** — method, line 683  
     Window position -> photo pixel.
 
-  - **`redraw(self)`** — method, line 634  
+  - **`redraw(self)`** — method, line 687  
     Draws the visible part of the photo, the two points, the line between them and the band of the scale.
 
-  - **`values(self)`** — method, line 675  
+  - **`values(self)`** — method, line 728  
     (px/cm, width cm) from the two points and the entries; px/cm None when not computable.
 
-  - **`update_readout(self)`** — method, line 686  
+  - **`update_readout(self)`** — method, line 739  
     Text under the fields: distance in pixels, px/cm and ppi.
 
-  - **`press(self, e)`** — method, line 696  
+  - **`press(self, e)`** — method, line 749  
     Click: grabs a point near the click, or places a new point.
 
-  - **`move(self, e)`** — method, line 709  
+  - **`move(self, e)`** — method, line 762  
     Drag: moves the grabbed point.
 
-  - **`pan_move(self, e)`** — method, line 716  
+  - **`pan_move(self, e)`** — method, line 769  
     Right button held: moves the view.
 
-  - **`wheel(self, e)`** — method, line 723  
+  - **`wheel(self, e)`** — method, line 776  
     Wheel: zoom on the point under the mouse.
 
-  - **`_load(self)`** — method, line 730  
+  - **`_load(self)`** — method, line 783  
     Manual scales of the folder (gerbil_scales.json).
 
-  - **`_write(self, data)`** — method, line 739  
+  - **`_write(self, data)`** — method, line 792  
     Writes the manual scales (aside, then swapped); the file of the old name goes.
 
-  - **`save(self)`** — method, line 748  
+  - **`save(self)`** — method, line 801  
     Saves the scale of the photo (or gives it to the profile when learning), then next photo of the series or offer to process it again.
 
-  - **`skip(self)`** — method, line 786  
+  - **`skip(self)`** — method, line 839  
     Series: leaves this photo without a scale and goes to the next one.
 
-  - **`close(self)`** — method, line 791  
+  - **`close(self)`** — method, line 844  
     Close (single photo) or Stop (series: the photos already set may then be processed).
 
-  - **`remove(self)`** — method, line 798  
+  - **`remove(self)`** — method, line 851  
     Removes the manual scale of the photo (the detection is used again).
 
-- **`load_project_file(folder)`** — function, line 831  
-  Project of a folder (dict), a new one if there is none; None if the file cannot be read.
+- **`held_key(folder)`** — function, line 888  
+  (small helper: see the code)
 
-- **`save_project_file(folder, pr)`** — function, line 849  
-  Writes gerbil_project.json (written aside, then swapped: never half-written).
+- **`project_known(folder)`** — function, line 892  
+  A batch renaming exists for this folder: its gerbil_project.json (made by earlier versions, or by a cut-out), or one kept in memory.
 
-- **`project_values(pr, name)`** — function, line 858  
+- **`hold_project(folder, pr)`** — function, line 898  
+  Keeps a batch renaming in memory, and gives all of them to the engine (GERBIL_PROJECTS, read by gerbil.load_project before any gerbil_project.json).
+
+- **`load_project_file(folder)`** — function, line 910  
+  Project of a folder (dict), a new one if there is none; None if the file cannot be read. The file next to the photos when there is one, else the one kept in memory.
+
+- **`save_project_file(folder, pr, write)`** — function, line 931  
+  Saves a batch renaming: into gerbil_project.json when the folder has one (earlier versions) or when
+  
+  asked (a cut-out: its results and plates read it), else kept in memory only - a conversion writes everything into the DNG files. (written aside, then swapped: never half-written)
+
+- **`project_values(pr, name)`** — function, line 945  
   Values of a photo: the common ones, replaced by its own.
 
-- **`project_output_name(pr, name)`** — function, line 865  
+- **`first_item(value)`** — function, line 952  
+  Of several values separated by ';' (B27 ; B20 ; R3), the one with the smallest number among those of the same kind as the first one (B20) - as gerbil.py: first_item.
+
+- **`field_problems(field, value)`** — function, line 964  
+  What is wrong with the value of a field, as its "check" says (as gerbil.py: value_problems).
+
+- **`project_output_name(pr, name)`** — function, line 982  
   Output name of a photo (as gerbil.py: project_name), or its own name without a template.
 
-- **`rule_regex(rule)`** — function, line 878  
+- **`rule_regex(rule)`** — function, line 996  
   The naming rule as PowerShell's -match reads it: .NET regular expression, case-insensitive, found anywhere in the name unless anchored with ^ and $. .NET named groups (?<name>...) are accepted, and (?-i) at the start makes the rule case-sensitive (as in PowerShell).
 
-- **`ps_escape(text)`** — function, line 898  
+- **`ps_escape(text)`** — function, line 1016  
   Text taken literally in a .NET / PowerShell regular expression (as [regex]::Escape).
 
-- **`build_rule(pieces, starts, max_len)`** — function, line 903  
+- **`build_rule(pieces, starts, max_len)`** — function, line 1021  
   PowerShell rule made of look-aheads (each one tests the whole name), e.g. (?-i)^(?!.*[a-z])(?=QSR25)(?=.{1,40}$): case-sensitive when a piece needs it.
 
-- **`read_table(path)`** — function, line 917  
+- **`read_table(path)`** — function, line 1035  
   Rows (lists of strings) of a CSV file or of the first sheet of an Excel .xlsx file.
 
-- **`FieldDialog`** — class, line 971  
+- **`FieldDialog`** — class, line 1089  
   Adds or edits a field of the project: label, key (name used in the template), required, choices.
 
-  - **`__init__(self, parent, field)`** — method, line 974  
+  - **`__init__(self, parent, field)`** — method, line 1092  
     Small window to create or edit a field: label, key, required, choices.
 
-  - **`ok(self)`** — method, line 1004  
+  - **`ok(self)`** — method, line 1122  
     Checks and returns the field (key made of letters, digits and _).
 
-- **`ProjectWindow`** — class, line 1019  
+- **`ProjectWindow`** — class, line 1137  
   Project of a folder of photos (gerbil_project.json next to them): fields, name template, naming rule, values common to all the photos, and a table with one row per photo (double-click a cell to edit it; several rows selected: "Set for selected", "Number the selected"); import of a CSV / Excel inventory. The output files of the photos take the names built from the template (the photos keep theirs).
 
-  - **`__init__(self, app, folder)`** — method, line 1025  
+  - **`__init__(self, app, folder, select, only)`** — method, line 1143  
     The batch renaming window: fields, template, naming rule with its helper,
     
-    common values, table of the photos with preview, buttons.
+    common values, table of the photos with preview, buttons. A folder without a batch renaming starts from the model of the profile chosen, when it holds one (fields with their meaning, IPTC fields, keywords, name template). select: a photo to select. only: the names of the photos to show (those chosen in step 01), None for the whole folder; the values of the others stay in the project.
 
-  - **`fields(self)`** — method, line 1201  
+  - **`keyword_field(self)`** — method, line 1386  
+    The field holding keywords ticked in a tree (profile), or None.
+
+  - **`problems(self, name)`** — method, line 1390  
+    What is wrong with the values of a photo (empty required fields, values not written as asked).
+
+  - **`keywords(self, rows)`** — method, line 1398  
+    The keyword lists of the profile as a tree to tick, for the photos selected (or given).
+
+  - **`fields(self)`** — method, line 1489  
     Fields of the project.
 
-  - **`rebuild(self)`** — method, line 1205  
+  - **`rebuild(self)`** — method, line 1493  
     Fields changed: tokens, common values and columns of the table drawn again.
 
-  - **`fill(self)`** — method, line 1245  
+  - **`toggle_all(self)`** — method, line 1533  
+    The whole folder, or only the photos chosen in step 01.
+
+  - **`fill(self)`** — method, line 1538  
     Fills the table: one row per photo, its values and its output name.
 
-  - **`update_preview(self)`** — method, line 1257  
+  - **`update_preview(self)`** — method, line 1552  
     Example of output name, and warning when names are used twice.
 
-  - **`changes(self)`** — method, line 1269  
+  - **`changes(self)`** — method, line 1566  
     The template changed: output names computed again.
 
-  - **`set_common(self, key, value)`** — method, line 1278  
+  - **`set_common(self, key, value)`** — method, line 1575  
     Sets a value common to all the photos.
 
-  - **`headings(self)`** — method, line 1288  
+  - **`headings(self)`** — method, line 1585  
     Column titles; a value common to all the photos is given in the title (the cells hold the values of each photo, which replace it).
 
-  - **`set_value(self, name, key, value)`** — method, line 1300  
+  - **`set_value(self, name, key, value)`** — method, line 1597  
     Sets the value of a field for one photo (table and project).
 
-  - **`ext_changed(self)`** — method, line 1315  
+  - **`ext_changed(self)`** — method, line 1613  
     "Extension in lowercase" ticked or not.
 
-  - **`case_changed(self)`** — method, line 1321  
+  - **`case_changed(self)`** — method, line 1619  
     Extension case of the files written chosen.
 
-  - **`ext_feedback(self)`** — method, line 1327  
+  - **`ext_feedback(self)`** — method, line 1625  
     Number of photos whose extension has capitals.
 
-  - **`helper_changed(self)`** — method, line 1338  
+  - **`helper_changed(self)`** — method, line 1636  
     Ticked pieces -> rule written in the rule field (it can still be edited by hand).
 
-  - **`rule_feedback(self)`** — method, line 1347  
+  - **`rule_feedback(self)`** — method, line 1645  
     The rule as a PowerShell line, and the result for the name to test (or the first output name).
 
-  - **`show_thumb(self)`** — method, line 1363  
+  - **`show_thumb(self)`** — method, line 1661  
     Small view of the photo of the selected row (the first one).
 
-  - **`render_thumb(self)`** — method, line 1383  
+  - **`render_thumb(self)`** — method, line 1683  
     The preview fitted to the space it has (it follows the bar between table and preview).
 
-  - **`after_resize(self)`** — method, line 1397  
+  - **`after_resize(self)`** — method, line 1697  
     Preview redrawn a moment after the window is resized.
 
-  - **`open_photo(self)`** — method, line 1403  
+  - **`open_photo(self)`** — method, line 1703  
     Opens the selected photo in the Windows viewer.
 
-  - **`select_all(self)`** — method, line 1409  
+  - **`select_all(self)`** — method, line 1709  
     Selects all the rows (Ctrl+A).
 
-  - **`cell_clicked(self, e)`** — method, line 1413  
+  - **`cell_clicked(self, e)`** — method, line 1713  
     Click in the table: the cell becomes the active one (fill handle).
 
-  - **`place_handle(self)`** — method, line 1421  
+  - **`place_handle(self)`** — method, line 1721  
     The small square at the bottom right corner of the active cell (fill handle, as in Excel).
 
-  - **`fill_start(self, e)`** — method, line 1436  
+  - **`fill_start(self, e)`** — method, line 1736  
     The fill handle is grabbed (Ctrl: numbering).
 
-  - **`fill_move(self, e)`** — method, line 1440  
+  - **`fill_move(self, e)`** — method, line 1740  
     Dragging the fill handle: rows covered, table scrolled at its edges.
 
-  - **`fill_end(self, e)`** — method, line 1457  
+  - **`fill_end(self, e)`** — method, line 1757  
     Handle released: the value copied (or numbered) into the rows covered.
 
-  - **`fill_down(self)`** — method, line 1475  
+  - **`fill_down(self)`** — method, line 1775  
     Ctrl+D: the values of the first selected row copied to the other selected rows (the active column only when a cell is active, else all the fields).
 
-  - **`edit_cell(self, e)`** — method, line 1491  
+  - **`edit_cell(self, e)`** — method, line 1791  
     Double-click: edits the cell in place (entry or list of choices).
 
-  - **`_ask_field(self, title, with_value, with_start)`** — method, line 1517  
+  - **`_ask_field(self, title, with_value, with_start)`** — method, line 1820  
     Small dialog: a field, and a value (or a start number and a step).
 
-  - **`set_selected(self)`** — method, line 1554  
+  - **`set_selected(self)`** — method, line 1857  
     Same value for the selected photos.
 
-  - **`number_selected(self)`** — method, line 1566  
+  - **`number_selected(self)`** — method, line 1869  
     Numbers the selected photos (start, step, zeros).
 
-  - **`add_field(self)`** — method, line 1585  
+  - **`add_field(self)`** — method, line 1888  
     Adds a field.
 
-  - **`_pick_field(self, title)`** — method, line 1596  
+  - **`_pick_field(self, title)`** — method, line 1899  
     Asks which field to act on.
 
-  - **`edit_field(self)`** — method, line 1601  
+  - **`edit_field(self)`** — method, line 1904  
     Edits a field (its values follow a key change).
 
-  - **`remove_field(self)`** — method, line 1617  
+  - **`remove_field(self)`** — method, line 1920  
     Removes a field and its values.
 
-  - **`import_table(self)`** — method, line 1628  
+  - **`import_table(self)`** — method, line 1931  
     Imports values from a CSV or Excel inventory: matched with the photos by name, columns matched with the fields.
 
-  - **`save(self, run)`** — method, line 1682  
+  - **`save(self, run)`** — method, line 1985  
     Checks the rule and saves gerbil_project.json (then processes, if asked).
 
-  - **`close(self)`** — method, line 1708  
+  - **`close(self)`** — method, line 2012  
     Closes, offering to save the changes.
 
-- **`ReviewWindow`** — class, line 1723  
+- **`ReviewWindow`** — class, line 2027  
   Review and correction of the cut-outs, photo by photo (doubtful ones first): the photo with the outline of the cut-out (green) and of the scale (magenta); erase / add brushes, removal of a whole piece by a click, undo; orientation of the object (a line along its rim, or quarter turns); access to the manual scale. The corrections are saved next to the photos (EDITS_DIR), so that a later run keeps them; the corrected photos are then processed again.
 
-  - **`__init__(self, app, items)`** — method, line 1734  
+  - **`__init__(self, app, items)`** — method, line 2038  
     The review window: list of photos, view, tools, orientation, information,
     
     buttons; keyboard and mouse bindings.
 
-  - **`goto(self, i)`** — method, line 1841  
+  - **`goto(self, i)`** — method, line 2145  
     Shows photo i: its cut-out (or the corrections saved before), its angle, its
     
     information; resets the undo history.
 
-  - **`show_info(self)`** — method, line 1900  
+  - **`show_info(self)`** — method, line 2204  
     Fields of the project of the photo, with its own values (the values common to all photos are given as a hint).
 
-  - **`save_info(self)`** — method, line 1925  
+  - **`save_info(self)`** — method, line 2229  
     Saves the information typed for the photo shown in its project; True when changed.
 
-  - **`fit(self)`** — method, line 1949  
+  - **`fit(self)`** — method, line 2253  
     Whole photo in the view. Done again once the window has its real size (at the opening the canvas is still 1 x 1 pixel: the first photo would stay invisible).
 
-  - **`to_screen(self, x, y)`** — method, line 1959  
+  - **`to_screen(self, x, y)`** — method, line 2263  
     Photo pixel -> window position.
 
-  - **`to_image(self, sx, sy)`** — method, line 1963  
+  - **`to_image(self, sx, sy)`** — method, line 2267  
     Window position -> photo pixel.
 
-  - **`view_base(self)`** — method, line 1967  
+  - **`view_base(self)`** — method, line 2271  
     The photo as shown for the current view (cached: only rebuilt when the view changes).
 
-  - **`redraw(self, fast)`** — method, line 1994  
+  - **`redraw(self, fast)`** — method, line 2298  
     Photo (cached) + cut-out (background dimmed, green outline) + scale outline + line / lasso.
 
-  - **`schedule_redraw(self)`** — method, line 2033  
+  - **`schedule_redraw(self)`** — method, line 2337  
     At most one redraw every 30 ms while painting (the mask itself is updated at once).
 
-  - **`wheel(self, e)`** — method, line 2039  
+  - **`wheel(self, e)`** — method, line 2343  
     Wheel: zoom on the point under the mouse.
 
-  - **`pan_move(self, e)`** — method, line 2046  
+  - **`pan_move(self, e)`** — method, line 2350  
     Moves the view while a button is held.
 
-  - **`view_span(self, axis)`** — method, line 2053  
+  - **`view_span(self, axis)`** — method, line 2357  
     Visible part of the photo along an axis: (start, length) in photo pixels.
 
-  - **`scroll_view(self, axis, *args)`** — method, line 2058  
+  - **`scroll_view(self, axis, *args)`** — method, line 2362  
     Scroll bar commands: "moveto f" or "scroll n units|pages".
 
-  - **`nudge(self, dx, dy)`** — method, line 2075  
+  - **`nudge(self, dx, dy)`** — method, line 2379  
     Arrow keys: moves the view.
 
-  - **`update_bars(self)`** — method, line 2082  
+  - **`update_bars(self)`** — method, line 2386  
     Scroll bars set to the visible part of the photo.
 
-  - **`hover(self, e)`** — method, line 2088  
+  - **`hover(self, e)`** — method, line 2392  
     Circle of the brush under the mouse.
 
-  - **`tool_changed(self)`** — method, line 2097  
+  - **`tool_changed(self)`** — method, line 2401  
     Tool chosen: the one-click model is prepared when it is chosen.
 
-  - **`prepare_click(self)`** — method, line 2105  
+  - **`prepare_click(self)`** — method, line 2409  
     Loads the model (downloaded once, 45 MB) and encodes the photo shown, in the background.
 
-  - **`click_prepared(self, index, error)`** — method, line 2129  
+  - **`click_prepared(self, index, error)`** — method, line 2433  
     The photo is ready for one-click (or the error is shown).
 
-  - **`show_click_hint(self)`** — method, line 2144  
+  - **`show_click_hint(self)`** — method, line 2448  
     How the one-click tool is used.
 
-  - **`click_object(self, x, y, keep)`** — method, line 2149  
+  - **`click_object(self, x, y, keep)`** — method, line 2453  
     One click: the object under the click (Segment Anything, edge of the
     
     computed cut-out where it agrees) is added (or removed with Shift).
 
-  - **`_save_patch(self, x0, y0, x1, y1, before)`** — method, line 2174  
+  - **`_save_patch(self, x0, y0, x1, y1, before)`** — method, line 2478  
     Keeps the part of the mask about to change, for Undo (30 steps).
 
-  - **`typing(self)`** — method, line 2182  
+  - **`typing(self)`** — method, line 2486  
     A text field of the panel has the keyboard: Space and the arrows are for it.
 
-  - **`press(self, e)`** — method, line 2187  
+  - **`press(self, e)`** — method, line 2491  
     Mouse pressed: starts the brush, the lasso, the line, or acts at once (piece,
     
     one click); Space held: moves the view.
 
-  - **`drag(self, e)`** — method, line 2212  
+  - **`drag(self, e)`** — method, line 2516  
     Mouse moved with the button held: paints, extends the lasso or the line.
 
-  - **`_paint(self, ax, ay, bx, by)`** — method, line 2234  
+  - **`_paint(self, ax, ay, bx, by)`** — method, line 2538  
     Paints (or erases) a stroke of the brush in the mask.
 
-  - **`release(self, e)`** — method, line 2242  
+  - **`release(self, e)`** — method, line 2546  
     Button released: ends the stroke, fills the lasso, or turns the object along
     
     the line drawn.
 
-  - **`rim_angle(self, ax, ay, bx, by)`** — method, line 2272  
+  - **`rim_angle(self, ax, ay, bx, by)`** — method, line 2576  
     Rotation (degrees, counterclockwise) that makes the line horizontal with the object below it.
 
-  - **`turn(self, step)`** — method, line 2285  
+  - **`turn(self, step)`** — method, line 2589  
     Quarter turn of the object (or back to 0).
 
-  - **`undo(self)`** — method, line 2291  
+  - **`undo(self)`** — method, line 2595  
     Undoes the last change of the mask or of the angle.
 
-  - **`reset(self)`** — method, line 2306  
+  - **`reset(self)`** — method, line 2610  
     Undoes all the unsaved changes of this photo; if corrections were saved for it before, offers to remove them too (the computed cut-out comes back when the photo is processed again).
 
-  - **`remove_saved(self, photo)`** — method, line 2325  
+  - **`remove_saved(self, photo)`** — method, line 2629  
     Removes the corrections saved for a photo.
 
-  - **`update_thumb(self)`** — method, line 2342  
+  - **`update_thumb(self)`** — method, line 2646  
     The object as it will be exported (turned), small.
 
-  - **`list_text(self, it)`** — method, line 2365  
+  - **`list_text(self, it)`** — method, line 2669  
     Text of a photo in the list: status mark, name, export state.
 
-  - **`mark(self, photo, state)`** — method, line 2371  
+  - **`mark(self, photo, state)`** — method, line 2675  
     Changes the export state shown for a photo.
 
-  - **`saved_mask_file(photo)`** — method, line 2383  
+  - **`saved_mask_file(photo)`** — method, line 2687  
     Path of the corrected mask of a photo (gerbil_edits).
 
-  - **`saved_entry(photo)`** — method, line 2388  
+  - **`saved_entry(photo)`** — method, line 2692  
     Corrections saved for a photo (mask corrected?, angle).
 
-  - **`export(self, photo)`** — method, line 2396  
+  - **`export(self, photo)`** — method, line 2700  
     The photo is processed again in the background as soon as its corrections are saved: the results and the previews are up to date without going through all the photos.
 
-  - **`pump(self)`** — method, line 2403  
+  - **`pump(self)`** — method, line 2707  
     Starts the waiting exports once the main window is free (one run at a time, all those waiting).
 
-  - **`save_current(self)`** — method, line 2418  
+  - **`save_current(self)`** — method, line 2722  
     Saves the corrections of the photo shown (EDITS_DIR next to the photo); True when changed.
 
-  - **`accept(self)`** — method, line 2453  
+  - **`accept(self)`** — method, line 2757  
     Saves the corrections of the photo, exports it again, shows the next one.
 
-  - **`fix_scale(self)`** — method, line 2465  
+  - **`fix_scale(self)`** — method, line 2769  
     Opens the manual scale of the photo.
 
-  - **`close(self)`** — method, line 2473  
+  - **`close(self)`** — method, line 2777  
     Closes, offering to keep the corrections of the photo shown.
 
-- **`PlatesWindow`** — class, line 2493  
+- **`PlatesWindow`** — class, line 2797  
   Plates of a results folder (gerbil_plates): objects at a chosen scale on pages, captions, graphic scale bar in the manner of QGIS; live preview of the pages; written as SVG (Illustrator, Inkscape). The settings are remembered (house style of the scale bar). images: free plates - the photos of a folder (field photos, orthophotos) instead of outlined objects, each with a scale given by two clicks on a known length (or by its world file).
 
-  - **`__init__(self, app, folder, images)`** — method, line 2500  
+  - **`__init__(self, app, folder, images)`** — method, line 2804  
     The plates window: three tabs of settings (plate, scale bar, scales and
     
     drawings), live preview with zoom, buttons.
 
-  - **`object_scales(self)`** — method, line 2770  
+  - **`object_scales(self)`** — method, line 3074  
     Small window: each object with its size and its scale (plate scale, or one chosen for it).
 
-  - **`count_text(self)`** — method, line 2825  
+  - **`count_text(self)`** — method, line 3129  
     How many objects (or photos) have a real size, and how many are left out.
 
-  - **`reload_images(self)`** — method, line 2835  
+  - **`reload_images(self)`** — method, line 3139  
     Free plates: a scale was set or removed - the photos are read again, the preview drawn again.
 
-  - **`measure(self, name)`** — method, line 2846  
+  - **`measure(self, name)`** — method, line 3150  
     Free plates: the scale window for a photo of the folder (two clicks on a known length).
 
-  - **`photo_scales(self)`** — method, line 2854  
+  - **`photo_scales(self)`** — method, line 3158  
     Free plates: the photos of the folder with their real size, or 'no scale'; double-click (or the
     
     button) to measure the scale of one on the photo.
 
-  - **`wheel(self, e)`** — method, line 2897  
+  - **`wheel(self, e)`** — method, line 3201  
     Zoom on the point under the mouse (1 = whole page, up to 8).
 
-  - **`object_menu(self, e)`** — method, line 2912  
+  - **`object_menu(self, e)`** — method, line 3216  
     Click (left or right) on an object of the preview: a menu of scales for it (kept in the plate settings), with any other scale, and for a photo of the free plates the measure of its scale.
 
-  - **`pick_drawings(self)`** — method, line 2959  
+  - **`pick_drawings(self)`** — method, line 3263  
     Chooses the folder of the drawings.
 
-  - **`colour_button(self, parent, key, value, text)`** — method, line 2966  
+  - **`colour_button(self, parent, key, value, text)`** — method, line 3270  
     A colour swatch that opens the colour chooser.
 
-  - **`settings(self)`** — method, line 2985  
+  - **`settings(self)`** — method, line 3289  
     PlateSettings from the window (invalid numbers keep their previous value).
 
-  - **`changed(self)`** — method, line 3020  
+  - **`changed(self)`** — method, line 3324  
     A setting changed: preview drawn again a moment later.
 
-  - **`thumb(self, item, w_mm, h_mm)`** — method, line 3026  
+  - **`thumb(self, item, w_mm, h_mm)`** — method, line 3330  
     Reduced image of an object for the preview (cached).
 
-  - **`refresh(self)`** — method, line 3042  
+  - **`refresh(self)`** — method, line 3346  
     Lays out the plates with the current settings and draws the page shown.
 
-  - **`turn(self, step)`** — method, line 3089  
+  - **`turn(self, step)`** — method, line 3393  
     Previous / next plate.
 
-  - **`write(self)`** — method, line 3095  
+  - **`write(self)`** — method, line 3399  
     Writes the plates (SVG, TIFF, JPEG) in a thread.
 
-  - **`written(self, text)`** — method, line 3114  
+  - **`written(self, text)`** — method, line 3418  
     Plates written: message, settings saved.
 
-  - **`open_folder(self)`** — method, line 3121  
+  - **`open_folder(self)`** — method, line 3425  
     Opens the folder of the plates.
 
-  - **`close(self)`** — method, line 3127  
+  - **`close(self)`** — method, line 3431  
     Closes, saving the plate settings (house style).
 
-- **`profile_names()`** — function, line 3141  
+- **`profile_names()`** — function, line 3445  
   Names of the site profiles of the library.
 
-- **`profile_path(name)`** — function, line 3149  
+- **`profile_path(name)`** — function, line 3453  
   File of a profile of the library.
 
-- **`safe_name(name)`** — function, line 3154  
+- **`safe_name(name)`** — function, line 3458  
   A name usable as a Windows file name.
 
-- **`ProfileWindow`** — class, line 3159  
+- **`ProfileWindow`** — class, line 3463  
   Site profile: what is known of the photos of a site or a campaign (background, learned scales,
   
   options), chosen once in the main window instead of setting everything again. Saved in PROFILES_DIR; "Put next to the photos…" copies it as gerbil_profile.json into a folder of photos, where the engine uses it by itself (and the team can share it).
 
-  - **`__init__(self, app, name)`** — method, line 3165  
+  - **`__init__(self, app, name)`** — method, line 3469  
     The site profile window: name, background, learned scales, options.
 
-  - **`fill(self)`** — method, line 3234  
+  - **`fill(self)`** — method, line 3538  
     List of the learned scales and summary of the options kept.
 
-  - **`learn(self)`** — method, line 3243  
+  - **`learn(self)`** — method, line 3547  
     Chooses a photo showing the scale and opens the scale window in learning mode.
 
-  - **`learned(self, path, entry)`** — method, line 3252  
+  - **`learned(self, path, entry)`** — method, line 3556  
     Learns the scale from the two points given (engine.learn_scale).
 
-  - **`remove_scale(self)`** — method, line 3264  
+  - **`remove_scale(self)`** — method, line 3568  
     Removes a learned scale.
 
-  - **`take_options(self)`** — method, line 3271  
+  - **`take_options(self)`** — method, line 3575  
     Keeps the options of the main window in the profile.
 
-  - **`data(self)`** — method, line 3277  
+  - **`data(self)`** — method, line 3581  
     The profile as saved.
 
-  - **`save(self)`** — method, line 3283  
+  - **`save(self)`** — method, line 3587  
     Saves the profile in the library and chooses it.
 
-  - **`export(self)`** — method, line 3295  
+  - **`export(self)`** — method, line 3599  
     Writes the profile as gerbil_profile.json in a folder of photos.
 
-- **`IptcWindow`** — class, line 3309  
+- **`IptcWindow`** — class, line 3613  
   IPTC fields of the batch renaming: for each IPTC Core field, a text where {field} is replaced by the value of the photo and {name} by the output name (a text without braces: the same for all, e.g. the copyright). Written into the PSD / TIFF, the copy of the original and, if ticked, a .xmp file next to each original photo.
 
-  - **`__init__(self, project)`** — method, line 3315  
+  - **`__init__(self, project)`** — method, line 3619  
     The IPTC window: one text per IPTC field, sidecar option, example.
 
-  - **`mapping(self)`** — method, line 3355  
+  - **`mapping(self)`** — method, line 3659  
     The IPTC fields filled in.
 
-  - **`preview(self)`** — method, line 3359  
+  - **`preview(self)`** — method, line 3663  
     Example of the IPTC values of the selected photo.
 
-  - **`default(self)`** — method, line 3372  
+  - **`default(self)`** — method, line 3676  
     Default model.
 
-  - **`ok(self)`** — method, line 3377  
+  - **`ok(self)`** — method, line 3681  
     Keeps the IPTC settings in the project.
 
-- **`InventoryWindow`** — class, line 3385  
+- **`InventoryWindow`** — class, line 3689  
   Inventory of documentation folders as CSV (gerbil_tools.inventory), with the PowerShell line that does the same, shown for learning.
 
-  - **`__init__(self, app)`** — method, line 3389  
+  - **`__init__(self, app)`** — method, line 3693  
     The inventory window: folders, kinds of files, fields of the names,
     
     PowerShell line.
 
-  - **`add(self)`** — method, line 3460  
+  - **`add(self)`** — method, line 3764  
     Adds a folder.
 
-  - **`chosen(self)`** — method, line 3467  
+  - **`chosen(self)`** — method, line 3771  
     Folders and kinds of files chosen.
 
-  - **`out_path(self)`** — method, line 3471  
+  - **`out_path(self)`** — method, line 3775  
     Default path of the CSV.
 
-  - **`update_line(self)`** — method, line 3476  
+  - **`update_line(self)`** — method, line 3780  
     PowerShell line updated.
 
-  - **`write(self)`** — method, line 3484  
+  - **`write(self)`** — method, line 3788  
     Writes the inventory and opens it.
 
-- **`ThumbnailsWindow`** — class, line 3504  
+- **`ThumbnailsWindow`** — class, line 3808  
   Thumbnails in batch (gerbil_tools.thumbnails) for databases.
 
-  - **`__init__(self, app)`** — method, line 3507  
+  - **`__init__(self, app)`** — method, line 3811  
     The thumbnails window: folder, size, format.
 
-  - **`browse(self)`** — method, line 3545  
+  - **`browse(self)`** — method, line 3849  
     Chooses the folder.
 
-  - **`run(self)`** — method, line 3551  
+  - **`run(self)`** — method, line 3855  
     Makes the thumbnails in a thread.
 
-  - **`done(self, folder, n)`** — method, line 3570  
+  - **`done(self, folder, n)`** — method, line 3874  
     Thumbnails made: message, folder opened.
 
-- **`ContactWindow`** — class, line 3577  
+- **`ContactWindow`** — class, line 3881  
   Contact sheets (gerbil_plates.write_contact_sheets): every photo of a folder on pages, with its name.
 
-  - **`__init__(self, app)`** — method, line 3580  
+  - **`__init__(self, app)`** — method, line 3884  
     The contact sheets window: folder, page, photos per row, title, caption, group, files.
 
-  - **`fields(self)`** — method, line 3655  
+  - **`fields(self)`** — method, line 3959  
     Fields of the batch renaming of the folder, offered for the groups.
 
-  - **`browse(self)`** — method, line 3664  
+  - **`browse(self)`** — method, line 3968  
     Chooses the folder.
 
-  - **`run(self)`** — method, line 3671  
+  - **`run(self)`** — method, line 3975  
     Writes the contact sheets in a thread.
 
-  - **`done(self, folder, ok, text)`** — method, line 3703  
+  - **`done(self, folder, ok, text)`** — method, line 4007  
     Contact sheets written: message, folder opened.
 
-- **`DepositWindow`** — class, line 3711  
+- **`DepositWindow`** — class, line 4015  
   Check of a folder before its deposit in an archive (gerbil_tools.deposit): formats, names, metadata, inventory and checksums; nothing is changed in the folder.
 
-  - **`__init__(self, app)`** — method, line 3715  
+  - **`__init__(self, app)`** — method, line 4019  
     The deposit window: folder, formats accepted.
 
-  - **`browse(self)`** — method, line 3756  
+  - **`browse(self)`** — method, line 4060  
     Chooses the folder.
 
-  - **`run(self)`** — method, line 3762  
+  - **`run(self)`** — method, line 4066  
     Checks the folder in a thread (the checksums of large files take time).
 
-  - **`done(self, result, text)`** — method, line 3783  
+  - **`done(self, result, text)`** — method, line 4087  
     Folder checked: message, report opened.
 
-- **`Mire`** — class, line 3791  
+- **`Mire`** — class, line 4095  
   Progress bar drawn as an archaeological scale: two rows of squares, inked as the photos are done. Answers like a ttk.Progressbar: configure(maximum=, value=, mode=), ["mode"], start(), stop().
 
-  - **`__init__(self, parent, bg)`** — method, line 3796  
+  - **`__init__(self, parent, bg)`** — method, line 4100  
     An empty scale (the canvas takes the width it is given).
 
-  - **`configure(self, cnf, **kw)`** — method, line 3804  
+  - **`configure(self, cnf, **kw)`** — method, line 4108  
     maximum, value and mode are the bar's own; the rest goes to the canvas.
 
-  - **`__getitem__(self, key)`** — method, line 3815  
+  - **`__getitem__(self, key)`** — method, line 4119  
     (small helper: see the code)
 
-  - **`start(self, interval)`** — method, line 3818  
+  - **`start(self, interval)`** — method, line 4122  
     Moving scale while the length of the work is unknown (installation).
 
-  - **`stop(self)`** — method, line 3829  
+  - **`stop(self)`** — method, line 4133  
     Stops the moving scale.
 
-  - **`_draw(self)`** — method, line 3835  
+  - **`_draw(self)`** — method, line 4139  
     The squares: inked (violet / white) up to the value, light (white / lilac) beyond.
 
-- **`App`** — class, line 3855  
+- **`App`** — class, line 4159  
   The main window: a column of five steps (source photographs, naming and metadata, processing,
   
   review, publication) and the page of the step chosen; it starts the engine and opens the other windows (batch renaming, scale, review, plates, profiles, tools).
 
-  - **`__init__(self, root, paths, selftest)`** — method, line 3859  
+  - **`__init__(self, root, paths, selftest)`** — method, line 4163  
     The main window: settings, fonts, styles, widgets, checks of the packages.
 
-  - **`_icon(self)`** — method, line 3897  
+  - **`_icon(self)`** — method, line 4201  
     The gerbil with its camera: window icon, and picture of the column of steps.
 
-  - **`_style(self)`** — method, line 3912  
+  - **`_style(self)`** — method, line 4216  
     Colours and fonts of the widgets (ttk styles), shared by every window.
 
-  - **`_build(self)`** — method, line 3970  
+  - **`_build(self)`** — method, line 4274  
     The column of steps on the left, the page of the step on the squared paper.
 
-  - **`_rail(self)`** — method, line 4005  
-    The column of steps: the gerbil, the name, the five steps, the credits and the languages.
+  - **`_rail(self)`** — method, line 4313  
+    The column of steps: the gerbil, the name, the six steps (two with a second page), the credits and
+    
+    the languages.
 
-  - **`show_page(self, i)`** — method, line 4060  
+  - **`show_page(self, i)`** — method, line 4372  
     Shows the page of step i and marks the step in the column.
 
-  - **`_card(self)`** — method, line 4085  
+  - **`_card(self)`** — method, line 4401  
     A white card with a thin border, on the squared paper.
 
-  - **`_section(self, parent, text, top)`** — method, line 4089  
+  - **`_section(self, parent, text, top)`** — method, line 4405  
     A small heading in typewriter capitals.
 
-  - **`_text(self, parent, text, wrap, muted, top)`** — method, line 4095  
+  - **`_text(self, parent, text, wrap, muted, top)`** — method, line 4411  
     (small helper: see the code)
 
-  - **`_page(self, kicker, title, desc, left, right, actions, hint)`** — method, line 4101  
+  - **`_page(self, kicker, title, desc, left, right, actions, hint)`** — method, line 4417  
     A page: its heading drawn on the paper, its cards and its action buttons.
 
-  - **`_layout(self)`** — method, line 4124  
+  - **`_layout(self)`** — method, line 4440  
     Squared paper and the page shown, fitted to the size of the window.
 
-  - **`_page_sources(self)`** — method, line 4161  
+  - **`_page_sources(self)`** — method, line 4477  
     01: folders and photos to process, and the site profile.
 
-  - **`_page_naming(self)`** — method, line 4230  
+  - **`_page_naming(self)`** — method, line 4554  
     02: names of the output files and information of the photos (batch renaming).
 
-  - **`_page_processing(self)`** — method, line 4270  
-    03: settings, Run, progress on the scale bar, table of the results.
+  - **`_run_card(self, kind)`** — method, line 4598  
+    The left card of a page that runs the engine (cut-out or conversion): progress on the scale bar, table of the results, technical details. Its widgets are kept in self.runs[kind] (see _use).
 
-  - **`_page_review(self)`** — method, line 4328  
+  - **`_detail_line(self, parent, tree, col)`** — method, line 4661  
+    Under a table: the whole text of a column for the row selected (the notes can be long).
+
+  - **`_use(self, kind)`** — method, line 4672  
+    The widgets of the cut-out page or of the conversion page become those the run writes into.
+
+  - **`_page_meta(self)`** — method, line 4681  
+    02, continued: the metadata of the photos of step 01 read again before any run: what is missing (required fields), what is written the wrong way, what is left empty (said, not a problem).
+
+  - **`_step01_photos(self)`** — method, line 4741  
+    The photos of step 01, folders opened: [(folder, photo name)].
+
+  - **`_meta_fill(self)`** — method, line 4751  
+    The table of step 02, continued: each photo of step 01, its output name and what to note.
+
+  - **`_meta_open(self, event)`** — method, line 4786  
+    Double-click on a photo of step 02, continued: the batch renaming of its folder, on it.
+
+  - **`_page_final(self)`** — method, line 4792  
+    05: the files written (cut-out results, DNG, JPG, TIFF) and the check before a deposit.
+
+  - **`_final_dirs(self)`** — method, line 4834  
+    The folders the runs wrote into, for the photos of step 01.
+
+  - **`_final_fill(self)`** — method, line 4849  
+    The table of step 05: every file written.
+
+  - **`_final_open(self)`** — method, line 4868  
+    Opens the folders of step 05.
+
+  - **`_profile_panel(self)`** — method, line 4874  
+    Step 01: what the profile chosen holds (work, fields, name, keywords, settings, scales).
+
+  - **`_page_processing(self)`** — method, line 4927  
+    03: settings of the cut-out, Run, progress on the scale bar, table of the results.
+
+  - **`_page_convert(self)`** — method, line 4941  
+    04: the photos written in another format with their new names and metadata: RAW to DNG (Adobe DNG
+    
+    Converter, the XMP sidecars embedded), with a JPG and, if wanted, a 16-bit TIFF.
+
+  - **`_page_review(self)`** — method, line 4986  
     04: the photos to look at, grouped by problem, and the review window.
 
-  - **`_page_publication(self)`** — method, line 4374  
+  - **`_page_publication(self)`** — method, line 5034  
     05: plates, inventory, thumbnails.
 
-  - **`_options(self, card)`** — method, line 4423  
+  - **`_options(self, card)`** — method, line 5079  
     The essential settings, where the results go, and the settings changed from the defaults; the others in the 'Advanced settings' window.
 
-  - **`_option_widgets(self, parent, keys)`** — method, line 4471  
+  - **`_option_widgets(self, parent, keys)`** — method, line 5127  
     Check boxes, lists and number fields of the given settings, in two columns of a grid.
 
-  - **`advanced(self)`** — method, line 4516  
+  - **`advanced(self)`** — method, line 5172  
     The window of the other settings (files, run, scale and layout, cleaning, AI).
 
-  - **`_changed(self)`** — method, line 4541  
+  - **`_changed(self)`** — method, line 5197  
     The settings that differ from the defaults, listed under the settings.
 
-  - **`reset_options(self)`** — method, line 4559  
+  - **`reset_options(self)`** — method, line 5215  
     All the settings back to their default values (the results folder and the profile kept).
 
-  - **`set_lang(self, code)`** — method, line 4569  
+  - **`set_lang(self, code)`** — method, line 5225  
     Interface in French or English: the window is built again in that language.
 
-  - **`apply_profile(self)`** — method, line 4591  
+  - **`apply_profile(self)`** — method, line 5247  
     The options kept in the chosen profile are set in the window.
 
-  - **`profiles_changed(self, name)`** — method, line 4607  
+  - **`import_profile(self)`** — method, line 5274  
+    A profile file (from a team: settings, fields, keywords, name template) copied into the library and chosen.
+
+  - **`profile_data(self)`** — method, line 5300  
+    The profile chosen (dict), or None.
+
+  - **`profiles_changed(self, name)`** — method, line 5311  
     List of profiles updated, the profile saved chosen.
 
-  - **`_ai_ticked(self)`** — method, line 4613  
+  - **`_ai_ticked(self)`** — method, line 5317  
     AI ticked, or cut-out by the AI chosen: offers to install onnxruntime when missing.
 
-  - **`check_packages(self)`** — method, line 4629  
+  - **`check_packages(self)`** — method, line 5333  
     Banner and Run button according to the required packages.
 
-  - **`install_required(self)`** — method, line 4648  
+  - **`install_required(self)`** — method, line 5352  
     Installs the missing packages (pip, in the background).
 
-  - **`_sync(self)`** — method, line 4653  
+  - **`_sync(self)`** — method, line 5357  
     Enables the options that depend on another one; lists the settings changed.
 
-  - **`_refresh_steps(self)`** — method, line 4676  
+  - **`_refresh_steps(self)`** — method, line 5380  
     What the column of steps says of each step.
 
-  - **`_naming_summary(self)`** — method, line 4707  
+  - **`_naming_summary(self)`** — method, line 5424  
     What the project of the first folder says: template, fields, photos with missing information.
 
-  - **`naming_saved(self, folder, parent)`** — method, line 4749  
+  - **`naming_saved(self, folder, parent)`** — method, line 5467  
     Batch renaming of a folder saved: the photos already processed follow without being processed again (alerts of the names, _to_be_verified, extension case); the tables of steps 03 and 04 are drawn again. Photos whose name or information changed have to be processed again: returned when the user agrees to it.
 
-  - **`add_paths(self, paths)`** — method, line 4788  
+  - **`add_paths(self, paths)`** — method, line 5509  
     Adds folders / photos to the list (with their number of photos).
 
-  - **`add_typed_path(self)`** — method, line 4810  
+  - **`add_typed_path(self)`** — method, line 5531  
     Adds the folder or the photo whose path was typed or pasted in step 01 (quotes of the Explorer's 'Copy as path' accepted; several paths separated by ';').
 
-  - **`add_folder(self)`** — method, line 4828  
+  - **`add_folder(self)`** — method, line 5549  
     Adds a folder of photos.
 
-  - **`add_files(self)`** — method, line 4835  
+  - **`add_files(self)`** — method, line 5556  
     Adds photos.
 
-  - **`project(self)`** — method, line 4844  
-    Project of the folder selected in the list (or of the folder of the photo selected).
+  - **`project(self, select)`** — method, line 5565  
+    Project of the folder selected in the list (or of the folder of the photo selected); select: a photo (path) to open it on.
 
-  - **`set_scale(self)`** — method, line 4863  
+  - **`set_scale(self)`** — method, line 5590  
     Manual scale of one photo: the photo selected in the list, otherwise one to choose.
 
-  - **`_open_scale(self, path)`** — method, line 4877  
+  - **`_open_scale(self, path)`** — method, line 5604  
     (small helper: see the code)
 
-  - **`scale_series(self, paths)`** — method, line 4888  
+  - **`scale_series(self, paths)`** — method, line 5615  
     Manual scales of several photos, one window after the other; the photos whose scale was saved can then be processed again in one run.
 
-  - **`next_scale(self, seq)`** — method, line 4893  
+  - **`next_scale(self, seq)`** — method, line 5620  
     Series of manual scales: opens the next photo.
 
-  - **`_scale_for_selection(self)`** — method, line 4912  
+  - **`_scale_for_selection(self)`** — method, line 5639  
     Manual scale of the photos selected in the list to look at (else of those whose scale is missing).
 
-  - **`_path_of(self, name)`** — method, line 4921  
+  - **`_path_of(self, name)`** — method, line 5648  
     (small helper: see the code)
 
-  - **`_row_open(self, event)`** — method, line 4924  
+  - **`_row_open(self, event)`** — method, line 5651  
     Double-click on a result: the scale window when the scale is the problem, else the review.
 
-  - **`remove(self)`** — method, line 4937  
+  - **`remove(self)`** — method, line 5671  
     Removes the selected rows of the list.
 
-  - **`clear(self)`** — method, line 4943  
+  - **`clear(self)`** — method, line 5677  
     Empties the list.
 
-  - **`pick_output(self)`** — method, line 4948  
+  - **`pick_output(self)`** — method, line 5682  
     Chooses the results folder (not a folder of photos).
 
-  - **`_collect(self)`** — method, line 4965  
+  - **`_collect(self, kind)`** — method, line 5699  
     Reads the options; returns the command-line arguments (only what differs from the defaults).
 
-  - **`save_settings(self)`** — method, line 5031  
+  - **`save_settings(self)`** — method, line 5770  
     Saves the settings of the interface.
 
-  - **`run(self, inputs, quiet)`** — method, line 5041  
-    Processes the photos of the list (or the given ones: a photo whose scale was just set, photos corrected in the review window). quiet: no question at the end (exports of the review window).
+  - **`run(self, inputs, quiet, kind)`** — method, line 5780  
+    Processes the photos of the list (or the given ones: a photo whose scale was just set, photos corrected in the review window). quiet: no question at the end (exports of the review window). kind: "cutout" (step 03) or "dng" (step 04: conversion of the RAW photos).
 
-  - **`_start(self, cmd, kind)`** — method, line 5080  
+  - **`_start(self, cmd, kind)`** — method, line 5849  
     Runs the script ("script") or pip ("pip": required packages, "pip-ai": onnxruntime).
 
-  - **`_stop_bar(self)`** — method, line 5105  
+  - **`_stop_bar(self)`** — method, line 5875  
     Stops the moving progress bar.
 
-  - **`_reader(self, proc)`** — method, line 5111  
+  - **`_reader(self, proc)`** — method, line 5881  
     Thread reading the output of the engine line by line (into a queue).
 
-  - **`_poll(self)`** — method, line 5118  
+  - **`_poll(self)`** — method, line 5888  
     Every 100 ms: handles the lines received; end of the process detected.
 
-  - **`_add_row(self, name, status, scale, todo, path, scale_problem)`** — method, line 5135  
+  - **`_add_row(self, name, status, scale, todo, path, scale_problem)`** — method, line 5905  
     One photo in the table of the results (and in the list to look at when it is not ok).
 
-  - **`_handle(self, line)`** — method, line 5143  
+  - **`_handle(self, line)`** — method, line 5913  
     One line of the engine: progress, table of the results, log, results folder.
 
-  - **`_summary(self)`** — method, line 5194  
-    "12 ok, 3 à vérifier, 1 échec".
+  - **`_summary(self, rows)`** — method, line 5967  
+    "12 ok, 3 à vérifier, 1 échec" (of the last run, or of the rows given).
 
-  - **`_finished(self)`** — method, line 5206  
+  - **`_finished(self)`** — method, line 5979  
     End of a run: status, offers (manual scales), self-test file.
 
-  - **`cancel(self)`** — method, line 5265  
+  - **`cancel(self)`** — method, line 6039  
     Stops the processing (the whole process tree).
 
-  - **`review(self)`** — method, line 5274  
+  - **`review(self)`** — method, line 6048  
     Review window over the result folders of the last run (or a result folder to choose).
 
-  - **`plates(self)`** — method, line 5316  
+  - **`plates(self)`** — method, line 6090  
     Plates window over a results folder (the last one processed, or one to choose).
 
-  - **`free_plates(self)`** — method, line 5332  
+  - **`free_plates(self)`** — method, line 6106  
     Free plates window over a folder of photos (field photos, orthophotos) chosen by the user.
 
-  - **`open_results(self)`** — method, line 5347  
+  - **`open_results(self)`** — method, line 6121  
     Opens the results folders.
 
-  - **`help(self)`** — method, line 5353  
+  - **`help(self)`** — method, line 6127  
     Opens the guide of the interface language (else the README).
 
-  - **`close(self)`** — method, line 5361  
+  - **`close(self)`** — method, line 6135  
     Closes (stops a run first, if wanted) and saves the settings.
 
-  - **`_toggle_log(self)`** — method, line 5376  
+  - **`_toggle_log(self)`** — method, line 6150  
     Shows or hides the technical details (the lines of the engine).
 
-  - **`_log(self, text, tag)`** — method, line 5385  
+  - **`_log(self, text, tag)`** — method, line 6159  
     Adds a text to the technical details, in a colour.
 
-  - **`_clear_log(self)`** — method, line 5392  
+  - **`_clear_log(self)`** — method, line 6166  
     Empties the technical details.
 
-- **`main()`** — function, line 5399  
+- **`main()`** — function, line 6173  
   Entry of the interface: --install / --check for Install.bat, --selftest, or the window.
 
 
@@ -1777,6 +1875,106 @@ Usage:
   Command line: "inventory", "thumbnails" or "deposit".
 
 
+### gerbil_dng.py
+
+RAW photos to DNG, with their metadata and new names (Adobe DNG Converter, ExifTool). (582 lines.)
+
+Gerbil - conversion of RAW photos to DNG, with their metadata and new names (the "Convert RAW to DNG" protocol of the MAFKF / QSR mission, by Eloïs Charbonnel, brought into Gerbil). © 2026 Eloïs CHARBONNEL Licence: GNU General Public License v3 or later (SPDX: GPL-3.0-or-later), see LICENSE.
+
+For every RAW photo given (or of the folders given, sub-folders included):
+
+      1. shooting date read from the EXIF (ExifTool; otherwise the date of the file);
+      2. conversion to DNG by Adobe DNG Converter (free, installed separately) with the settings of the protocol
+         (DNG 1.7, uncompressed, medium preview, fast load data, original RAW embedded), under the output name
+         of the batch renaming of its folder (given by the interface, GERBIL_PROJECTS, or a gerbil_project.json),
+         in <folder>\<date>\DNG\<sub-folders>;
+      3. the XMP sidecar next to the RAW (IMG.xmp or IMG.CR3.xmp: development settings, technical data of the
+         camera, keywords already given) embedded in the DNG;
+      4. the information of the batch renaming written into the DNG as IPTC (XMP): a field given in Gerbil
+         replaces the one of the sidecar, the keywords are added to those already there; the RAW and the values
+         given are also kept in the DNG (XMP "gerbil"), so that nothing is written next to the photos;
+      5. a JPG (the ~1024 px preview of the DNG, or developed at full size) and, if asked, a 16-bit TIFF, with the
+         same metadata, in <date>\JPG and <date>\TIFF;
+      6. a CSV report at the root of the folder.
+The RAW files are never modified. Running again only does what is missing: a DNG already there is found by the RAW it carries, renamed if its name changed, and its metadata written again when the values or the sidecar changed. Fields left empty are only mentioned ("not mentioned"), required ones are doubts.
+
+Usage:
+
+      py -3 gerbil.py --dng FOLDER_OR_RAW [...] [--jpg preview|full|none] [--tiff]
+      py -3 gerbil_dng.py FOLDER_OR_RAW [...] [--jpg ...] [--tiff] [--converter PATH] [--exiftool PATH]
+
+
+#### Tools: Adobe DNG Converter and ExifTool
+
+- **`find_converter(given)`** — function, line 87  
+  Adobe DNG Converter (Windows), or None.
+
+- **`find_exiftool(given, near)`** — function, line 96  
+  ExifTool: the one given, else next to Gerbil (an "exiftool" folder, as extracted from its zip), else in
+  
+  a 1_Commons folder of a folder given or of one above it (where the mission keeps it), else in the PATH.
+
+- **`ExifTool`** — class, line 125  
+  One ExifTool process for the whole run (-stay_open mode), commands sent through its input.
+
+  - **`__init__(self, exe)`** — method, line 128  
+    (small helper: see the code)
+
+  - **`run(self, args)`** — method, line 141  
+    Runs one command; returns (output, errors) - the errors come in the same stream, before the {readyN} marker ExifTool writes when the command is done.
+
+  - **`json(self, args)`** — method, line 157  
+    First object of a JSON answer (-j), or {}.
+
+  - **`json_all(self, args)`** — method, line 166  
+    Every object of a JSON answer (-j), or [].
+
+  - **`close(self)`** — method, line 174  
+    (small helper: see the code)
+
+- **`problem(out, err)`** — function, line 184  
+  The first error or warning line of ExifTool, in a few words.
+
+
+#### Photos, projects and names
+
+- **`list_raws(folder)`** — function, line 196  
+  RAW photos of a folder and its sub-folders (the folders written by the conversion left out).
+
+- **`project_of(raw, root, cache)`** — function, line 206  
+  Batch renaming that applies to a photo: the gerbil_project.json of its folder, else of a folder above it, up to the folder given. Returns (project or None, its folder).
+
+- **`find_sidecar(raw)`** — function, line 221  
+  XMP sidecar of a RAW: IMG.xmp or IMG.CR3.xmp, or None.
+
+- **`metadata_args(iptc)`** — function, line 230  
+  ExifTool arguments writing the IPTC fields of the project: a field given replaces the one already in the file, the keywords (and their hierarchy) are added to those already there.
+
+
+#### Conversion
+
+- **`say(text)`** — function, line 256  
+  One line of progress, written at once (the interface reads it as it comes).
+
+- **`convert(inputs, converter, exiftool, jpg, tiff, settings, progress)`** — function, line 261  
+  Converts the RAW photos given (photos, or folders with their sub-folders); prints one line per photo (as the engine does, so that the interface reads it) and writes conversion_report_<date>.csv at the root of each folder. jpg: "preview" (the ~1024 px preview of the DNG, as the protocol), "full" (developed at full size), "none"; tiff: also a 16-bit TIFF developed at full size. Returns 0, or 1 when Adobe DNG Converter is missing.
+
+- **`previous_outputs(folder, et)`** — function, line 297  
+  The DNG files already written in <folder>\<date>\DNG: the RAW each comes from (relative path, lower case) -> (DNG path, the values written into it). DNG files made before Gerbil recorded their RAW are found by the name of their original RAW file (key "orig:<sub-folder>/<name>").
+
+- **`read_back(folder, exiftool)`** — function, line 321  
+  The values given in Gerbil for the photos of a folder, read back from the DNG files already written: {photo name: {field: value}} (the batch renaming of a folder converted before).
+
+- **`develop_to(dng, path, bits)`** — function, line 344  
+  The DNG developed by LibRaw at full size, turned upright, written as JPEG (8 bits) or TIFF (16 bits).
+
+- **`convert_folder(folder, conv, et, jpg, settings, progress, only, tiff)`** — function, line 362  
+  Converts one folder (see convert); only: the names (lower case) of the photos to convert, None for all.
+
+- **`main(argv)`** — function, line 565  
+  Command line.
+
+
 ### packaging/gerbil_setup.pyw
 
 The installer (Gerbil_Setup.exe). (330 lines.)
@@ -1859,7 +2057,7 @@ on a light background or on dark felt (with a paper label). Nothing real: the re
 
 ### tests/test_gerbil.py
 
-The automatic tests. (380 lines.)
+The automatic tests. (467 lines.)
 
 Automatic checks of Gerbil on synthetic photos (tests/synthetic.py): scale, cut-out, labels on a dark background, learned scales, IPTC metadata, plates, inventory. Run: py -3 -m pytest tests
 
@@ -1934,8 +2132,17 @@ Automatic checks of Gerbil on synthetic photos (tests/synthetic.py): scale, cut-
 - **`test_check_before_a_deposit(tmp_path)`** — function, line 318  
   Formats, names, empty file, same content twice; inventory, checksums and report; nothing changed.
 
-- **`test_naming_refresh_and_extension_case(tmp_path)`** — function, line 344  
+- **`test_names_checks_and_keywords_of_a_profile()`** — function, line 344  
+  A batch renaming as a profile gives it: the building with the smallest number in the name, the values checked as the fields ask, the keywords of a tree written with their hierarchy.
+
+- **`test_list_of_raw_photos(tmp_path)`** — function, line 372  
+  The RAW photos of a folder and its sub-folders, without what the conversion wrote.
+
+- **`test_raw_converted_to_dng(tmp_path)`** — function, line 383  
+  A real conversion: DNG and JPG under the new name, the sidecar and the project in the DNG.
+
+- **`test_naming_refresh_and_extension_case(tmp_path)`** — function, line 431  
   (small helper: see the code)
 
-- **`test_inventory_and_powershell(tmp_path)`** — function, line 367  
+- **`test_inventory_and_powershell(tmp_path)`** — function, line 454  
   (small helper: see the code)

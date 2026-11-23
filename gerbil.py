@@ -3149,14 +3149,22 @@ def iptc_values(pr, values, name):
     for key, template in mapping.items():
         if key not in IPTC_TARGETS or not str(template).strip():
             continue
-        v = re.sub(r"\{(\w+)\}", lambda m: name if m.group(1) == "name" else str(values.get(m.group(1), "") or ""),
-                   str(template))
+        v = template_text(str(template), dict(values, name=name))
         if IPTC_TARGETS[key][1] in ("bag", "seq"):
-            items = [x.strip() for x in v.split(",") if x.strip()]
+            items = [x.strip() for x in re.split(r"[,;]", v) if x.strip()]
+            if key == "keywords" and any("|" in x for x in items):
+                # keywords of a hierarchy (CONTEXT|Finds|pottery): the last word as a keyword, the whole path
+                # as a hierarchical keyword (Lightroom, Bridge)
+                out["hierarchical"] = list(dict.fromkeys(x for x in items if "|" in x))
+                items = [x.split("|")[-1].strip() for x in items]
+            items = list(dict.fromkeys(x for x in items if x))
             if items:
                 out[key] = items
         else:
-            v = re.sub(r"\s+", " ", v).strip(" _-,;")
+            v = re.sub(r"\s+", " ", v)
+            if ";" in v:                    # several values: " ; " between them, the empty ones left out
+                v = " ; ".join(x.strip() for x in v.split(";") if x.strip(" _-,"))
+            v = v.strip(" _-,;")
             if v:
                 out[key] = v
     return out
@@ -3193,10 +3201,12 @@ def make_xmp(description, fields, meta=None, title=None, iptc=None, packet=True)
             props.append(_iptc_prop(prop, kind, iptc[key]))
     if "copyright" in iptc:
         props.append("<xmpRights:Marked>True</xmpRights:Marked>")
+    if iptc.get("hierarchical"):
+        props.append(_iptc_prop("lr:hierarchicalSubject", "bag", iptc["hierarchical"]))
     for k, v in meta.items():
         tag = "".join(w[:1].upper() + w[1:] for w in re.findall(r"[A-Za-z0-9]+", k)) or "Field"
         props.append(f"<gerbil:{tag}>{_xml(v)}</gerbil:{tag}>")
-    taken = {IPTC_TARGETS[k][0] for k in iptc}
+    taken = {IPTC_TARGETS[k][0] for k in iptc if k in IPTC_TARGETS}
     for key, val in (fields or {}).items():
         if not val or key in taken:
             continue
@@ -3211,6 +3221,7 @@ def make_xmp(description, fields, meta=None, title=None, iptc=None, packet=True)
          'xmlns:exifEX="http://cipa.jp/exif/1.0/" xmlns:photoshop="http://ns.adobe.com/photoshop/1.0/" '
          'xmlns:Iptc4xmpCore="http://iptc.org/std/Iptc4xmpCore/1.0/xmlns/" '
          'xmlns:xmpRights="http://ns.adobe.com/xap/1.0/rights/" '
+         + ('xmlns:lr="http://ns.adobe.com/lightroom/1.0/" ' if iptc.get("hierarchical") else "") +
          'xmlns:gerbil="https://gerbil.archaeology/ns/1.0/">'
          + "".join(props) +
          '</rdf:Description></rdf:RDF></x:xmpmeta>')
@@ -3555,7 +3566,21 @@ def load_project(folder):
     """Project of a folder of photos, or None. Keys: fields (key, label, required, choices), template
     (e.g. "{site}_{us}_{number}"; empty: the names of the photos are kept), rule (regular expression
     the output names must match; empty: none), common (values of all the photos), photos (name ->
-    values)."""
+    values). The interface can also give the batch renamings it holds without writing them next to the
+    photos: GERBIL_PROJECTS = a JSON file {folder: project}, read first."""
+    given = os.environ.get("GERBIL_PROJECTS")
+    if given:
+        try:
+            with open(given, encoding="utf-8") as fh:
+                held = json.load(fh)
+            pr = held.get(os.path.normcase(os.path.abspath(folder)))
+        except (OSError, ValueError, AttributeError):
+            pr = None
+        if isinstance(pr, dict):
+            pr.setdefault("fields", DEFAULT_FIELDS)
+            for k, v in (("template", ""), ("rule", ""), ("common", {}), ("photos", {})):
+                pr.setdefault(k, v)
+            return pr
     path = os.path.join(folder, PROJECT_FILE)
     if not os.path.exists(path):
         return None
@@ -3582,15 +3607,38 @@ def photo_values(project, name):
     return vals
 
 
+def first_item(value):
+    """Of several values separated by ';' (B27 ; B20 ; R3), the one with the smallest number among those of
+    the same kind as the first one, the letters before the number (B20); the first one when none has a
+    number."""
+    items = [x.strip() for x in str(value or "").split(";") if x.strip()]
+    if not items:
+        return ""
+    kind = re.match(r"\D*", items[0]).group(0).lower()
+    numbered =[(int(re.match(r"\D*(\d+)", x).group(1)), i, x) for i, x in enumerate(items)
+                if re.match(r"\D*\d", x) and re.match(r"\D*", x).group(0).lower() == kind]
+    return min(numbered)[2] if numbered else items[0]
+
+
+def template_text(template, vals):
+    """A template filled with values: {field} = its value, {field|first} = the value with the smallest
+    number among several (first_item)."""
+    def one(m):
+        v = vals.get(m.group(1), "")
+        return first_item(v) if m.group(2) == "first" else v
+    return re.sub(r"\{(\w+)(?:\|(\w+))?\}", one, template)
+
+
 def project_name(project, name):
     """Output name (without extension) built from the template, or None (template empty or giving
     nothing). Forbidden characters and spaces become "_"; the separators left by empty fields are
-    merged ("{site}_{us}_{number}" without US: "QSR25_12")."""
+    merged ("{site}_{us}_{number}" without US: "QSR25_12"); {field|first}: of several values, the one with
+    the smallest number."""
     template = (project or {}).get("template", "").strip()
     if not template:
         return None
     vals = dict(photo_values(project, name), photo=os.path.splitext(name)[0])
-    out = re.sub(r"\{(\w+)\}", lambda m: vals.get(m.group(1), ""), template)
+    out = template_text(template, vals)
     out = NAME_FORBIDDEN.sub("_", out)
     out = re.sub(r"([_\-.])[_\-.]+", r"\1", out).strip("_-. ")
     return out or None
@@ -3606,13 +3654,37 @@ def rule_regex(rule):
     return re.compile(rule, re.IGNORECASE)
 
 
+def value_problems(field, value):
+    """What is wrong with the value of a field, as its "check" says: {"item": regex} for each of several
+    values separated by ';' (B20 ; B27), {"value": regex} for the whole text, "help" = how to write it.
+    Returns a list of messages (empty: right)."""
+    check, value = field.get("check") or {}, str(value or "").strip()
+    if not check or not value:
+        return []
+    label = field.get("label", field.get("key", ""))
+    try:
+        if check.get("item"):
+            rx = re.compile(check["item"])
+            bad = [x.strip() for x in value.split(";") if x.strip() and not rx.fullmatch(x.strip())]
+            if bad:
+                return [f"{label}: {', '.join(bad)} not written as expected" + (f" ({check['help']})" if check.get("help") else "")]
+        if check.get("value") and not re.fullmatch(check["value"], value):
+            return [f"{label}: not written as expected" + (f" ({check['help']})" if check.get("help") else "")]
+    except re.error:
+        return []
+    return []
+
+
 def project_checks(project, name, out_name):
-    """Reasons for doubt about the information of a photo: required fields empty, name off the rule."""
+    """Reasons for doubt about the information of a photo: required fields empty, values not written as
+    the field asks (value_problems), name off the rule."""
     doubts = []
     vals = photo_values(project, name)
     missing = [f.get("label", f["key"]) for f in project.get("fields", []) if f.get("required") and not vals.get(f["key"])]
     if missing:
         doubts.append("missing information: " + ", ".join(missing))
+    for f in project.get("fields", []):
+        doubts += value_problems(f, vals.get(f["key"], ""))
     if project.get("photo_ext_lower"):
         ext = os.path.splitext(name)[1]
         if ext != ext.lower():
@@ -4007,6 +4079,15 @@ class _HelpFormatter(argparse.ArgumentDefaultsHelpFormatter):
 
 
 def main(argv=None):
+    """Command line: --dng hands the photos to the conversion of RAW photos to DNG (gerbil_dng), anything else
+    to the processing of the photos (_main)."""
+    if "--dng" in (sys.argv[1:] if argv is None else argv):     # conversion of RAW photos to DNG (gerbil_dng)
+        import gerbil_dng
+        return gerbil_dng.main([a for a in (sys.argv[1:] if argv is None else argv) if a != "--dng"])
+    return _main(argv)
+
+
+def _main(argv=None):
     """Command line: reads the options, lists the photos, plans their output names (batch
     renaming), processes them in parallel (process_photo), writes the report and prints the
     summary of the problems."""
@@ -4179,6 +4260,7 @@ def remove_renamed(tasks, plan, previous):
 
 
 NAMING_DOUBTS = ("missing information", "photo extension not in lowercase", "name does not match the naming rule",
+                 "not written as expected",
                  "naming rule is not a valid", "output name already used")
 
 

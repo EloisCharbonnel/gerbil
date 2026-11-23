@@ -35,6 +35,8 @@ if not exist "%VENV%\Scripts\python.exe" (
 "%VENV%\Scripts\python.exe" -m pip install --disable-pip-version-check --upgrade -r requirements.txt onnxruntime-directml pyinstaller || goto failed
 "%VENV%\Scripts\python.exe" -m PyInstaller --noconfirm --clean --distpath build\dist --workpath build\pyinstaller gerbil.spec || goto failed
 copy /y README.md build\dist\Gerbil\ >nul
+rem ExifTool (free) for the RAW to DNG conversion, when it was put in third_party\exiftool
+if exist "third_party\exiftool" xcopy /e /i /q /y "third_party\exiftool" "build\dist\Gerbil\exiftool" >nul
 copy /y docs\PSEUDOCODE.txt build\dist\Gerbil\ >nul
 if not exist build\dist\Gerbil\docs mkdir build\dist\Gerbil\docs
 copy /y docs\Gerbil_guide_FR.odt build\dist\Gerbil\docs\ >nul

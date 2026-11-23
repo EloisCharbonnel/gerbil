@@ -67,6 +67,19 @@ FR = {
     "gerbil_gui.pyw:save_project_file": "Écrit gerbil_project.json (écrit à côté puis échangé : jamais à moitié "
         "écrit).",
     "gerbil_gui.pyw:project_values": "Les valeurs d'une photo : celles communes, remplacées par les siennes.",
+    "gerbil_gui.pyw:first_item": "De plusieurs valeurs séparées par « ; » (B27 ; B20 ; R3), celle au plus petit "
+        "numéro parmi celles du même genre que la première (B20) - comme gerbil.py : first_item.",
+    "gerbil_gui.pyw:field_problems": "Ce qui ne va pas dans la valeur d'un champ, d'après son « check » (comme "
+        "gerbil.py : value_problems).",
+    "gerbil_gui.pyw:App.import_profile": "Un fichier de profil (reçu d'une équipe : réglages, champs, mots-clés, modèle "
+        "de nom) copié dans la bibliothèque et choisi.",
+    "gerbil_gui.pyw:App.profile_data": "Le profil choisi (dict), ou None.",
+    "gerbil_gui.pyw:ProjectWindow.keyword_field": "Le champ qui reçoit des mots-clés cochés dans un arbre (profil), ou "
+        "None.",
+    "gerbil_gui.pyw:ProjectWindow.problems": "Ce qui ne va pas dans les valeurs d'une photo (champs obligatoires vides, "
+        "valeurs mal écrites).",
+    "gerbil_gui.pyw:ProjectWindow.keywords": "Les listes de mots-clés du profil en arbre à cocher, pour les photos "
+        "sélectionnées (ou données).",
     "gerbil_gui.pyw:project_output_name": "Le nom de sortie d'une photo (comme project_name du moteur), ou son propre "
         "nom s'il n'y a pas de modèle.",
     "gerbil_gui.pyw:rule_regex": "La règle de nommage telle que -match de PowerShell la lit : expression régulière "
@@ -485,6 +498,36 @@ FR = {
     "gerbil_plates.py:main": "La ligne de commande des planches : options ou fichier de réglages, puis write_plates.",
 
     # ======================================================================== gerbil_tools.py
+    "gerbil_dng.py:__module__": "La conversion des photos RAW en DNG, avec leurs métadonnées et leurs nouveaux noms "
+        "(le protocole « Convert RAW to DNG » de la mission MAFKF / QSR, repris dans Gerbil) : date de prise de vue, "
+        "conversion par Adobe DNG Converter sous le nom du renommage en lot, XMP voisin intégré, informations du "
+        "projet écrites en IPTC, aperçu JPG, rapport CSV. Les RAW ne sont jamais modifiés ; relancer ne refait que "
+        "ce qui manque.",
+    "gerbil_dng.py:find_converter": "Adobe DNG Converter (Windows), ou None.",
+    "gerbil_dng.py:find_exiftool": "ExifTool : celui donné, sinon à côté de Gerbil (dossier « exiftool », tel que "
+        "sorti de son zip), sinon dans un dossier 1_Commons d'un dossier donné ou d'un dossier au-dessus (là où la "
+        "mission le range), sinon dans le PATH.",
+    "gerbil_dng.py:ExifTool": "Un seul processus ExifTool pour tout le traitement (mode -stay_open), les commandes "
+        "envoyées par son entrée.",
+    "gerbil_dng.py:ExifTool.__init__": "Lance ExifTool en mode -stay_open.",
+    "gerbil_dng.py:ExifTool.run": "Lance une commande ; renvoie (sortie, erreurs) - les erreurs arrivent dans le même "
+        "flux, avant le repère {readyN} qu'ExifTool écrit quand la commande est faite.",
+    "gerbil_dng.py:ExifTool.json": "Le premier objet d'une réponse JSON (-j), ou {}.",
+    "gerbil_dng.py:ExifTool.close": "Arrête ExifTool (la version « (-k) » attend la touche Entrée).",
+    "gerbil_dng.py:problem": "La première ligne d'erreur ou d'avertissement d'ExifTool, en quelques mots.",
+    "gerbil_dng.py:list_raws": "Les photos RAW d'un dossier et de ses sous-dossiers (les dossiers écrits par la "
+        "conversion mis à part).",
+    "gerbil_dng.py:project_of": "Le renommage en lot qui s'applique à une photo : le gerbil_project.json de son "
+        "dossier, sinon d'un dossier au-dessus, jusqu'au dossier donné. Renvoie (projet ou None, son dossier).",
+    "gerbil_dng.py:find_sidecar": "Le XMP voisin d'un RAW : IMG.xmp ou IMG.CR3.xmp, ou None.",
+    "gerbil_dng.py:metadata_args": "Les arguments d'ExifTool qui écrivent les champs IPTC du projet : un champ donné "
+        "remplace celui déjà dans le fichier, les mots-clés (et leur hiérarchie) s'ajoutent à ceux qui y sont.",
+    "gerbil_dng.py:say": "Une ligne d'avancement, écrite tout de suite (l'interface la lit au fur et à mesure).",
+    "gerbil_dng.py:convert": "Convertit les photos RAW des dossiers donnés ; écrit une ligne par photo (comme le "
+        "moteur, pour que l'interface la lise) et conversion_report_<date>.csv à la racine de chaque dossier. "
+        "Renvoie 0, ou 1 quand Adobe DNG Converter manque.",
+    "gerbil_dng.py:convert_folder": "Convertit un dossier (voir convert).",
+    "gerbil_dng.py:main": "La ligne de commande.",
     "gerbil_tools.py:__module__": "Les outils : inventaire d'un dossier de documentation en CSV (photos, dessins, "
         "modèles 3D) et vignettes en lot pour les bases de données. Inventaire : une ligne par fichier, les "
         "colonnes choisies (fichier, dossier, type, taille, date, champs lus dans le nom avec un modèle comme "
@@ -594,6 +637,13 @@ FR = {
         "groupe, toutes les pages dans un seul PDF.",
     "tests/test_gerbil.py:test_check_before_a_deposit": "Formats, noms, fichier vide, même contenu deux fois ; "
         "inventaire, sommes de contrôle et rapport ; rien n'est modifié.",
+    "tests/test_gerbil.py:test_names_checks_and_keywords_of_a_profile": "Un renommage en lot tel qu'un profil le "
+        "donne : le bâtiment au plus petit numéro dans le nom, les valeurs contrôlées comme les champs le demandent, "
+        "les mots-clés d'un arbre écrits avec leur hiérarchie.",
+    "tests/test_gerbil.py:test_list_of_raw_photos": "Les photos RAW d'un dossier et de ses sous-dossiers, sans ce que "
+        "la conversion a écrit.",
+    "tests/test_gerbil.py:test_raw_converted_to_dng": "Une vraie conversion : DNG et JPG sous le nouveau nom, le XMP "
+        "voisin et le projet dans le DNG (quand Adobe DNG Converter, ExifTool et une photo RAW sont là).",
     "tests/test_gerbil.py:test_naming_refresh_and_extension_case": "Après un changement du renommage en lot, les "
         "alertes des noms et la casse des extensions suivent sans retraiter la photo ; un nouveau nom demande un "
         "retraitement.",
@@ -669,4 +719,46 @@ FR = {
     "gerbil_gui.pyw:App._row_open": "Double-clic sur un résultat : la fenêtre de l'échelle quand l'échelle est en cause, sinon la vérification.",
     "gerbil_gui.pyw:App._add_row": "Une photographie dans le tableau des résultats (et dans la liste à revoir quand elle n'est pas ok).",
     "gerbil_gui.pyw:App._toggle_log": 'Montre ou cache les détails techniques (les lignes du moteur).',
+
+    # ---- six étapes, rien à côté des photographies (entrées nouvelles ou mises à jour)
+    'gerbil.py:load_project': "Le projet de renommage d'un dossier : d'abord celui que l'interface garde en mémoire (fichier GERBIL_PROJECTS, {dossier: projet}), sinon le gerbil_project.json du dossier ; None s'il n'y en a pas. Clés : fields, template, rule, common, photos.",
+    'gerbil_gui.pyw:load_project_file': "Le projet d'un dossier (dictionnaire) : son gerbil_project.json s'il y en a un, sinon celui gardé en mémoire, sinon un nouveau ; None si le fichier est illisible.",
+    'gerbil_gui.pyw:save_project_file': 'Enregistre un renommage en lot : gardé en mémoire (et donné au moteur), écrit dans gerbil_project.json seulement si le dossier en a déjà un ou si on le demande (détourage : ses résultats et ses planches le lisent). La conversion inscrit tout dans les DNG.',
+    'gerbil_gui.pyw:project_known': 'Vrai quand un renommage en lot existe pour ce dossier : son gerbil_project.json, ou celui gardé en mémoire.',
+    'gerbil_gui.pyw:hold_project': 'Garde un renommage en lot en mémoire et les donne tous au moteur (fichier temporaire nommé par GERBIL_PROJECTS, lu par gerbil.load_project avant tout gerbil_project.json).',
+    'gerbil_gui.pyw:share_columns': "Les colonnes d'un tableau gardées en proportion de sa largeur (la dernière prend le reste), pour que les remarques restent visibles.",
+    'gerbil_gui.pyw:doubt_text': "Un doute ou une remarque du moteur en quelques mots, dans la langue de l'interface ; le champ et la valeur en cause sont gardés (« Valeur mal écrite : Context (SU) SU8200 », « Non renseigné : Unit »).",
+    'gerbil_gui.pyw:ProjectWindow.__init__': "La fenêtre du renommage en lot : champs, modèle, règle avec son assistant, valeurs communes, tableau des photographies avec aperçu. Seules les photographies choisies à l'étape 01 sont montrées (une case montre tout le dossier). Un dossier sans renommage part du modèle du profil ; un dossier déjà converti reprend les valeurs relues dans ses DNG.",
+    'gerbil_gui.pyw:ProjectWindow.toggle_all': "Tout le dossier, ou seulement les photographies choisies à l'étape 01.",
+    'gerbil_gui.pyw:App': "La fenêtre principale : une colonne de six étapes (photographies sources, nommage et métadonnées puis leur relecture, détourage puis ses résultats, conversion, revue finale, publication) et la page de l'étape choisie ; elle lance le moteur et ouvre les autres fenêtres.",
+    'gerbil_gui.pyw:App.project': "Le renommage en lot du dossier sélectionné (ou du dossier de la photographie donnée, sur laquelle la fenêtre s'ouvre), limité aux photographies de l'étape 01.",
+    'gerbil_gui.pyw:App._collect': 'Lit les réglages ; renvoie les arguments de la ligne de commande du détourage, ou de la conversion (--dng, --jpg, --tiff).',
+    'gerbil_gui.pyw:App.run': "Lance le détourage (étape 03) ou la conversion (étape 04) des photographies de l'étape 01 (ou de celles données). Avant un détourage, les renommages gardés en mémoire sont écrits.",
+    'gerbil_gui.pyw:App._summary': '« 12 ok, 3 à vérifier, 1 échec » (du dernier traitement, ou des lignes données).',
+    'gerbil_gui.pyw:App._rail': 'La colonne des étapes : la gerbille, le nom, les six étapes (deux avec une seconde page, en retrait), les crédits et les langues.',
+    'gerbil_gui.pyw:App._page_sources': "Étape 01 : les dossiers et photographies à traiter, le profil de site et ce qu'il contient.",
+    'gerbil_gui.pyw:App._page_naming': 'Étape 02 : les noms des fichiers produits et les informations des photographies (renommage en lot).',
+    'gerbil_gui.pyw:App._page_processing': 'Étape 03 : réglages du détourage, Lancer, progression sur la mire, tableau des résultats.',
+    'gerbil_gui.pyw:App._page_review': 'Étape 03, suite : les résultats du détourage à revoir, avec leur problème, et la fenêtre de vérification.',
+    'gerbil_gui.pyw:App._page_publication': "Étape 06 : planches à l'échelle, planches libres, planches-contact, inventaire, vignettes.",
+    'gerbil_gui.pyw:App._run_card': "La carte de gauche d'une page qui lance le moteur (détourage ou conversion) : mire de progression, tableau des résultats, détails techniques. Ses éléments sont gardés dans self.runs[kind].",
+    'gerbil_gui.pyw:App._detail_line': "Sous un tableau : le texte entier d'une colonne pour la ligne choisie (les remarques peuvent être longues).",
+    'gerbil_gui.pyw:App._use': 'Les éléments de la page du détourage ou de celle de la conversion deviennent ceux où le traitement écrit.',
+    'gerbil_gui.pyw:App._page_meta': "Étape 02, suite : les métadonnées des photographies de l'étape 01 relues avant tout traitement : ce qui manque (champs obligatoires), ce qui est mal écrit, ce qui est laissé vide (signalé, sans être un problème).",
+    'gerbil_gui.pyw:App._step01_photos': "Les photographies de l'étape 01, dossiers ouverts : [(dossier, nom)].",
+    'gerbil_gui.pyw:App._meta_fill': "Le tableau de l'étape 02, suite : chaque photographie de l'étape 01, son nom produit et ce qu'il faut noter.",
+    'gerbil_gui.pyw:App._meta_open': "Double-clic sur une photographie de l'étape 02, suite : le renommage en lot de son dossier, ouvert sur elle.",
+    'gerbil_gui.pyw:App._page_convert': 'Étape 04 : les photographies écrites dans un autre format avec leurs nouveaux noms et métadonnées : RAW en DNG (Adobe DNG Converter, XMP intégrés), avec un JPG et, si on le souhaite, un TIFF 16 bits.',
+    'gerbil_gui.pyw:App._page_final': 'Étape 05 : les fichiers produits (détourage, DNG, JPG, TIFF) et le contrôle avant versement.',
+    'gerbil_gui.pyw:App._final_dirs': "Les dossiers où les traitements ont écrit, pour les photographies de l'étape 01.",
+    'gerbil_gui.pyw:App._final_fill': "Le tableau de l'étape 05 : tous les fichiers produits.",
+    'gerbil_gui.pyw:App._final_open': "Ouvre les dossiers de l'étape 05.",
+    'gerbil_gui.pyw:App._profile_panel': 'Étape 01 : ce que contient le profil choisi (travail, champs, nom, mots-clés, réglages, échelles).',
+    'gerbil_dng.py:__module__': "La conversion des photos RAW en DNG (protocole « Convert RAW to DNG » de la mission MAFKF / QSR) : date de prise de vue, DNG par Adobe DNG Converter sous le nom du renommage en lot, XMP du boîtier ou de Lightroom intégré, métadonnées IPTC écrites, JPG (aperçu ou pleine taille) et TIFF 16 bits si demandé, rapport CSV. Rien n'est écrit à côté des photographies : chaque DNG garde son RAW et les valeurs données (XMP « gerbil »), et une relance ne refait que ce qui a changé.",
+    'gerbil_dng.py:convert': 'Convertit les photos RAW données (photos, ou dossiers avec leurs sous-dossiers) ; une ligne par photo, comme le moteur, et un rapport conversion_report_<date>.csv. jpg : « preview » (aperçu ~1024 px), « full » (développé pleine taille), « none » ; tiff : aussi un TIFF 16 bits. Renvoie 0, ou 1 sans Adobe DNG Converter.',
+    'gerbil_dng.py:convert_folder': 'Convertit un dossier (voir convert) ; only : les photos à convertir, None pour toutes.',
+    'gerbil_dng.py:ExifTool.json_all': "Tous les objets d'une réponse JSON d'ExifTool (-j), ou [].",
+    'gerbil_dng.py:previous_outputs': "Les DNG déjà écrits dans <dossier>\\<date>\\DNG : le RAW d'où vient chacun -> (chemin du DNG, valeurs inscrites). Les DNG plus anciens sont retrouvés par le nom de leur RAW d'origine.",
+    'gerbil_dng.py:read_back': "Les valeurs données dans Gerbil pour les photos d'un dossier, relues dans les DNG déjà écrits : {nom de photo (minuscules) : {champ : valeur}}.",
+    'gerbil_dng.py:develop_to': 'Le DNG développé par LibRaw en pleine taille, redressé, écrit en JPEG (8 bits) ou en TIFF (16 bits).',
 }

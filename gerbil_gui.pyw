@@ -23,6 +23,7 @@ import queue
 import re
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import tkinter as tk
@@ -134,8 +135,17 @@ def tr(en):
     return FR_TEXT.get(en, en) if LANG == "fr" else en
 
 
-STEPS = [("Photographies sources", "Source photographs"), ("Nommage et métadonnées", "Naming and metadata"),
-         ("Traitement", "Processing"), ("Vérification", "Review"), ("Publication", "Publication")]
+# the pages of the column of steps: (number shown, French, English); a page without a number is the second part
+# of the step above it
+STEPS = [("01", "Photographies sources", "Source photographs"),
+         ("02", "Nommage et métadonnées", "Naming and metadata"),
+         ("", "Relire les métadonnées", "Check the metadata"),
+         ("03", "Détourer et mettre à l'échelle", "Outline and scale"),
+         ("", "Voir les résultats", "See the results"),
+         ("04", "Convertir", "Convert"),
+         ("05", "Revue finale", "Final review"),
+         ("06", "Publication", "Publication")]
+P_SOURCES, P_NAMING, P_META, P_CUTOUT, P_REVIEW, P_CONVERT, P_FINAL, P_PUBLICATION = range(8)
 
 # settings of the processing: kind, label (fr, en), choices or (min, max, step)
 OPTION_SPECS = {
@@ -246,8 +256,12 @@ def help_text(key):
 
 
 def scale_text(s):
-    """The scale part of an engine line ('checkerboard 10 cm, 100.00 px/cm, 1.3 s') in a few words."""
+    """The scale part of an engine line ('checkerboard 10 cm, 100.00 px/cm, 1.3 s') in a few words; for a DNG
+    conversion, what became of the DNG."""
     first = s.split(",")[0].strip()
+    if first.startswith("DNG"):
+        return {"DNG converted": T("DNG converti", "DNG converted"),
+                "DNG already converted": T("DNG déjà fait", "DNG already made")}.get(first, first)
     if not first or first.startswith("no scale"):
         return ""
     for en, fr in (("checkerboard", "damier"), ("ruler", "réglet"), ("manual", "manuelle"), ("learned", "apprise")):
@@ -276,6 +290,19 @@ DOUBTS = [("scale not detected", "Échelle non trouvée", "Scale not found"),
           ("no object kept", "Aucun objet trouvé", "No object found"),
           ("cast shadow removed", "Ombre retirée", "Shadow removed"),
           ("cut-out drawn from the ai", "Détourage par l'IA", "Cut-out drawn from the AI"),
+          ("not written as expected", "Valeur mal écrite", "Value not written as expected"),
+          ("not mentioned", "Non renseigné", "Not mentioned"),
+          ("tiff not created", "TIFF non créé", "TIFF not created"),
+          ("jpg not developed", "JPG non développé", "JPG not developed"),
+          ("jpg preview taken from the raw", "Aperçu JPG pris dans le RAW", "JPG preview taken from the RAW"),
+          ("jpg preview developed", "Aperçu JPG développé", "JPG preview developed"),
+          ("no shooting date", "Sans date de prise de vue", "No shooting date"),
+          ("xmp sidecar not embedded", "XMP non intégré", "XMP not embedded"),
+          ("metadata not written", "Métadonnées non écrites", "Metadata not written"),
+          ("jpg preview not created", "Aperçu JPG non créé", "JPG preview not created"),
+          ("dng conversion failed", "Conversion DNG échouée", "DNG conversion failed"),
+          ("dng renamed", "DNG renommé", "DNG renamed"),
+          ("exiftool not found", "ExifTool introuvable", "ExifTool not found"),
           ("colours balanced on", "Couleurs équilibrées", "Colours balanced"),
           ("colours not corrected", "Couleurs non corrigées", "Colours not corrected"),
           ("the ai saw no object", "IA sans objet : détourage par la couleur", "AI saw no object: cut-out by colour"),
@@ -289,8 +316,33 @@ DOUBTS = [("scale not detected", "Échelle non trouvée", "Scale not found"),
           ("scale turned by reading its digits", "Échelle retournée", "Scale turned upright")]
 
 
+def share_columns(tree, shares):
+    """Columns of a table kept in proportion to its width (shares: column -> part of the width; the last
+    column of the table takes what is left), so that the notes stay visible."""
+    def fit(event):
+        used = 0
+        for col, part in shares.items():
+            w = max(60, int(event.width * part))
+            tree.column(col, width=w, stretch=False)
+            used += w
+        last = tree["columns"][-1]
+        tree.column(last, width=max(100, event.width - used - 4), stretch=True)
+    tree.bind("<Configure>", fit, add="+")
+
+
 def doubt_text(s):
-    """A doubt or a note of the engine in a few words, in the language of the interface."""
+    """A doubt or a note of the engine in a few words, in the language of the interface; the field and the
+    value concerned kept when the engine gives them ('Valeur mal écrite : Context (SU) SU8200')."""
+    s = s.strip()
+    sep = T(" : ", ": ")
+    m = re.match(r"^(.*?): (.*?) not written as expected", s)
+    if m:
+        return T("Valeur mal écrite", "Value not written as expected") + sep + f"{m.group(1)} {m.group(2)}"
+    m = re.match(r"^(missing information|not mentioned): (.+)$", s)
+    if m:
+        fr, en = {"missing information": ("Information manquante", "Missing information"),
+                  "not mentioned": ("Non renseigné", "Not mentioned")}[m.group(1)]
+        return T(fr, en) + sep + m.group(2)
     low = s.lower()
     for key, fr, en in DOUBTS:
         if key in low:
@@ -303,6 +355,7 @@ DEFAULTS = {
     "layout": "recompose", "margin_cm": 0.5, "gap_cm": 0.5,
     "scale": True, "scale_cm": "auto", "default_ppi": 300, "remove_putty": False,
     "ai": False, "ai_model": "isnet", "ai_device": "auto", "cutout": "colour", "colour": "none", "white": "chart",
+    "mode": "cutout", "dng_jpg": "preview", "dng_tiff": False,
     "jobs": max(1, min(4, (os.cpu_count() or 2) // 2)), "open": True, "last_dir": "",
     "plates": {}, "profile": "", "lang": "",
 }
@@ -828,10 +881,39 @@ DEFAULT_FIELDS = [
 ]
 
 
+HELD = {}            # folder (normcase) -> batch renaming kept by the interface, not written next to the photos
+HELD_FILE = os.path.join(tempfile.gettempdir(), f"gerbil_projects_{os.getpid()}.json")   # given to the engine
+
+
+def held_key(folder):
+    return os.path.normcase(os.path.abspath(folder))
+
+
+def project_known(folder):
+    """A batch renaming exists for this folder: its gerbil_project.json (made by earlier versions, or by a
+    cut-out), or one kept in memory."""
+    return os.path.exists(os.path.join(folder, PROJECT_FILE)) or held_key(folder) in HELD
+
+
+def hold_project(folder, pr):
+    """Keeps a batch renaming in memory, and gives all of them to the engine (GERBIL_PROJECTS, read by
+    gerbil.load_project before any gerbil_project.json)."""
+    HELD[held_key(folder)] = json.loads(json.dumps(pr))
+    try:
+        with open(HELD_FILE, "w", encoding="utf-8") as fh:
+            json.dump(HELD, fh, ensure_ascii=False)
+        os.environ["GERBIL_PROJECTS"] = HELD_FILE
+    except OSError:
+        pass
+
+
 def load_project_file(folder):
-    """Project of a folder (dict), a new one if there is none; None if the file cannot be read."""
+    """Project of a folder (dict), a new one if there is none; None if the file cannot be read. The file next
+    to the photos when there is one, else the one kept in memory."""
     path = os.path.join(folder, PROJECT_FILE)
     if not os.path.exists(path):
+        if held_key(folder) in HELD:
+            return json.loads(json.dumps(HELD[held_key(folder)]))
         return {"fields": [dict(f) for f in DEFAULT_FIELDS], "template": "", "rule": "", "common": {}, "photos": {}}
     try:
         with open(path, encoding="utf-8") as fh:
@@ -846,9 +928,14 @@ def load_project_file(folder):
     return pr
 
 
-def save_project_file(folder, pr):
-    """Writes gerbil_project.json (written aside, then swapped: never half-written)."""
+def save_project_file(folder, pr, write=False):
+    """Saves a batch renaming: into gerbil_project.json when the folder has one (earlier versions) or when
+    asked (a cut-out: its results and plates read it), else kept in memory only - a conversion writes
+    everything into the DNG files. (written aside, then swapped: never half-written)"""
+    hold_project(folder, pr)
     path = os.path.join(folder, PROJECT_FILE)
+    if not write and not os.path.exists(path):
+        return
     tmp = path + ".tmp"
     with open(tmp, "w", encoding="utf-8") as fh:
         json.dump(pr, fh, indent=1, ensure_ascii=False)
@@ -862,6 +949,36 @@ def project_values(pr, name):
     return vals
 
 
+def first_item(value):
+    """Of several values separated by ';' (B27 ; B20 ; R3), the one with the smallest number among those of the
+    same kind as the first one (B20) - as gerbil.py: first_item."""
+    items = [x.strip() for x in str(value or "").split(";") if x.strip()]
+    if not items:
+        return ""
+    kind = re.match(r"\D*", items[0]).group(0).lower()
+    numbered = [(int(re.match(r"\D*(\d+)", x).group(1)), i, x) for i, x in enumerate(items)
+                if re.match(r"\D*\d", x) and re.match(r"\D*", x).group(0).lower() == kind]
+    return min(numbered)[2] if numbered else items[0]
+
+
+def field_problems(field, value):
+    """What is wrong with the value of a field, as its "check" says (as gerbil.py: value_problems)."""
+    check, value = field.get("check") or {}, str(value or "").strip()
+    if not check or not value:
+        return []
+    try:
+        if check.get("item"):
+            rx = re.compile(check["item"])
+            bad = [x.strip() for x in value.split(";") if x.strip() and not rx.fullmatch(x.strip())]
+            if bad:
+                return [f"{field.get('label', '')} : {', '.join(bad)}" + (f" ({check['help']})" if check.get("help") else "")]
+        if check.get("value") and not re.fullmatch(check["value"], value):
+            return [field.get("label", "") + (f" ({check['help']})" if check.get("help") else "")]
+    except re.error:
+        return []
+    return []
+
+
 def project_output_name(pr, name):
     """Output name of a photo (as gerbil.py: project_name), or its own name without a template."""
     base = os.path.splitext(name)[0]
@@ -869,7 +986,8 @@ def project_output_name(pr, name):
     if not template:
         return base
     vals = dict(project_values(pr, name), photo=base)
-    out = re.sub(r"\{(\w+)\}", lambda m: vals.get(m.group(1), ""), template)
+    out = re.sub(r"\{(\w+)(?:\|(\w+))?\}", lambda m: (first_item(vals.get(m.group(1), "")) if m.group(2) == "first"
+                                                     else vals.get(m.group(1), "")), template)
     out = re.sub(r'[<>:"/\\|?*\x00-\x1f\s]+', "_", out)
     out = re.sub(r"([_\-.])[_\-.]+", r"\1", out).strip("_-. ")
     return out or base
@@ -1022,17 +1140,44 @@ class ProjectWindow:
     several rows selected: "Set for selected", "Number the selected"); import of a CSV / Excel inventory.
     The output files of the photos take the names built from the template (the photos keep theirs)."""
 
-    def __init__(self, app, folder):
+    def __init__(self, app, folder, select=None, only=None):
         """The batch renaming window: fields, template, naming rule with its helper,
-        common values, table of the photos with preview, buttons."""
+        common values, table of the photos with preview, buttons. A folder without a batch renaming starts from
+        the model of the profile chosen, when it holds one (fields with their meaning, IPTC fields, keywords,
+        name template). select: a photo to select. only: the names of the photos to show (those chosen in
+        step 01), None for the whole folder; the values of the others stay in the project."""
         if os.path.basename(os.path.normpath(folder)).lower() == "outlined_result":
             folder = os.path.dirname(os.path.normpath(folder))      # the photos, not the copies of the results
         self.app, self.folder = app, folder
         pr = load_project_file(folder)
         if pr is None:
             raise ValueError(f"{PROJECT_FILE} cannot be read in {folder}")
+        model = (app.profile_data() or {}).get("project") if hasattr(app, "profile_data") else None
+        self.from_model = self.read_back = False
+        if not project_known(folder) and isinstance(model, dict):
+            pr = json.loads(json.dumps(model))
+            pr["photos"] = {}
+            for k, v in (("template", ""), ("rule", ""), ("common", {}), ("photos", {})):
+                pr.setdefault(k, v)
+            self.from_model = True
+            try:                                 # a folder converted before: the values read back from its DNG
+                import gerbil_dng
+                found = gerbil_dng.read_back(folder)
+            except Exception:
+                found = {}
+            names = {f.lower(): f for f in os.listdir(folder)}
+            for low, vals in found.items():
+                if low in names and isinstance(vals, dict):
+                    pr["photos"][names[low]] = {k: v for k, v in vals.items() if str(v).strip()}
+            self.read_back = bool(pr["photos"])
         self.pr = pr
-        self.photos = sorted(f for f in os.listdir(folder) if os.path.splitext(f)[1].lower() in EXTENSIONS)
+        self.all_photos = sorted(f for f in os.listdir(folder) if os.path.splitext(f)[1].lower() in EXTENSIONS)
+        keep = {n.lower() for n in only or ()}
+        self.chosen = [f for f in self.all_photos if f.lower() in keep] if only else []
+        if select and self.chosen and select not in self.chosen:
+            self.chosen = []
+        self.show_all = tk.BooleanVar(value=not self.chosen or len(self.chosen) == len(self.all_photos))
+        self.photos = self.all_photos if self.show_all.get() else self.chosen
         self.changed = False
         self.win = win = tk.Toplevel(app.root)
         win.title(T(f"Renommage en lot - {folder}", f"Batch renaming - {folder}"))
@@ -1156,6 +1301,18 @@ class ProjectWindow:
         ttk.Button(bar, text=tr("Set for selected…"), command=self.set_selected).pack(side="left")
         ttk.Button(bar, text=tr("Number the selected…"), command=self.number_selected).pack(side="left", padx=6)
         ttk.Button(bar, text=tr("Import CSV / Excel…"), command=self.import_table).pack(side="left")
+        if self.keyword_field():
+            b = ttk.Button(bar, text=T("Mots-clés…", "Keywords…"), style="Run.TButton", command=self.keywords)
+            b.pack(side="left", padx=6)
+            Tooltip(b, T("Les mots-clés des photographies sélectionnées, à cocher dans les listes du profil.",
+                         "The keywords of the selected photos, ticked in the lists of the profile."))
+        if self.chosen and len(self.chosen) < len(self.all_photos):
+            cb = ttk.Checkbutton(mid, variable=self.show_all, command=self.toggle_all,
+                                 text=T(f"Montrer toutes les photographies du dossier ({len(self.all_photos)}, "
+                                        f"dont {len(self.chosen)} choisie(s) à l'étape 01)",
+                                        f"Show all the photos of the folder ({len(self.all_photos)}, "
+                                        f"{len(self.chosen)} chosen in step 01)"))
+            cb.pack(anchor="w", pady=(0, 6))
         ttk.Label(bar, text=tr("Double-click: edit a cell. Square at the corner of a cell: drag it to copy the value "
                             "(Ctrl: count up). Ctrl+A: all rows; Ctrl+D: copy down the first selected row."),
                   style="Muted.TLabel", wraplength=520, justify="left").pack(side="left", padx=12)
@@ -1173,6 +1330,23 @@ class ProjectWindow:
         self.thumb_name = tk.StringVar()
         ttk.Label(side, textvariable=self.thumb_name, style="Muted.TLabel").pack(pady=(4, 6))
         ttk.Button(side, text=tr("Open the photo"), command=self.open_photo).pack(fill="x")
+        self.check_msg = tk.StringVar()
+        tk.Label(side, textvariable=self.check_msg, bg=CARD_BG, fg=TERRA, font=(FONT_SERIF, 10), justify="left",
+                 anchor="w", wraplength=420).pack(fill="x", pady=(6, 0))
+        if any(f.get("meaning") or f.get("iptc") for f in pr.get("fields", [])):
+            # guide of the fields: what each one means here, and the IPTC field (Bridge) it goes into
+            tk.Label(side, text=T("GUIDE DES CHAMPS", "GUIDE OF THE FIELDS"), bg=CARD_BG, fg=MUTED,
+                     font=(FONT_MONO, 9, "bold"), anchor="w").pack(fill="x", pady=(10, 2))
+            guide = tk.Text(side, height=14, wrap="word", bg=CARD_BG, relief="flat", font=(FONT_SERIF, 10))
+            guide.tag_configure("label", font=(FONT_SERIF, 10, "bold"), foreground=VIOLET)
+            guide.tag_configure("iptc", font=(FONT_MONO, 9), foreground=TEAL)
+            for f in pr.get("fields", []):
+                guide.insert("end", f["label"], "label")
+                if f.get("iptc"):
+                    guide.insert("end", "   IPTC : " + f["iptc"], "iptc")
+                guide.insert("end", "\n" + (f.get("meaning") or "") + "\n\n")
+            guide.configure(state="disabled")
+            guide.pack(fill="both", expand=False)
         self.thumbs = {}                            # photo -> reduced copy (decoded once)
         self.tree = ttk.Treeview(tablef, show="headings", selectmode="extended")
         sb = ttk.Scrollbar(tablef, orient="vertical", command=self.tree.yview)
@@ -1196,6 +1370,120 @@ class ProjectWindow:
         self.rebuild()
         self.rule_feedback()
         self.ext_feedback()
+        if self.read_back:
+            self.changed = True
+            self.check_msg.set(T("Valeurs relues dans les DNG déjà faits : corrigez puis enregistrez.",
+                                 "Values read back from the DNG files already made: correct, then save."))
+        elif self.from_model:
+            self.changed = True
+            self.check_msg.set(T("Nouveau renommage, d'après le profil « ", "New batch renaming, from the profile '")
+                               + str(self.app.s.get("profile")) + T(" » : enregistrez-le.", "': save it."))
+        if select and self.tree.exists(select):
+            self.tree.selection_set(select)
+            self.tree.see(select)
+
+    # ------------------------------------------------------------ keywords and checks
+    def keyword_field(self):
+        """The field holding keywords ticked in a tree (profile), or None."""
+        return next((f for f in self.fields() if f.get("kind") == "keywords"), None) if self.pr.get("keywords") else None
+
+    def problems(self, name):
+        """What is wrong with the values of a photo (empty required fields, values not written as asked)."""
+        vals = project_values(self.pr, name)
+        out = [T("manque : ", "missing: ") + f["label"] for f in self.fields() if f.get("required") and not vals.get(f["key"])]
+        for f in self.fields():
+            out += field_problems(f, vals.get(f["key"], ""))
+        return out
+
+    def keywords(self, rows=None):
+        """The keyword lists of the profile as a tree to tick, for the photos selected (or given)."""
+        field = self.keyword_field()
+        rows = list(rows or self.tree.selection())
+        if not field:
+            return
+        if not rows:
+            messagebox.showinfo("Gerbil", tr("Select the rows first (Ctrl / Shift + click)."), parent=self.win)
+            return
+        key = field["key"]
+        have = [set(x.strip() for x in str(project_values(self.pr, r).get(key, "")).split(";") if x.strip()) for r in rows]
+        dlg = tk.Toplevel(self.win)
+        dlg.title(T(f"Mots-clés de {len(rows)} photographie(s)", f"Keywords of {len(rows)} photo(s)"))
+        dlg.configure(bg=WINDOW_BG)
+        dlg.transient(self.win)
+        dlg.geometry("560x680")
+        ttk.Label(dlg, style="Footer.TLabel", wraplength=520, justify="left", text=T(
+            "Cliquez sur un mot-clé pour le cocher ou le décocher. ☑ : sur toutes les photographies choisies ; "
+            "◪ : sur une partie d'entre elles.", "Click a keyword to tick or untick it. ☑: on all the photos "
+            "chosen; ◪: on some of them.")).pack(anchor="w", padx=10, pady=(10, 4))
+        find = tk.StringVar()
+        fe = ttk.Entry(dlg, textvariable=find)
+        fe.pack(fill="x", padx=10, pady=(0, 6))
+        Tooltip(fe, T("Chercher un mot-clé (Entrée : suivant)", "Find a keyword (Enter: next)"))
+        foot = ttk.Frame(dlg, style="Window.TFrame", padding=10)
+        foot.pack(side="bottom", fill="x")
+        tree = ttk.Treeview(dlg, show="tree", selectmode="browse")
+        sb = ttk.Scrollbar(dlg, orient="vertical", command=tree.yview)
+        tree.configure(yscrollcommand=sb.set)
+        sb.pack(side="right", fill="y", padx=(0, 10))
+        tree.pack(fill="both", expand=True, padx=(10, 0))
+        paths, state = {}, {}
+
+        def add(parent, nodes, prefix):
+            for n in nodes:
+                path = (prefix + "|" if prefix else "") + n["name"]
+                iid = tree.insert(parent, "end", text=n["name"])
+                paths[iid] = path
+                count = sum(path in h for h in have)
+                state[iid] = 2 if count == len(have) else (1 if count else 0)
+                add(iid, n.get("children") or [], path)
+        for lst in self.pr["keywords"]:
+            top = tree.insert("", "end", text=lst["name"], open=False)
+            add(top, lst.get("children") or [], lst.get("path_root", ""))
+
+        def show(iid):
+            if iid in paths:
+                tree.item(iid, text=("☐ ", "◪ ", "☑ ")[state[iid]] + tree.item(iid, "text").lstrip("☐◪☑ "))
+        for iid in paths:
+            show(iid)
+            if state[iid]:
+                p = tree.parent(iid)
+                while p:
+                    tree.item(p, open=True)
+                    p = tree.parent(p)
+
+        def toggle(e):
+            iid = tree.identify_row(e.y)
+            if iid in paths and tree.identify_element(e.x, e.y) != "Treeitem.indicator":
+                state[iid] = 0 if state[iid] == 2 else 2
+                show(iid)
+        tree.bind("<ButtonRelease-1>", toggle)
+
+        def search(_=None):
+            words = find.get().strip().lower()
+            if not words:
+                return
+            hits = [i for i in paths if words in tree.item(i, "text").lower()]
+            if not hits:
+                return
+            cur = tree.selection()
+            i = hits[(hits.index(cur[0]) + 1) % len(hits)] if cur and cur[0] in hits else hits[0]
+            p = tree.parent(i)
+            while p:
+                tree.item(p, open=True)
+                p = tree.parent(p)
+            tree.selection_set(i)
+            tree.see(i)
+        fe.bind("<Return>", search)
+
+        def apply():
+            for r, h in zip(rows, have):
+                keep = [x for x in h if x not in paths.values()]          # keywords from outside the lists stay
+                chosen = [paths[i] for i in paths if state[i] == 2 or (state[i] == 1 and paths[i] in h)]
+                self.set_value(r, key, " ; ".join(sorted(keep) + chosen))
+            self.update_preview()
+            dlg.destroy()
+        ttk.Button(foot, text=T("Appliquer", "Apply"), style="Run.TButton", command=apply).pack(side="left")
+        ttk.Button(foot, text=tr("Close"), command=dlg.destroy).pack(side="right")
 
     # ------------------------------------------------------------ display
     def fields(self):
@@ -1242,14 +1530,21 @@ class ProjectWindow:
         self.headings()
         self.fill()
 
+    def toggle_all(self):
+        """The whole folder, or only the photos chosen in step 01."""
+        self.photos = self.all_photos if self.show_all.get() else self.chosen
+        self.fill()
+
     def fill(self):
         """Fills the table: one row per photo, its values and its output name."""
         sel = self.tree.selection()
         self.tree.delete(*self.tree.get_children())
+        self.tree.tag_configure("bad", foreground=TERRA)
         for name in self.photos:
             own = (self.pr["photos"].get(name) or {})
             vals = [own.get(f["key"], "") for f in self.fields()]
-            self.tree.insert("", "end", iid=name, values=[name] + vals + [project_output_name(self.pr, name)])
+            self.tree.insert("", "end", iid=name, values=[name] + vals + [project_output_name(self.pr, name)],
+                             tags=("bad",) if self.problems(name) else ())
         self.tree.selection_set([i for i in sel if self.tree.exists(i)])
         self.update_preview()
         self.place_handle()
@@ -1261,8 +1556,10 @@ class ProjectWindow:
             return
         names = [project_output_name(self.pr, n) for n in self.photos]
         dup = len(names) - len(set(n.lower() for n in names))
-        self.preview.set(T("Exemple : ", "Example: ") + f"{self.photos[0]}  ->  {names[0]}_outlined"
-                         + (".TIF" if self.pr.get("ext_case") == "upper" else ".tif")
+        dng = getattr(self.app, "s", {}).get("mode") == "dng"
+        self.preview.set(T("Exemple : ", "Example: ") + f"{self.photos[0]}  ->  {names[0]}"
+                         + (".dng" if dng else "_outlined" + (".TIF" if self.pr.get("ext_case") == "upper"
+                                                               else ".tif"))
                          + (T(f"     ({dup} nom(s) utilisé(s) deux fois : un suffixe _2… sera ajouté)",
                               f"     ({dup} name(s) used twice: a suffix _2… will be added)") if dup else ""))
 
@@ -1310,6 +1607,7 @@ class ProjectWindow:
         if self.tree.exists(name):
             self.tree.set(name, key, value.strip())
             self.tree.set(name, "output", project_output_name(self.pr, name))
+            self.tree.item(name, tags=("bad",) if self.problems(name) else ())
         self.update_preview()
 
     def ext_changed(self):
@@ -1368,6 +1666,8 @@ class ProjectWindow:
         name = sel[0]
         self.thumb_name.set(name + (T(f"  (+{len(sel) - 1} sélectionnée(s))", f"  (+{len(sel) - 1} selected)") if len(sel) > 1 else "")
                             + "   - double-click: whole photo")
+        bad = self.problems(name)
+        self.check_msg.set((T("À revoir : ", "To check: ") + " ; ".join(bad)) if bad else "")
         if name not in self.thumbs:
             try:
                 im = open_photo_image(os.path.join(self.folder, name), small=True)
@@ -1496,6 +1796,9 @@ class ProjectWindow:
         key = self.tree["columns"][int(col[1:]) - 1]
         field = next((f for f in self.fields() if f["key"] == key), None)
         if field is None:
+            return
+        if field.get("kind") == "keywords" and self.pr.get("keywords"):
+            self.keywords([row])
             return
         x, y, w, h = self.tree.bbox(row, col)
         var = tk.StringVar(value=self.tree.set(row, key))
@@ -1641,8 +1944,8 @@ class ProjectWindow:
             messagebox.showwarning("Gerbil", tr("The file holds no rows."), parent=self.win)
             return
         header, data = [h.strip() for h in rows[0]], rows[1:]
-        names = {os.path.splitext(n)[0].lower(): n for n in self.photos}
-        names.update({n.lower(): n for n in self.photos})
+        names = {os.path.splitext(n)[0].lower(): n for n in self.all_photos}
+        names.update({n.lower(): n for n in self.all_photos})
         # column of the photo names: the one whose values match most photos
         scores = [sum(1 for r in data if i < len(r) and r[i].strip().lower() in names) for i in range(len(header))]
         if not scores or max(scores) == 0:
@@ -1697,7 +2000,8 @@ class ProjectWindow:
         self.changed = False
         if run:
             self.win.destroy()
-            self.app.run([self.folder])
+            self.app.run([os.path.join(self.folder, n) for n in self.photos],
+                         kind="dng" if self.app.s.get("mode") == "dng" else "cutout")
         else:
             rerun = self.app.naming_saved(self.folder, self.win)
             if rerun:                                   # photos whose name or information changed
@@ -3135,7 +3439,7 @@ PROFILES_DIR = os.path.join(os.environ.get("APPDATA") or os.path.expanduser("~")
 PROFILE_FILE = "gerbil_profile.json"           # a profile placed next to the photos is used by the engine
 PROFILE_SETTINGS = ("background", "compression", "psd", "original_layer", "original_copy", "control", "layout",
                     "margin_cm", "gap_cm", "scale", "scale_cm", "default_ppi", "remove_putty", "ai", "ai_model",
-                    "cutout", "colour", "white")
+                    "cutout", "colour", "white", "mode", "dng_jpg", "dng_tiff")
 
 
 def profile_names():
@@ -3993,17 +4297,22 @@ class App:
         self.canvas.bind("<Configure>", lambda _: self._layout())
         self.status = tk.StringVar(value=T("Ajoutez des dossiers ou des photographies.", "Add folders or photos."))
         self.pages = []
+        self.runs, self.rows_by, self.results_by = {}, {"cutout": [], "dng": []}, {"cutout": [], "dng": []}
         self._page_sources()
         self._page_naming()
+        self._page_meta()
         self._page_processing()
         self._page_review()
+        self._page_convert()
+        self._page_final()
         self._page_publication()
-        for r in self.rows:
-            self._add_row(*r)
+        self._use("cutout")
+        self._profile_panel()
         self.show_page(self.page)
 
     def _rail(self):
-        """The column of steps: the gerbil, the name, the five steps, the credits and the languages."""
+        """The column of steps: the gerbil, the name, the six steps (two with a second page), the credits and
+        the languages."""
         rail = self.rail
         brand = tk.Frame(rail, bg=VIOLET)
         brand.pack(fill="x", padx=18, pady=(20, 14))
@@ -4016,18 +4325,21 @@ class App:
                  bg=VIOLET, fg="#D9D2EC", font=(FONT_DISPLAY, 11, "bold"), justify="left").pack(anchor="w")
         tk.Frame(rail, bg="#4A3A72", height=1).pack(fill="x")
         self.step_widgets, self.step_sub = [], []
-        for i, (fr, en) in enumerate(STEPS):
+        for i, (num, fr, en) in enumerate(STEPS):
+            second = not num                            # second page of a step: indented, smaller
             row = tk.Frame(rail, bg=VIOLET, cursor="hand2")
             row.pack(fill="x", pady=(10 if i == 0 else 0, 0))
             stripe = tk.Canvas(row, width=max(4, int(4 * self.k)), height=1, bg=VIOLET, highlightthickness=0)
             stripe.pack(side="left", fill="y")
-            n = tk.Label(row, text=f"0{i + 1}", bg=VIOLET, fg=LILAS_2, font=(FONT_MONO, 11, "bold"))
-            n.pack(side="left", anchor="n", padx=(14, 10), pady=(10, 0))
+            n = tk.Label(row, text=num or "", bg=VIOLET, fg=LILAS_2, font=(FONT_MONO, 11, "bold"),
+                         width=2 if not second else 4, anchor="w")
+            n.pack(side="left", anchor="n", padx=(14, 10), pady=(10 if not second else 4, 0))
             texts = tk.Frame(row, bg=VIOLET)
-            texts.pack(side="left", fill="x", expand=True, pady=8)
+            texts.pack(side="left", fill="x", expand=True, pady=8 if not second else (2, 6))
             head = tk.Frame(texts, bg=VIOLET)
             head.pack(anchor="w")
-            title = tk.Label(head, text=T(fr, en), bg=VIOLET, fg="#EDE8F7", font=(FONT_SERIF, 11, "bold"))
+            title = tk.Label(head, text=T(fr, en), bg=VIOLET, fg="#EDE8F7",
+                             font=(FONT_SERIF, 11 if not second else 10, "bold" if not second else "normal"))
             title.pack(side="left")
             badge = tk.Label(head, text="", bg=TERRA, fg="white", font=(FONT_MONO, 8, "bold"), padx=5)
             sub = tk.StringVar(value="")
@@ -4078,8 +4390,12 @@ class App:
         for k, p in enumerate(self.pages):
             for item in p["items"]:
                 self.canvas.itemconfigure(item, state="normal" if k == i else "hidden")
-        if i == 1:
+        if i == P_NAMING:
             self._naming_summary()
+        elif i == P_META:
+            self._meta_fill()
+        elif i == P_FINAL:
+            self._final_fill()
         self._layout()
 
     def _card(self):
@@ -4209,16 +4525,24 @@ class App:
                    ).pack(side="left")
         ttk.Button(tools, text=T("Nouveau…", "New…"), style="Small.TButton",
                    command=lambda: ProfileWindow(self)).pack(side="left", padx=6)
-        self._text(right, T("Ce que l'on sait des photographies d'un site : le fond, les échelles apprises, "
-                            "les réglages. Un fichier gerbil_profile.json posé à côté des photographies "
-                            "s'applique à elles dans tous les cas.",
-                            "What is known of the photos of a site: background, learned scales, settings. "
-                            "A gerbil_profile.json placed next to the photos applies to them in any case."), top=10)
-        self._section(right, T("Astuce", "Tip"), top=18)
+        b = ttk.Button(tools, text=T("Importer…", "Import…"), style="Small.TButton", command=self.import_profile)
+        b.pack(side="left")
+        Tooltip(b, T("Ajoute à la bibliothèque un profil reçu d'une équipe (fichier .json) : ses réglages, ses "
+                     "champs, ses mots-clés et son modèle de nom.",
+                     "Adds to the library a profile received from a team (.json file): its settings, fields, "
+                     "keywords and name template."))
+        self._section(right, T("Ce que contient le profil", "What the profile holds"), top=16)
+        self.profile_info = tk.Text(right, height=14, bg=CARD_BG, fg=TEXT, relief="flat", wrap="word",
+                                    font=(FONT_SERIF, 10), highlightthickness=0, padx=0, pady=0, cursor="arrow")
+        self.profile_info.pack(fill="both", expand=True)
+        self.profile_info.tag_configure("key", foreground=MUTED, font=(FONT_MONO, 9, "bold"))
+        self.profile_info.tag_configure("work", foreground=VIOLET, font=(FONT_SERIF, 10, "bold"))
+        self.profile_info.tag_configure("mono", foreground=VIOLET, font=(FONT_MONO, 9))
+        self._section(right, T("Astuce", "Tip"), top=12)
         self._text(right, T("On peut aussi déposer des dossiers sur l'icône de Gerbil pour les ajouter.",
                             "Folders can also be dropped on the Gerbil icon to add them."))
         nxt = ttk.Button(self.canvas, text=T("Continuer", "Continue"), style="Next.TButton",
-                         command=lambda: self.show_page(1))
+                         command=lambda: self.show_page(P_NAMING))
         self.sources_hint = tk.StringVar(value="")
         self._page(T("Étape 01", "Step 01"), T("Photographies sources", "Source photographs"),
                    T("Les dossiers ou les photographies à traiter : JPEG, TIFF, PNG ou RAW, avec une échelle "
@@ -4254,12 +4578,16 @@ class App:
                             "the output files take this name, and the information is written into the files "
                             "(XMP, IPTC) and the report."))
         self._section(right, T("Bon à savoir", "Good to know"), top=16)
-        self._text(right, T("Les photographies originales ne sont jamais renommées. Tout est enregistré dans "
-                            "gerbil_project.json, à côté des photographies.",
-                            "The original photos are never renamed. Everything is saved in gerbil_project.json, "
-                            "next to the photos."))
+        self._text(right, T("Les photographies originales ne sont jamais renommées : seuls les fichiers produits "
+                            "prennent les nouveaux noms. Rien n'est écrit à côté des photographies : la "
+                            "conversion (étape 04) inscrit tout dans les DNG, où Gerbil le relit ensuite ; le "
+                            "détourage (étape 03) garde un gerbil_project.json pour ses planches.",
+                            "The original photos are never renamed: only the output files take the new names. "
+                            "Nothing is written next to the photos: the conversion (step 04) writes everything "
+                            "into the DNG files, where Gerbil reads it back later; the cut-out (step 03) keeps a "
+                            "gerbil_project.json for its plates."))
         nxt = ttk.Button(self.canvas, text=T("Continuer", "Continue"), style="Next.TButton",
-                         command=lambda: self.show_page(2))
+                         command=lambda: self.show_page(P_META))
         self._page(T("Étape 02", "Step 02"), T("Nommage et métadonnées", "Naming and metadata"),
                    T("Facultatif : nommer les fichiers produits d'après l'inventaire, et y inscrire les "
                      "informations des objets.",
@@ -4267,63 +4595,393 @@ class App:
                      "the objects into them."),
                    left, right, [nxt], tk.StringVar(value=T("Étape facultative", "Optional step")))
 
-    def _page_processing(self):
-        """03: settings, Run, progress on the scale bar, table of the results."""
+    def _run_card(self, kind):
+        """The left card of a page that runs the engine (cut-out or conversion): progress on the scale bar,
+        table of the results, technical details. Its widgets are kept in self.runs[kind] (see _use)."""
+        r = {"status": tk.StringVar(value=T("Prêt.", "Ready."))}
         left = self._card()
         prog = tk.Frame(left, bg=CARD_BG)
         prog.pack(fill="x", pady=(0, 10))
-        self.bar = Mire(prog, CARD_BG)
-        self.bar.pack(side="left", fill="x", expand=True)
-        tk.Label(prog, textvariable=self.status, bg=CARD_BG, fg=VIOLET, font=(FONT_MONO, 10, "bold")).pack(
+        r["bar"] = Mire(prog, CARD_BG)
+        r["bar"].pack(side="left", fill="x", expand=True)
+        tk.Label(prog, textvariable=r["status"], bg=CARD_BG, fg=VIOLET, font=(FONT_MONO, 10, "bold")).pack(
             side="left", padx=(14, 0))
         tf = tk.Frame(left, bg=CARD_BG)
         tf.pack(fill="both", expand=True)
-        self.table = ttk.Treeview(tf, columns=("photo", "state", "scale", "todo"), show="headings", selectmode="browse")
-        for col, title, width, stretch in (("photo", T("PHOTOGRAPHIE", "PHOTO"), 300, True),
-                                           ("state", T("ÉTAT", "STATE"), 115, False),
-                                           ("scale", T("ÉCHELLE", "SCALE"), 125, False),
-                                           ("todo", T("À FAIRE", "TO DO"), 280, True)):
-            self.table.heading(col, text=title, anchor="w")
-            self.table.column(col, width=int(width * self.k), minwidth=60, anchor="w", stretch=stretch)
+        table = r["table"] = ttk.Treeview(tf, columns=("photo", "state", "scale", "todo"), show="headings",
+                                          selectmode="browse")
+        widths = (300, 115, 125, 280) if kind == "cutout" else (220, 105, 115, 460)
+        for col, title, width, stretch in (("photo", T("PHOTOGRAPHIE", "PHOTO"), widths[0], True),
+                                           ("state", T("ÉTAT", "STATE"), widths[1], False),
+                                           ("scale", T("ÉCHELLE", "SCALE") if kind == "cutout" else "DNG", widths[2],
+                                            False),
+                                           ("todo", T("À FAIRE", "TO DO"), widths[3], True)):
+            table.heading(col, text=title, anchor="w")
+            table.column(col, width=int(width * self.k), minwidth=int((170 if kind == "dng" and col == "photo"
+                                                                       else 60) * self.k),
+                         anchor="w", stretch=stretch if kind == "cutout" or col != "photo" else False)
         for tag, colour in (("ok", TEAL), ("verify", TERRA), ("failed", RED)):
-            self.table.tag_configure(tag, foreground=colour)
-        sb = ttk.Scrollbar(tf, orient="vertical", command=self.table.yview)
-        self.table.configure(yscrollcommand=sb.set)
-        self.table.pack(side="left", fill="both", expand=True)
+            table.tag_configure(tag, foreground=colour)
+        sb = ttk.Scrollbar(tf, orient="vertical", command=table.yview)
+        table.configure(yscrollcommand=sb.set)
+        table.pack(side="left", fill="both", expand=True)
         sb.pack(side="right", fill="y")
-        self.table.bind("<Double-1>", self._row_open)
+        table.bind("<Double-1>", self._row_open)
+        if kind == "dng":
+            share_columns(table, {"photo": 0.27, "state": 0.14, "scale": 0.16})
+            self._detail_line(left, table, "todo")
         foot = tk.Frame(left, bg=CARD_BG)
         foot.pack(fill="x", pady=(8, 0))
-        self.log_btn = ttk.Button(foot, text=T("▸ Détails techniques", "▸ Technical details"), style="Link.TButton",
-                                  command=self._toggle_log)
-        self.log_btn.pack(side="left")
+        r["log_btn"] = ttk.Button(foot, text=T("▸ Détails techniques", "▸ Technical details"), style="Link.TButton",
+                                  command=lambda: (self._use(kind), self._toggle_log()))
+        r["log_btn"].pack(side="left")
         tk.Label(foot, text=T("Double-clic sur une ligne : la corriger.", "Double-click a row to fix it."),
                  bg=CARD_BG, fg=MUTED, font=(FONT_SERIF, 9, "italic")).pack(side="right")
-        self.logf = tk.Frame(left, bg=CARD_BG)
-        self.log = tk.Text(self.logf, height=8, bg=PAPER, fg=TEXT, relief="flat", wrap="word",
-                           font=(FONT_MONO, 9), highlightthickness=1, highlightbackground=LINE,
-                           padx=8, pady=6, state="disabled")
-        lsb = ttk.Scrollbar(self.logf, orient="vertical", command=self.log.yview)
-        self.log.configure(yscrollcommand=lsb.set)
-        self.log.pack(side="left", fill="both", expand=True)
+        r["logf"] = tk.Frame(left, bg=CARD_BG)
+        log = r["log"] = tk.Text(r["logf"], height=8, bg=PAPER, fg=TEXT, relief="flat", wrap="word",
+                                 font=(FONT_MONO, 9), highlightthickness=1, highlightbackground=LINE,
+                                 padx=8, pady=6, state="disabled")
+        lsb = ttk.Scrollbar(r["logf"], orient="vertical", command=log.yview)
+        log.configure(yscrollcommand=lsb.set)
+        log.pack(side="left", fill="both", expand=True)
         lsb.pack(side="right", fill="y")
         for tag, colour in (("ok", TEAL), ("verify", TERRA), ("failed", RED), ("info", VIOLET_2), ("cmd", MUTED)):
-            self.log.tag_configure(tag, foreground=colour)
+            log.tag_configure(tag, foreground=colour)
+        r["run_btn"] = ttk.Button(self.canvas, text=T("Lancer", "Run") if kind == "cutout"
+                                  else T("Convertir", "Convert"), style="Run.TButton",
+                                  command=lambda: self.run(kind=kind))
+        r["cancel_btn"] = ttk.Button(self.canvas, text=T("Arrêter", "Stop"), style="Cancel.TButton",
+                                     command=self.cancel, state="disabled")
+        r["open_btn"] = ttk.Button(self.canvas, text=T("Ouvrir les résultats", "Open results"), style="Teal.TButton",
+                                   command=lambda: (self._use(kind), self.open_results()), state="disabled")
+        r["next_hint"] = tk.StringVar(value="")
+        self.runs[kind] = r
+        return left
+
+    def _detail_line(self, parent, tree, col):
+        """Under a table: the whole text of a column for the row selected (the notes can be long)."""
+        var = tk.StringVar(value="")
+        lbl = tk.Label(parent, textvariable=var, bg=CARD_BG, fg=VIOLET, font=(FONT_SERIF, 10), justify="left",
+                       anchor="w", wraplength=int(700 * self.k))
+        lbl.pack(fill="x", pady=(6, 0))
+        parent.bind("<Configure>", lambda e: lbl.configure(wraplength=max(200, e.width - int(40 * self.k))), add="+")
+        tree.bind("<<TreeviewSelect>>", lambda _: var.set(
+            (tree.set(tree.selection()[0], "photo") + T(" : ", ": ") + tree.set(tree.selection()[0], col))
+            if tree.selection() and tree.set(tree.selection()[0], col) else ""), add="+")
+
+    def _use(self, kind):
+        """The widgets of the cut-out page or of the conversion page become those the run writes into."""
+        self.run_kind = kind
+        r = self.runs[kind]
+        for k in ("bar", "status", "table", "log", "logf", "log_btn", "run_btn", "cancel_btn", "open_btn",
+                  "next_hint"):
+            setattr(self, k, r[k])
+        self.rows, self.results = self.rows_by[kind], self.results_by[kind]
+
+    def _page_meta(self):
+        """02, continued: the metadata of the photos of step 01 read again before any run: what is missing
+        (required fields), what is written the wrong way, what is left empty (said, not a problem)."""
+        left = self._card()
+        tf = tk.Frame(left, bg=CARD_BG)
+        tf.pack(fill="both", expand=True)
+        t = self.meta_tree = ttk.Treeview(tf, columns=("photo", "output", "state", "todo"), show="headings",
+                                          selectmode="extended")
+        for col, title, width, stretch in (("photo", T("PHOTOGRAPHIE", "PHOTO"), 190, True),
+                                           ("output", T("NOM PRODUIT", "OUTPUT NAME"), 250, True),
+                                           ("state", T("ÉTAT", "STATE"), 105, False),
+                                           ("todo", T("À NOTER", "NOTES"), 460, True)):
+            t.heading(col, text=title, anchor="w")
+            t.column(col, width=int(width * self.k), minwidth=int((150 if col in ("photo", "output") else 60) * self.k),
+                     anchor="w", stretch=col == "todo")
+        for tag, colour in (("ok", TEAL), ("verify", TERRA)):
+            t.tag_configure(tag, foreground=colour)
+        sb = ttk.Scrollbar(tf, orient="vertical", command=t.yview)
+        t.configure(yscrollcommand=sb.set)
+        t.pack(side="left", fill="both", expand=True)
+        sb.pack(side="right", fill="y")
+        t.bind("<Double-1>", self._meta_open)
+        share_columns(t, {"photo": 0.22, "output": 0.30, "state": 0.13})
+        self._detail_line(left, t, "todo")
+        foot = tk.Frame(left, bg=CARD_BG)
+        foot.pack(fill="x", pady=(8, 0))
+        ttk.Button(foot, text=T("Ouvrir le renommage en lot…", "Open the batch renaming…"),
+                   command=self.project).pack(side="left")
+        ttk.Button(foot, text=T("Actualiser", "Refresh"), command=self._meta_fill).pack(side="left", padx=10)
+        tk.Label(foot, text=T("Double-clic sur une ligne : la corriger.", "Double-click a row to fix it."),
+                 bg=CARD_BG, fg=MUTED, font=(FONT_SERIF, 9, "italic")).pack(side="right")
 
         right = self._card()
+        self._section(right, T("Les couleurs", "The colours"))
+        for colour, fr, en in ((TEAL, "ok : on peut continuer ; un champ vide est seulement signalé "
+                                      "(non renseigné)", "ok: ready to go on; an empty field is only mentioned "
+                                      "(not mentioned)"),
+                               (TERRA, "à vérifier : un champ obligatoire manque, ou une valeur n'est pas écrite "
+                                       "comme le demande le profil", "to verify: a required field is missing, or a "
+                                       "value is not written as the profile asks")):
+            r = tk.Frame(right, bg=CARD_BG)
+            r.pack(fill="x", pady=2)
+            tk.Label(r, text="●", bg=CARD_BG, fg=colour, font=(FONT_SERIF, 11)).pack(side="left", anchor="n")
+            tk.Label(r, text=T(fr, en), bg=CARD_BG, fg=TEXT, font=(FONT_SERIF, 10), justify="left",
+                     wraplength=int(300 * self.k), anchor="w").pack(side="left", padx=(6, 0), fill="x")
+        self._section(right, T("Bon à savoir", "Good to know"), top=16)
+        self._text(right, T("On n'est pas obligé de tout remplir : seuls les champs marqués d'une étoile dans le "
+                            "renommage en lot sont obligatoires.",
+                            "Not everything has to be filled in: only the fields marked with a star in the batch "
+                            "renaming are required."))
+        self.meta_hint = tk.StringVar(value="")
+        nxt = ttk.Button(self.canvas, text=T("Continuer", "Continue"), style="Next.TButton",
+                         command=lambda: self.show_page(P_CONVERT if self.s.get("mode") == "dng" else P_CUTOUT))
+        self._page(T("Étape 02, suite", "Step 02, continued"), T("Relire les métadonnées", "Check the metadata"),
+                   T("Les informations de chaque photographie de l'étape 01, relues avant de les inscrire dans "
+                     "les fichiers.",
+                     "The information of each photo of step 01, read again before it is written into the "
+                     "files."),
+                   left, right, [nxt], self.meta_hint)
+
+    def _step01_photos(self):
+        """The photos of step 01, folders opened: [(folder, photo name)]."""
+        out = []
+        for i in self.tree.get_children():
+            if os.path.isdir(i):
+                out += [(i, f) for f in sorted(os.listdir(i)) if os.path.splitext(f)[1].lower() in EXTENSIONS]
+            else:
+                out.append((os.path.dirname(i), os.path.basename(i)))
+        return out
+
+    def _meta_fill(self):
+        """The table of step 02, continued: each photo of step 01, its output name and what to note."""
+        t = self.meta_tree
+        t.delete(*t.get_children())
+        projects, bad = {}, 0
+        for folder, name in self._step01_photos():
+            if folder not in projects:
+                projects[folder] = load_project_file(folder) if project_known(folder) else None
+            pr = projects[folder]
+            if pr is None:
+                t.insert("", "end", iid=os.path.join(folder, name), tags=("ok",),
+                         values=(name, os.path.splitext(name)[0], "● ok",
+                                 T("pas de renommage en lot : le nom est gardé", "no batch renaming: the name is kept")))
+                continue
+            vals = project_values(pr, name)
+            fields = pr.get("fields") or []
+            notes = []
+            missing = [f.get("label") or f["key"] for f in fields if f.get("required") and not vals.get(f["key"])]
+            if missing:
+                notes.append(doubt_text("missing information: " + ", ".join(missing)))
+            for f in fields:
+                notes += [T("Valeur mal écrite : ", "Value not written as expected: ") + x
+                          for x in field_problems(f, vals.get(f["key"], ""))]
+            problem = bool(notes)
+            empty = [f.get("label") or f["key"] for f in fields if not f.get("required") and not vals.get(f["key"])]
+            if empty:
+                notes.append(doubt_text("not mentioned: " + ", ".join(empty)))
+            bad += problem
+            t.insert("", "end", iid=os.path.join(folder, name), tags=("verify" if problem else "ok",),
+                     values=(name, project_output_name(pr, name),
+                             T("● à vérifier", "● to verify") if problem else "● ok", " ; ".join(notes)))
+        self.meta_hint.set(T(f"{bad} photographie(s) à vérifier", f"{bad} photo(s) to verify") if bad else "")
+        self.step_sub[P_META].set(T(f"{bad} à vérifier", f"{bad} to verify") if bad
+                                  else (T("tout est prêt", "all ready") if t.get_children() else ""))
+
+    def _meta_open(self, event):
+        """Double-click on a photo of step 02, continued: the batch renaming of its folder, on it."""
+        item = self.meta_tree.identify_row(event.y)
+        if item:
+            self.project(select=item)
+
+    def _page_final(self):
+        """05: the files written (cut-out results, DNG, JPG, TIFF) and the check before a deposit."""
+        left = self._card()
+        tf = tk.Frame(left, bg=CARD_BG)
+        tf.pack(fill="both", expand=True)
+        t = self.final_tree = ttk.Treeview(tf, columns=("file", "kind", "where"), show="headings",
+                                           selectmode="extended")
+        for col, title, width, stretch in (("file", T("FICHIER", "FILE"), 340, True),
+                                           ("kind", T("TYPE", "KIND"), 120, False),
+                                           ("where", T("DOSSIER", "FOLDER"), 300, True)):
+            t.heading(col, text=title, anchor="w")
+            t.column(col, width=int(width * self.k), minwidth=60, anchor="w", stretch=stretch)
+        sb = ttk.Scrollbar(tf, orient="vertical", command=t.yview)
+        t.configure(yscrollcommand=sb.set)
+        t.pack(side="left", fill="both", expand=True)
+        sb.pack(side="right", fill="y")
+        t.bind("<Double-1>", lambda e: (lambda i: os.startfile(i) if i and os.path.exists(i) else None)(
+            t.identify_row(e.y)))
+        self.final_count = tk.StringVar(value="")
+        tk.Label(left, textvariable=self.final_count, bg=CARD_BG, fg=MUTED, font=(FONT_SERIF, 10),
+                 anchor="w").pack(fill="x", pady=(8, 0))
+
+        right = self._card()
+        self._section(right, T("Versement", "Deposit"))
+        self._text(right, T("Le contrôle d'un dossier avant son versement : formats, noms, métadonnées, inventaire "
+                            "et sommes de contrôle. Rien n'est modifié.",
+                            "The check of a folder before its deposit: formats, names, metadata, inventory and "
+                            "checksums. Nothing is changed."))
+        ttk.Button(right, text=T("Contrôler avant versement…", "Check before a deposit…"),
+                   command=lambda: DepositWindow(self)).pack(anchor="w", pady=(8, 0))
+        self._section(right, T("Bon à savoir", "Good to know"), top=16)
+        self._text(right, T("Double-clic sur un fichier : l'ouvrir. Les photographies originales n'ont pas bougé.",
+                            "Double-click a file to open it. The original photos have not moved."))
+        opn = ttk.Button(self.canvas, text=T("Ouvrir les résultats", "Open results"), style="Teal.TButton",
+                         command=self._final_open)
+        nxt = ttk.Button(self.canvas, text=T("Continuer", "Continue"), style="Next.TButton",
+                         command=lambda: self.show_page(P_PUBLICATION))
+        self._page(T("Étape 05", "Step 05"), T("Revue finale", "Final review"),
+                   T("Les fichiers produits, tels qu'ils seront versés : résultats du détourage, DNG, JPG et TIFF.",
+                     "The files written, as they will be deposited: cut-out results, DNG, JPG and TIFF."),
+                   left, right, [nxt, opn], None)
+
+    def _final_dirs(self):
+        """The folders the runs wrote into, for the photos of step 01."""
+        out = []
+        for folder in dict.fromkeys(f for f, _ in self._step01_photos()):
+            res = self.s["output_dir"] if self.s["output_mode"] == "other" and self.s["output_dir"] \
+                else os.path.join(folder, "outlined_result")
+            if os.path.isdir(res):
+                out.append((res, T("détourage", "cut-out")))
+            for d in sorted(os.listdir(folder)):
+                if re.match(r"^\d{4}-\d{2}-\d{2}$", d):
+                    for k in ("DNG", "JPG", "TIFF"):
+                        if os.path.isdir(os.path.join(folder, d, k)):
+                            out.append((os.path.join(folder, d, k), k))
+        return list(dict.fromkeys(out))
+
+    def _final_fill(self):
+        """The table of step 05: every file written."""
+        t = self.final_tree
+        t.delete(*t.get_children())
+        counts = {}
+        for d, kind in self._final_dirs():
+            for root, dirs, files in os.walk(d):
+                dirs[:] = [x for x in dirs if not x.startswith(("_", "gerbil_"))]
+                for f in sorted(files):
+                    if f.lower().endswith((".json", ".csv")):
+                        continue
+                    path = os.path.join(root, f)
+                    if not t.exists(path):
+                        t.insert("", "end", iid=path, values=(f, kind, os.path.dirname(path)))
+                        counts[kind] = counts.get(kind, 0) + 1
+        self.final_count.set(", ".join(f"{n} {k}" for k, n in counts.items()) if counts
+                             else T("Rien n'a encore été produit pour ces photographies.",
+                                    "Nothing has been written yet for these photos."))
+
+    def _final_open(self):
+        """Opens the folders of step 05."""
+        for d in dict.fromkeys(os.path.dirname(d) if k in ("DNG", "JPG", "TIFF") else d
+                               for d, k in self._final_dirs()):
+            os.startfile(d)
+
+    def _profile_panel(self):
+        """Step 01: what the profile chosen holds (work, fields, name, keywords, settings, scales)."""
+        if not hasattr(self, "profile_info"):
+            return
+        box = self.profile_info
+        box.configure(state="normal")
+        box.delete("1.0", "end")
+        data = self.profile_data()
+        if not data:
+            box.insert("end", T("Aucun profil : les réglages par défaut, sans champs ni mots-clés.",
+                                "No profile: the default settings, no fields nor keywords."))
+            box.configure(state="disabled")
+            return
+        st = data.get("settings") or {}
+        pr = data.get("project") or {}
+        work = T("Conversion RAW en DNG (étape 04)", "RAW to DNG conversion (step 04)") if st.get("mode") == "dng" \
+            else T("Détourage et mise à l'échelle (étape 03)", "Outline and scale (step 03)")
+        box.insert("end", T("TRAVAIL  ", "WORK  "), "key")
+        box.insert("end", work + "\n", "work")
+        fields = pr.get("fields") or []
+        if fields:
+            box.insert("end", T("CHAMPS  ", "FIELDS  "), "key")
+            box.insert("end", ", ".join((f.get("label") or f["key"]) + (" *" if f.get("required") else "")
+                                        for f in fields) + "\n")
+        if pr.get("template"):
+            box.insert("end", T("NOM  ", "NAME  "), "key")
+            box.insert("end", pr["template"] + "\n", "mono")
+        kw = pr.get("keywords") or []
+        if kw:
+            box.insert("end", T("MOTS-CLÉS  ", "KEYWORDS  "), "key")
+            box.insert("end", T(f"{len(kw)} liste(s) : ", f"{len(kw)} list(s): ")
+                       + ", ".join(str(k.get("name", "")) for k in kw) + "\n")
+        iptc = pr.get("iptc") or {}
+        if iptc.get("copyright"):
+            box.insert("end", "COPYRIGHT  ", "key")
+            box.insert("end", str(iptc["copyright"]) + "\n")
+        shown = [f"{T(*OPTION_SPECS[k][1])} : {choice_text(k, v)}" for k, v in st.items()
+                 if k in OPTION_SPECS and k in ESSENTIAL_OPTIONS]
+        if st.get("mode") == "dng":
+            jpg = {"preview": T("aperçu", "preview"), "full": T("pleine taille", "full size"),
+                   "none": T("aucun", "none")}.get(st.get("dng_jpg", "preview"), "")
+            shown = [f"JPG{T(' : ', ': ')}{jpg}"] + ([T("TIFF 16 bits", "16-bit TIFF")] if st.get("dng_tiff") else [])
+        if shown:
+            box.insert("end", T("RÉGLAGES  ", "SETTINGS  "), "key")
+            box.insert("end", ", ".join(shown) + "\n")
+        scales = data.get("scales") or data.get("learned_scales") or []
+        if scales:
+            box.insert("end", T("ÉCHELLES  ", "SCALES  "), "key")
+            box.insert("end", T(f"{len(scales)} apprise(s)", f"{len(scales)} learned") + "\n")
+        if data.get("description") or data.get("notes"):
+            box.insert("end", "\n" + str(data.get("description") or data.get("notes")))
+        box.configure(state="disabled")
+
+    def _page_processing(self):
+        """03: settings of the cut-out, Run, progress on the scale bar, table of the results."""
+        left = self._run_card("cutout")
+        r = self.runs["cutout"]
+        right = self._card()
         self._options(right)
-        self.run_btn = ttk.Button(self.canvas, text=T("Lancer", "Run"), style="Run.TButton", command=self.run)
-        self.cancel_btn = ttk.Button(self.canvas, text=T("Arrêter", "Stop"), style="Cancel.TButton",
-                                     command=self.cancel, state="disabled")
-        self.open_btn = ttk.Button(self.canvas, text=T("Ouvrir les résultats", "Open results"), style="Teal.TButton",
-                                   command=self.open_results, state="disabled")
-        self.next_hint = tk.StringVar(value="")
         self._page(T("Étape 03", "Step 03"), T("Détourer et mettre à l'échelle", "Outline and scale"),
                    T("Gerbil trouve l'échelle de chaque photographie, détoure l'objet et écrit les fichiers à "
-                     "leur taille réelle (1:1).",
+                     "leur taille réelle (1:1). Étape facultative : une équipe qui ne fait que convertir passe à "
+                     "l'étape 04.",
                      "Gerbil finds the scale of each photo, outlines the object and writes the files at their "
-                     "real size (1:1)."),
-                   left, right, [self.run_btn, self.cancel_btn, self.open_btn], self.next_hint)
+                     "real size (1:1). Optional step: a team that only converts goes on to step 04."),
+                   left, right, [r["run_btn"], r["cancel_btn"], r["open_btn"]], r["next_hint"])
+
+    def _page_convert(self):
+        """04: the photos written in another format with their new names and metadata: RAW to DNG (Adobe DNG
+        Converter, the XMP sidecars embedded), with a JPG and, if wanted, a 16-bit TIFF."""
+        left = self._run_card("dng")
+        r = self.runs["dng"]
+        right = self._card()
+        self._section(right, T("Conversion", "Conversion"))
+        self.dng_vars = {"jpg": tk.StringVar(value=self.s.get("dng_jpg", "preview")),
+                         "tiff": tk.BooleanVar(value=bool(self.s.get("dng_tiff")))}
+        ttk.Checkbutton(right, text=T("RAW en DNG (Adobe DNG Converter)", "RAW to DNG (Adobe DNG Converter)"),
+                        variable=tk.BooleanVar(value=True), state="disabled").pack(anchor="w")
+        self._text(right, T("DNG 1.7, RAW d'origine inclus, XMP du boîtier ou de Lightroom intégré, métadonnées "
+                            "du renommage en lot. Dans <date>\\DNG.",
+                            "DNG 1.7, original RAW included, XMP of the camera or of Lightroom embedded, metadata "
+                            "of the batch renaming. In <date>\\DNG."), top=2)
+        self._section(right, T("Exports supplémentaires", "Extra exports"), top=14)
+        row = tk.Frame(right, bg=CARD_BG)
+        row.pack(fill="x")
+        tk.Label(row, text="JPG", bg=CARD_BG, fg=TEXT, font=(FONT_SERIF, 10)).pack(side="left")
+        names = {"preview": T("aperçu (~1024 px)", "preview (~1024 px)"),
+                 "full": T("pleine taille", "full size"), "none": T("aucun", "none")}
+        cb = ttk.Combobox(row, state="readonly", width=20, values=list(names.values()))
+        cb.set(names.get(self.dng_vars["jpg"].get(), names["preview"]))
+        cb.pack(side="left", padx=(10, 0))
+        cb.bind("<<ComboboxSelected>>", lambda _: self.dng_vars["jpg"].set(
+            next(k for k, v in names.items() if v == cb.get())))
+        self.dng_vars["jpg"].trace_add("write", lambda *_: cb.set(names.get(self.dng_vars["jpg"].get(), "")))
+        ttk.Checkbutton(right, text=T("TIFF 16 bits pleine taille", "Full-size 16-bit TIFF"),
+                        variable=self.dng_vars["tiff"]).pack(anchor="w", pady=(8, 0))
+        self._text(right, T("Métadonnées intégrées dans chaque fichier. Dans <date>\\JPG et <date>\\TIFF.",
+                            "Metadata embedded in every file. In <date>\\JPG and <date>\\TIFF."), top=2)
+        self._section(right, T("Bon à savoir", "Good to know"), top=14)
+        self._text(right, T("Seules les photographies de l'étape 01 sont converties. Relancer ne refait que ce qui "
+                            "a changé : un DNG déjà fait est renommé et ses métadonnées réécrites. Il faut Adobe "
+                            "DNG Converter (gratuit) ; ExifTool est fourni avec Gerbil.",
+                            "Only the photos of step 01 are converted. Running again only redoes what changed: a "
+                            "DNG already made is renamed and its metadata written again. Adobe DNG Converter "
+                            "(free) is needed; ExifTool comes with Gerbil."))
+        self._page(T("Étape 04", "Step 04"), T("Convertir", "Convert"),
+                   T("Les photographies écrites dans un autre format, avec leurs nouveaux noms et leurs "
+                     "métadonnées : RAW en DNG, et si on le souhaite un JPG et un TIFF.",
+                     "The photos written in another format, with their new names and metadata: RAW to DNG, and "
+                     "if wanted a JPG and a TIFF."),
+                   left, right, [r["run_btn"], r["cancel_btn"], r["open_btn"]], r["next_hint"])
 
     def _page_review(self):
         """04: the photos to look at, grouped by problem, and the review window."""
@@ -4366,9 +5024,11 @@ class App:
                             "them. A corrected photo is processed again at once."))
         go = ttk.Button(self.canvas, text=T("Vérifier", "Review"), style="Run.TButton", command=self.review)
         self.review_hint = tk.StringVar(value="")
-        self._page(T("Étape 04", "Step 04"), T("Vérification", "Review"),
-                   T("Les photographies douteuses d'abord : corriger le détourage, l'orientation ou l'échelle.",
-                     "Doubtful photos first: fix the cut-out, the orientation or the scale."),
+        self._page(T("Étape 03, suite", "Step 03, continued"), T("Voir les résultats", "See the results"),
+                   T("Les résultats du détourage, les photographies douteuses d'abord : corriger le détourage, "
+                     "l'orientation ou l'échelle.",
+                     "The results of the cut-out, doubtful photos first: fix the cut-out, the orientation or "
+                     "the scale."),
                    left, right, [go], self.review_hint)
 
     def _page_publication(self):
@@ -4396,11 +5056,7 @@ class App:
                  "read from their names.", lambda: InventoryWindow(self)),
                 ("Vignettes", "Thumbnails", "Des copies réduites pour les bases de données, fond transparent ou "
                  "blanc.", "Reduced copies for databases, transparent or white background.",
-                 lambda: ThumbnailsWindow(self)),
-                ("Versement", "Deposit", "Le contrôle d'un dossier avant son versement : formats, noms, "
-                 "métadonnées, inventaire et sommes de contrôle. Rien n'est modifié.",
-                 "The check of a folder before its deposit: formats, names, metadata, inventory and "
-                 "checksums. Nothing is changed.", lambda: DepositWindow(self)))):
+                 lambda: ThumbnailsWindow(self)))):
             t = tk.Frame(tiles, bg=CARD_BG, highlightthickness=1, highlightbackground=LINE, padx=14, pady=12)
             t.grid(row=k // 3, column=k % 3, sticky="new", padx=(0 if k % 3 == 0 else 12, 0),
                    pady=(0 if k < 3 else 12, 0))
@@ -4412,11 +5068,11 @@ class App:
             ttk.Button(t, text=T("Ouvrir…", "Open…"), command=cmd).pack(anchor="w")
         opn = ttk.Button(self.canvas, text=T("Ouvrir les résultats", "Open results"), style="Teal.TButton",
                          command=self.open_results)
-        self._page(T("Étape 05", "Step 05"), T("Publication", "Publication"),
-                   T("Ce que l'on fait des objets détourés et des photographies : planches, planches-contact, "
-                     "inventaire, vignettes, contrôle avant versement.",
-                     "What to do with the outlined objects and the photos: plates, contact sheets, inventory, "
-                     "thumbnails, check before a deposit."),
+        self._page(T("Étape 06", "Step 06"), T("Publication", "Publication"),
+                   T("Ce que l'on fait des objets détourés et des photographies : planches à l'échelle, planches "
+                     "libres, planches-contact, inventaire, vignettes.",
+                     "What to do with the outlined objects and the photos: plates at scale, free plates, "
+                     "contact sheets, inventory, thumbnails."),
                    left, None, [opn], None)
 
     # ---------------------------------------------------------------- settings
@@ -4593,16 +5249,64 @@ class App:
         name = self.profile.get()
         self.s["profile"] = "" if name == T("(aucun)", "(none)") else name
         if not self.s["profile"]:
+            self.s["mode"] = "cutout"
+            self._profile_panel()
+            self._refresh_steps()
             return
         try:
             with open(profile_path(name), encoding="utf-8") as fh:
                 st = json.load(fh).get("settings") or {}
         except (OSError, ValueError):
             return
+        self.s["mode"] = "cutout"                      # (the work of the profile: "dng" for a team that converts)
         for k, v in st.items():
             if k in self.v:
                 self.v[k].set(v)
+            elif k in DEFAULTS:
+                self.s[k] = v
+        if hasattr(self, "dng_vars"):
+            self.dng_vars["jpg"].set(self.s.get("dng_jpg", "preview"))
+            self.dng_vars["tiff"].set(bool(self.s.get("dng_tiff")))
         self._sync()
+        self._profile_panel()
+        self._refresh_steps()
+
+    def import_profile(self):
+        """A profile file (from a team: settings, fields, keywords, name template) copied into the library and
+        chosen."""
+        f = filedialog.askopenfilename(title=T("Profil à importer", "Profile to import"),
+                                       filetypes=[(T("Profils Gerbil", "Gerbil profiles"), "*.json")])
+        if not f:
+            return
+        try:
+            with open(f, encoding="utf-8") as fh:
+                pr = json.load(fh)
+            name = safe_name(str(pr.get("name") or os.path.splitext(os.path.basename(f))[0]))
+            if not isinstance(pr, dict) or not name:
+                raise ValueError("not a profile")
+            if os.path.exists(profile_path(name)) and not messagebox.askyesno(
+                    "Gerbil", T(f"Le profil « {name} » existe déjà. Le remplacer ?",
+                                f"The profile '{name}' already exists. Replace it?")):
+                return
+            os.makedirs(PROFILES_DIR, exist_ok=True)
+            with open(profile_path(name), "w", encoding="utf-8") as fh:
+                json.dump(pr, fh, ensure_ascii=False, indent=1)
+        except (OSError, ValueError) as e:
+            messagebox.showerror("Gerbil", T("Ce fichier n'est pas un profil Gerbil :\n",
+                                             "This file is not a Gerbil profile:\n") + str(e))
+            return
+        self.profiles_changed(name)
+
+    def profile_data(self):
+        """The profile chosen (dict), or None."""
+        name = self.s.get("profile")
+        if not name:
+            return None
+        try:
+            with open(profile_path(name), encoding="utf-8") as fh:
+                return json.load(fh)
+        except (OSError, ValueError):
+            return None
 
     def profiles_changed(self, name):
         """List of profiles updated, the profile saved chosen."""
@@ -4677,32 +5381,45 @@ class App:
         """What the column of steps says of each step."""
         n = sum(int(self.tree.set(i, "photos")) for i in self.tree.get_children())
         nf = sum(1 for i in self.tree.get_children() if os.path.isdir(i))
+        sub = self.step_sub
         if n:
-            self.step_sub[0].set(T(f"{nf} dossier(s), {n} photographie(s)", f"{nf} folder(s), {n} photo(s)"))
+            sub[P_SOURCES].set(T(f"{nf} dossier(s), {n} photographie(s)", f"{nf} folder(s), {n} photo(s)"))
         else:
-            self.step_sub[0].set(T("aucune pour l'instant", "none yet"))
-        if not self.step_sub[1].get():
-            self.step_sub[1].set(T("facultatif", "optional"))
-        if self.proc is not None and self.kind == "script":
-            self.step_sub[2].set(self.status.get())
-        elif self.rows:
-            self.step_sub[2].set(self._summary())
-        else:
-            self.step_sub[2].set(T("pas encore lancé", "not run yet"))
-        bad = sum(1 for r in self.rows if r[1] != "ok")
-        badge = self.step_widgets[3]["badge"]
+            sub[P_SOURCES].set(T("aucune pour l'instant", "none yet"))
+        if not sub[P_NAMING].get():
+            sub[P_NAMING].set(T("facultatif", "optional"))
+        if not hasattr(self, "runs"):
+            return
+        converts = self.s.get("mode") == "dng"
+        for kind, page, idle in (("cutout", P_CUTOUT, T("facultatif pour ce profil", "optional for this profile")
+                                  if converts else T("pas encore lancé", "not run yet")),
+                                 ("dng", P_CONVERT, T("RAW en DNG, JPG, TIFF", "RAW to DNG, JPG, TIFF"))):
+            r = self.runs[kind]
+            if self.proc is not None and self.kind == "script" and self.run_kind == kind:
+                sub[page].set(r["status"].get())
+            elif self.rows_by[kind]:
+                sub[page].set(self._summary(self.rows_by[kind] if self.run_kind != kind else None))
+            else:
+                sub[page].set(idle)
+        rows = self.rows_by["cutout"]
+        bad = sum(1 for r in rows if r[1] != "ok")
+        badge = self.step_widgets[P_REVIEW]["badge"]
         if bad:
             badge.configure(text=str(bad))
             badge.pack(side="left", padx=(8, 0))
-            self.step_sub[3].set(T("photographies à revoir", "photos to look at"))
+            sub[P_REVIEW].set(T("photographies à revoir", "photos to look at"))
         else:
             badge.pack_forget()
-            self.step_sub[3].set(T("rien à revoir", "nothing to look at") if self.rows else T("après le traitement",
-                                                                                          "after the processing"))
-        self.step_sub[4].set(T("planches, inventaire, versement", "plates, inventory, deposit"))
+            sub[P_REVIEW].set(T("rien à revoir", "nothing to look at") if rows else T("après le détourage",
+                                                                                      "after the cut-out"))
+        sub[P_FINAL].set(T("fichiers produits, versement", "files written, deposit"))
+        sub[P_PUBLICATION].set(T("planches, planches-contact, inventaire", "plates, contact sheets, inventory"))
         self.review_hint.set(T(f"{bad} photographie(s) à revoir", f"{bad} photo(s) to look at") if bad else "")
-        self.next_hint.set(T(f"Ensuite : vérification de {bad} photographie(s)", f"Next: review of {bad} photo(s)")
-                           if bad and self.proc is None else "")
+        self.runs["cutout"]["next_hint"].set(T(f"Ensuite : vérification de {bad} photographie(s)",
+                                               f"Next: review of {bad} photo(s)") if bad and self.proc is None else "")
+        dbad = sum(1 for r in self.rows_by["dng"] if r[1] != "ok")
+        self.runs["dng"]["next_hint"].set(T(f"{dbad} photographie(s) à vérifier : double-clic pour corriger",
+                                            f"{dbad} photo(s) to verify: double-click to fix") if dbad else "")
 
     def _naming_summary(self):
         """What the project of the first folder says: template, fields, photos with missing information."""
@@ -4721,7 +5438,7 @@ class App:
             return
         photos = sorted(f for f in os.listdir(folder) if os.path.splitext(f)[1].lower() in EXTENSIONS)
         template = (pr.get("template") or "").strip()
-        exists = os.path.exists(os.path.join(folder, PROJECT_FILE))
+        exists = project_known(folder)
         required = [f["key"] for f in pr["fields"] if f.get("required")]
         missing = sum(1 for p in photos if any(not project_values(pr, p).get(k) for k in required))
         name = os.path.basename(folder)
@@ -4743,8 +5460,9 @@ class App:
                                  + (T(f", {missing} incomplète(s)", f", {missing} incomplete") if missing else ""))
         self.naming_var.set(text)
         self.naming_example.set((T("Exemple : ", "Example: ") + photos[0] + "  →  "
-                                 + project_output_name(pr, photos[0]) + "_outlined"
-                                 + (".TIF" if pr.get("ext_case") == "upper" else ".tif")) if photos else "")
+                                 + project_output_name(pr, photos[0])
+                                 + (".dng" if self.s.get("mode") == "dng" else "_outlined"
+                                    + (".TIF" if pr.get("ext_case") == "upper" else ".tif"))) if photos else "")
 
     def naming_saved(self, folder, parent=None):
         """Batch renaming of a folder saved: the photos already processed follow without being processed
@@ -4753,8 +5471,11 @@ class App:
         the user agrees to it."""
         self._naming_summary()
         out_dir = self.s["output_dir"] if self.s["output_mode"] == "other" else os.path.join(folder, "outlined_result")
+        if hasattr(self, "meta_tree"):
+            self._meta_fill()
         if self.proc is not None or not os.path.isfile(os.path.join(out_dir, "outlined_report.csv")):
             return []
+        self._use("cutout")
         try:
             import gerbil as engine
             photos = [os.path.join(folder, f) for f in sorted(os.listdir(folder))
@@ -4841,9 +5562,10 @@ class App:
         if fs:
             self.add_paths(fs)
 
-    def project(self):
-        """Project of the folder selected in the list (or of the folder of the photo selected)."""
-        sel = self.tree.selection()
+    def project(self, select=None):
+        """Project of the folder selected in the list (or of the folder of the photo selected); select: a photo
+        (path) to open it on."""
+        sel = (select,) if select else self.tree.selection()
         folders = [i if os.path.isdir(i) else os.path.dirname(i) for i in sel]
         if not folders:
             folders = [i if os.path.isdir(i) else os.path.dirname(i) for i in self.tree.get_children()]
@@ -4854,8 +5576,13 @@ class App:
             if not d:
                 return
             folders = [os.path.normpath(d)]
+        items = list(self.tree.get_children())
+        whole = any(os.path.isdir(i) and os.path.normcase(os.path.normpath(i)) ==
+                    os.path.normcase(os.path.normpath(folders[0])) for i in items)
+        only = None if whole else [os.path.basename(i) for i in items if not os.path.isdir(i)
+                                   and os.path.normcase(os.path.dirname(i)) == os.path.normcase(folders[0])]
         try:
-            ProjectWindow(self, folders[0])
+            ProjectWindow(self, folders[0], only=only or None, select=os.path.basename(select) if select else None)
         except (ValueError, OSError) as e:
             messagebox.showerror("Gerbil", T("Impossible d'ouvrir le renommage en lot :\n", "Could not open the batch "
                                              "renaming:\n") + str(e))
@@ -4928,6 +5655,13 @@ class App:
         if not item:
             return
         name = tree.set(item, "photo")
+        if tree is self.runs["dng"]["table"]:              # a conversion: its information is fixed in the batch renaming
+            row = next((r for r in self.rows_by["dng"] if r[0] == name), None)
+            path = (row[4] if row else None) or self.index.get(name)
+            if path:
+                self.project(select=path)
+            return
+        self._use("cutout")
         row = next((r for r in self.rows if r[0] == name), None)
         if row and row[1] != "ok" and row[5] and row[4]:
             self._open_scale(row[4])
@@ -4962,7 +5696,7 @@ class App:
             self.out_dir.set(d)
 
     # ---------------------------------------------------------------- run
-    def _collect(self):
+    def _collect(self, kind="cutout"):
         """Reads the options; returns the command-line arguments (only what differs from the defaults)."""
         s = self.s
         for k, var in self.v.items():
@@ -4975,6 +5709,11 @@ class App:
             if s[k] == int(s[k]):
                 s[k] = int(s[k])
         s["output_mode"], s["output_dir"] = self.out_mode.get(), self.out_dir.get().strip()
+        if hasattr(self, "dng_vars"):
+            s["dng_jpg"], s["dng_tiff"] = self.dng_vars["jpg"].get(), bool(self.dng_vars["tiff"].get())
+        if kind == "dng":                              # RAW to DNG: written next to the photos, <date>\DNG, \JPG...
+            return ["--dng"] + (["--jpg", s["dng_jpg"]] if s["dng_jpg"] != "preview" else []) \
+                + (["--tiff"] if s["dng_tiff"] else [])
         a = []
         if s["output_mode"] == "other":
             if not s["output_dir"]:
@@ -5038,9 +5777,12 @@ class App:
         except OSError:
             pass
 
-    def run(self, inputs=None, quiet=False):
+    def run(self, inputs=None, quiet=False, kind="cutout"):
         """Processes the photos of the list (or the given ones: a photo whose scale was just set, photos
-        corrected in the review window). quiet: no question at the end (exports of the review window)."""
+        corrected in the review window). quiet: no question at the end (exports of the review window).
+        kind: "cutout" (step 03) or "dng" (step 04: conversion of the RAW photos)."""
+        if self.proc is not None:
+            return
         self.quiet = quiet
         inputs = list(inputs or self.tree.get_children())
         if not inputs:
@@ -5048,15 +5790,40 @@ class App:
                                             "Add at least one folder or photo (step 01)."))
             return
         try:
-            args = self._collect()
+            args = self._collect(kind)
         except ValueError as e:
             messagebox.showwarning("Gerbil", str(e)[:1].upper() + str(e)[1:] + ".")
             return
         self.save_settings()
         if not self.check_packages():
             return
+        self._use(kind)
+        if kind == "cutout":                 # the batch renamings kept in memory: written for the cut-out results
+            for folder in dict.fromkeys(p if os.path.isdir(p) else os.path.dirname(p) for p in inputs):
+                if held_key(folder) in HELD and not os.path.exists(os.path.join(folder, PROJECT_FILE)):
+                    try:
+                        save_project_file(folder, HELD[held_key(folder)], write=True)
+                    except OSError:
+                        pass
+        if kind == "dng":
+            import gerbil_dng
+            if not gerbil_dng.find_converter():
+                messagebox.showwarning("Gerbil", T(
+                    "Adobe DNG Converter n'est pas installé sur cet ordinateur. Installez-le (gratuit, sur le site "
+                    "d'Adobe), puis relancez.", "Adobe DNG Converter is not installed on this computer. Install it "
+                    "(free, from the Adobe website), then run again."))
+                return
+            near = list(dict.fromkeys(p if os.path.isdir(p) else os.path.dirname(p) for p in inputs))
+            if not gerbil_dng.find_exiftool(None, near) and not messagebox.askyesno("Gerbil", T(
+                    "ExifTool est introuvable : les DNG seront faits, mais sans les métadonnées, sans intégrer les "
+                    "XMP et sans aperçu JPG.\n\nGerbil le cherche à côté de lui, dans un dossier 1_Commons au-dessus "
+                    "des photographies, puis dans le PATH.\n\nContinuer quand même ?",
+                    "ExifTool cannot be found: the DNG files will be made, but without the metadata, without the "
+                    "XMP and without JPG previews.\n\nGerbil looks for it next to itself, in a 1_Commons folder "
+                    "above the photos, then in the PATH.\n\nGo on anyway?")):
+                return
         if not quiet:
-            self.show_page(2)
+            self.show_page(P_CONVERT if kind == "dng" else P_CUTOUT)
         self._clear_log()
         self._log(("gerbil_cli.exe " if FROZEN else "py gerbil.py ")
                   + " ".join(f'"{x}"' if " " in x else x for x in inputs + args)
@@ -5065,9 +5832,11 @@ class App:
         self.no_scale = []                                  # photos whose scale is missing or doubtful
         self.index = {}                                     # photo name -> path, to find them again
         if not quiet:
-            self.rows = []
+            self.rows = self.rows_by[kind] = []
             self.table.delete(*self.table.get_children())
-            self.todo_tree.delete(*self.todo_tree.get_children())
+            if kind == "cutout":
+                self.todo_tree.delete(*self.todo_tree.get_children())
+        self.results = self.results_by[kind] = []
         for p in inputs:
             files = [os.path.join(p, f) for f in sorted(os.listdir(p))] if os.path.isdir(p) else [p]
             for f in files:
@@ -5095,7 +5864,8 @@ class App:
             messagebox.showerror("Gerbil", T("Impossible de démarrer :\n", "Could not start:\n") + str(e))
             self._stop_bar()
             return
-        self.run_btn.state(["disabled"])
+        for r in self.runs.values():                      # one run at a time
+            r["run_btn"].state(["disabled"])
         self.install_btn.state(["disabled"])
         self.cancel_btn.state(["!disabled"])
         self.open_btn.state(["disabled"])
@@ -5137,7 +5907,7 @@ class App:
         tag = {"ok": "ok", "to verify": "verify"}.get(status, "failed")
         state = {"ok": "● ok", "to verify": T("● à vérifier", "● to verify")}.get(status, T("● échec", "● failed"))
         self.table.insert("", "end", values=(name, state, scale, todo), tags=(tag,))
-        if status != "ok":
+        if status != "ok" and getattr(self, "run_kind", "cutout") == "cutout":
             self.todo_tree.insert("", "end", values=(name, todo), tags=(tag,))
 
     def _handle(self, line):
@@ -5163,10 +5933,13 @@ class App:
                 self.no_scale.append(self.index[name])
             scale = scale_text(m.group(5))
             parts = [p.strip() for p in m.group(6).split(" | ") if p.strip()]
-            todo = doubt_text(parts[0].split(" ; ")[0]) if parts else ""
+            if self.run_kind == "dng":                   # a conversion: every doubt, then what was left empty
+                todo = " ; ".join(doubt_text(x) for part in parts for x in part.split(" ; ") if x.strip())
+            else:
+                todo = doubt_text(parts[0].split(" ; ")[0]) if parts else ""
             row = (name, status, scale, todo, self.index.get(name), scale_problem)
-            self.rows = [r for r in self.rows if r[0] != name] + [row]
-            for tree in (self.table, self.todo_tree):
+            self.rows[:] = [r for r in self.rows if r[0] != name] + [row]
+            for tree in ((self.table, self.todo_tree) if self.run_kind == "cutout" else (self.table,)):
                 for it in tree.get_children():
                     if tree.set(it, "photo") == name:
                         tree.delete(it)
@@ -5191,11 +5964,11 @@ class App:
             tag = "verify"
         self._log(line + "\n", tag)
 
-    def _summary(self):
-        """"12 ok, 3 à vérifier, 1 échec"."""
-        c = self.counts if self.counts else {}
-        if not c and self.rows:
-            for r in self.rows:
+    def _summary(self, rows=None):
+        """"12 ok, 3 à vérifier, 1 échec" (of the last run, or of the rows given)."""
+        c = self.counts if self.counts and rows is None else {}
+        if not c and (rows or self.rows):
+            for r in rows or self.rows:
                 c[r[1]] = c.get(r[1], 0) + 1
         parts = [f"{c.get('ok', 0)} ok", T(f"{c.get('to verify', 0)} à vérifier", f"{c.get('to verify', 0)} to verify")]
         bad = c.get("failed", 0) + c.get("error", 0)
@@ -5208,7 +5981,8 @@ class App:
         code = self.proc.returncode if self.proc else None
         cancelled = getattr(self, "_cancelled", False)
         self.proc, self._cancelled = None, False
-        self.run_btn.state(["!disabled"])
+        for r in self.runs.values():
+            r["run_btn"].state(["!disabled"])
         self.install_btn.state(["!disabled"])
         self.cancel_btn.state(["disabled"])
         self._stop_bar()

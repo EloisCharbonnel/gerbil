@@ -12,6 +12,7 @@ FILES = [
     ("gerbil_gui.pyw", "The interface (windows) - it runs the engine as a separate program."),
     ("gerbil_plates.py", "The plates: objects laid out at a chosen scale, written as SVG."),
     ("gerbil_tools.py", "Inventory (CSV) and thumbnails."),
+    ("gerbil_dng.py", "RAW photos to DNG, with their metadata and new names (Adobe DNG Converter, ExifTool)."),
     ("packaging/gerbil_setup.pyw", "The installer (Gerbil_Setup.exe)."),
     ("tests/synthetic.py", "Synthetic photos for the automatic tests."),
     ("tests/test_gerbil.py", "The automatic tests."),

@@ -341,6 +341,93 @@ def test_check_before_a_deposit(tmp_path):
         assert "4 fichier(s) à revoir" in fh.read()
 
 
+def test_names_checks_and_keywords_of_a_profile():
+    """A batch renaming as a profile gives it: the building with the smallest number in the name, the values
+    checked as the fields ask, the keywords of a tree written with their hierarchy."""
+    assert [g.first_item(v) for v in ("B27 ; B20 ; R3", "R3 ; B1", "", "room A")] == ["B20", "R3", "", "room A"]
+    pr = {"fields": [{"key": "building", "label": "Building", "check": {"item": r"[A-Z]{1,2}\d+", "help": "B16"}},
+                     {"key": "context", "label": "Context", "check": {"item": r"\d+"}, "required": True},
+                     {"key": "kw", "label": "Keywords", "kind": "keywords"}],
+          "template": "QSR{season}_{area}_{building|first}_{unit}_{photo}", "common": {"season": "26", "area": "A4"},
+          "photos": {"IMG_1.CR3": {"building": "B27 ; B20", "context": "SU8200",
+                                   "kw": "Photo state|with scale ; CONTEXT|Finds|pottery"}},
+          "iptc": {"state": "{building}", "sublocation": "{unit} ; {context}", "keywords": "{kw}"}}
+    assert g.project_name(pr, "IMG_1.CR3") == "QSR26_A4_B20_IMG_1"
+    assert g.project_checks(pr, "IMG_1.CR3", "x") == ["Context: SU8200 not written as expected"]
+    assert g.project_checks(pr, "IMG_2.CR3", "x") == ["missing information: Context"]
+    iptc = g.iptc_values(pr, g.photo_values(pr, "IMG_1.CR3"), "n")
+    assert iptc["state"] == "B27 ; B20" and iptc["sublocation"] == "SU8200"
+    assert iptc["keywords"] == ["with scale", "pottery"]
+    assert iptc["hierarchical"] == ["Photo state|with scale", "CONTEXT|Finds|pottery"]
+    xmp = g.make_xmp("d", {}, None, None, iptc)
+    ET.fromstring(re.sub(rb"<\?xpacket[^>]*\?>", b"", xmp).strip())                 # well-formed
+    assert b"<lr:hierarchicalSubject>" in xmp
+    import gerbil_dng as gd
+    args = gd.metadata_args(dict(iptc, creator=["Peddle J."], copyright="MAFKF"))
+    assert "-XMP-dc:Subject+=pottery" in args and "-XMP-dc:Subject-=pottery" in args
+    assert "-XMP-lr:HierarchicalSubject+=CONTEXT|Finds|pottery" in args and "-XMP-dc:Creator=Peddle J." in args
+    assert "-XMP-photoshop:State=B27 ; B20" in args and "-XMP-xmpRights:Marked=True" in args
+
+
+def test_list_of_raw_photos(tmp_path):
+    """The RAW photos of a folder and its sub-folders, without what the conversion wrote."""
+    for rel in ("a.CR3", "a.xmp", "sub/b.NEF", "2026-04-02/DNG/a.dng", "2026-04-02/JPG/a.jpg", "c.jpg"):
+        os.makedirs(os.path.dirname(os.path.join(tmp_path, rel)) or tmp_path, exist_ok=True)
+        open(os.path.join(tmp_path, rel), "wb").close()
+    import gerbil_dng as gd
+    found = sorted(os.path.relpath(f, tmp_path).replace(os.sep, "/") for f in gd.list_raws(str(tmp_path)))
+    assert found == ["a.CR3", "sub/b.NEF"]
+
+
+@pytest.mark.skipif(not os.environ.get("GERBIL_TEST_RAW"), reason="no RAW photo given (GERBIL_TEST_RAW)")
+def test_raw_converted_to_dng(tmp_path):
+    """A real conversion: DNG and JPG under the new name, the sidecar and the project in the DNG."""
+    import shutil
+    import gerbil_dng as gd
+    if not gd.find_converter() or not gd.find_exiftool():
+        pytest.skip("Adobe DNG Converter or ExifTool missing")
+    raw = os.environ["GERBIL_TEST_RAW"]
+    shutil.copy2(raw, tmp_path)
+    stem = os.path.splitext(os.path.basename(raw))[0]
+    with open(os.path.join(tmp_path, stem + ".xmp"), "w", encoding="utf-8") as fh:
+        fh.write('<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">'
+                 '<rdf:Description rdf:about="" xmlns:crs="http://ns.adobe.com/camera-raw-settings/1.0/" '
+                 'xmlns:dc="http://purl.org/dc/elements/1.1/" crs:Exposure2012="+0.65"><dc:subject><rdf:Bag>'
+                 '<rdf:li>from the camera</rdf:li></rdf:Bag></dc:subject></rdf:Description></rdf:RDF></x:xmpmeta>')
+    with open(os.path.join(tmp_path, g.PROJECT_FILE), "w", encoding="utf-8") as fh:
+        json.dump({"fields": [{"key": "area", "label": "Area"}, {"key": "kw", "label": "Keywords"}],
+                   "template": "QSR_{area}_{photo}", "common": {"area": "A4", "kw": "PHOTO|with scale"},
+                   "iptc": {"country": "{area}", "keywords": "{kw}"}}, fh)
+    assert gd.convert([str(tmp_path)]) == 0
+    dngs = [os.path.join(r, f) for r, _, fs in os.walk(tmp_path) for f in fs if f.endswith(".dng")]
+    assert [os.path.basename(f) for f in dngs] == [f"QSR_A4_{stem}.dng"]
+    et = gd.ExifTool(gd.find_exiftool())
+    try:
+        tags = et.json(["-XMP-dc:Subject", "-XMP-photoshop:Country", "-XMP-crs:Exposure2012", dngs[0]])
+    finally:
+        et.close()
+    assert tags["Country"] == "A4" and str(tags["Exposure2012"]) in ("+0.65", "0.65")
+    assert set(tags["Subject"]) == {"from the camera", "with scale"}
+    # nothing kept next to the photos: a new area found again in the DNG, which is renamed with its JPG
+    assert not [f for f in os.listdir(tmp_path) if f.endswith(".json") and f != g.PROJECT_FILE]
+    pr = json.load(open(os.path.join(tmp_path, g.PROJECT_FILE), encoding="utf-8"))
+    pr["common"]["area"] = "A5"
+    os.remove(os.path.join(tmp_path, g.PROJECT_FILE))
+    held = os.path.join(tmp_path.parent, "held.json")            # (as the interface gives it, not in the folder)
+    with open(held, "w", encoding="utf-8") as fh:
+        json.dump({os.path.normcase(os.path.abspath(tmp_path)): pr}, fh)
+    os.environ["GERBIL_PROJECTS"] = held
+    try:
+        assert gd.convert([str(tmp_path)]) == 0
+    finally:
+        del os.environ["GERBIL_PROJECTS"]
+    files = sorted(os.path.basename(f) for r, _, fs in os.walk(tmp_path) for f in [os.path.join(r, x) for x in fs]
+                   if f.endswith((".dng", ".jpg")))
+    assert files == [f"QSR_A5_{stem}.dng", f"QSR_A5_{stem}.jpg"]
+    back = gd.read_back(str(tmp_path))
+    assert back[os.path.basename(raw).lower()]["area"] == "A5"
+
+
 def test_naming_refresh_and_extension_case(tmp_path):
     rgb, _, _ = sy.photo()
     photo = os.path.join(tmp_path, "sherd_B.JPG")

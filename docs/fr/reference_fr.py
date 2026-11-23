@@ -255,8 +255,18 @@ FR = {
         "photos sont ignorés.",
     "gerbil.py:_HelpFormatter": "Affiche la valeur par défaut d'une option seulement quand elle a un sens.",
     "gerbil.py:_HelpFormatter._get_help_string": "L'aide d'une option.",
-    "gerbil.py:main": "La ligne de commande : lit les options, liste les photos, prévoit leurs noms, les traite en "
-        "parallèle, écrit le rapport et affiche le bilan des problèmes.",
+    "gerbil.py:main": "La ligne de commande : --dng confie les photos à la conversion des RAW en DNG (gerbil_dng), "
+        "le reste au traitement des photos (_main).",
+    "gerbil.py:_main": "Le traitement des photos : lit les options, liste les photos, prévoit leurs noms, les traite "
+        "en parallèle, écrit le rapport et affiche le bilan des problèmes.",
+    "gerbil.py:first_item": "De plusieurs valeurs séparées par « ; » (B27 ; B20 ; R3), celle au plus petit numéro parmi "
+        "celles du même genre que la première, les lettres avant le numéro (B20) ; la première quand aucune n'a de "
+        "numéro.",
+    "gerbil.py:template_text": "Un modèle rempli avec des valeurs : {champ} = sa valeur, {champ|first} = la valeur au "
+        "plus petit numéro parmi plusieurs (first_item).",
+    "gerbil.py:value_problems": "Ce qui ne va pas dans la valeur d'un champ, d'après son « check » : {\"item\": regex} "
+        "pour chacune de plusieurs valeurs séparées par « ; », {\"value\": regex} pour le texte entier, « help » = "
+        "comment l'écrire. Renvoie une liste de messages (vide : juste).",
     "gerbil.py:previous_output": "Le nom de sortie qu'avait la photo au traitement précédent.",
     "gerbil.py:remove_renamed": "Supprime les fichiers d'une photo écrits sous un ancien nom (le nom du projet a changé).",
     "gerbil.py:write_report": "Écrit le rapport CSV (Excel : séparateur « ; », virgule décimale), en gardant les lignes "

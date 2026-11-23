@@ -135,22 +135,27 @@ PARTS = [
             "confondue avec un objet clair."),
 
     ("h2", "4. Premier traitement, pas à pas"),
-    ("p", "La fenêtre de Gerbil suit le travail : une colonne à gauche donne les cinq étapes, chacune avec sa "
-          "page. On peut passer d'une étape à l'autre dans n'importe quel ordre. L'interface existe en français et "
+    ("p", "La fenêtre de Gerbil suit le travail : une colonne à gauche donne les six étapes, chacune avec sa "
+          "page (deux ont une seconde page, en retrait). On peut passer d'une étape à l'autre dans n'importe quel ordre. L'interface existe en français et "
           "en anglais (FR / EN en bas de la colonne)."),
     ("ol", ["**01 Photographies sources** : *Ajouter un dossier…* et choisir le dossier des photographies (leur "
             "nombre s'affiche). On peut en ajouter plusieurs, déposer des dossiers sur l'icône de Gerbil, ou "
             "coller le chemin d'un dossier dans le champ prévu (*Ajouter*, ou la touche Entrée).",
             "**02 Nommage et métadonnées** (facultatif) : le résumé du renommage en lot du dossier, et le bouton "
-            "qui l'ouvre.",
-            "**03 Traitement** : garder les réglages par défaut pour un premier essai (laisser la souris sur un "
+            "qui l'ouvre ; seules les photographies de l'étape 01 y sont montrées. Sa seconde page, *Relire les "
+            "métadonnées*, donne pour chaque photographie son nom produit et ce qu'il faut noter : un champ "
+            "obligatoire manquant ou une valeur mal écrite (à vérifier), un champ laissé vide (seulement signalé).",
+            "**03 Détourer et mettre à l'échelle** (facultatif) : garder les réglages par défaut pour un premier essai (laisser la souris sur un "
             "réglage affiche son explication), puis *Lancer*. La mire se remplit à mesure ; le tableau donne chaque "
             "photographie, son état (vert : ok, terre cuite : à vérifier, rouge : échec), son échelle et ce qu'il "
             "faut faire, en quelques mots.",
-            "**04 Vérification** : les photographies à revoir avec leur problème ; *Vérifier* ouvre la fenêtre de "
-            "correction. Un double-clic sur une ligne ouvre directement ce qu'il faut corriger.",
-            "**05 Publication** : planches, inventaire, vignettes. *Ouvrir les résultats* ouvre le dossier "
-            "`outlined_result`, créé à côté des photographies."]),
+            "Sa seconde page, *Voir les résultats* : les photographies à revoir avec leur problème ; *Vérifier* "
+            "ouvre la fenêtre de correction. Un double-clic sur une ligne ouvre directement ce qu'il faut corriger.",
+            "**04 Convertir** : les photographies RAW en DNG, avec un JPG et, si on le souhaite, un TIFF 16 bits "
+            "(voir 9 bis).",
+            "**05 Revue finale** : tous les fichiers produits, et le contrôle avant versement.",
+            "**06 Publication** : planches à l'échelle, planches libres, planches-contact, inventaire, vignettes. "
+            "*Ouvrir les résultats* ouvre le dossier `outlined_result`, créé à côté des photographies."]),
     ("p", "Compter 3 à 4 secondes par photo ; plusieurs photos sont traitées en même temps."),
 
     ("h2", "5. Ce qui sort"),
@@ -253,6 +258,27 @@ PARTS = [
     ("p", "Les informations vont dans le rapport (une colonne par champ) et **dans les fichiers PSD et TIFF** "
           "(XMP : titre = nom de sortie, mots-clés = valeurs)."),
 
+    ("h2", "9 bis. Convertir des RAW en DNG (étape 04)"),
+    ("p", "Pour les équipes qui archivent leurs RAW en DNG avec leurs métadonnées (protocole de la mission QSR). "
+          "À l'étape 04, Gerbil convertit chaque photographie RAW de l'étape 01 avec **Adobe DNG Converter** (gratuit, à installer), aux réglages du protocole, sous le **nom du "
+          "renommage en lot** (par exemple `QSR26_A4_B20_U113_IMG_6373.dng`), rangée dans `<date>\\DNG` avec un "
+          "JPG dans `<date>\\JPG` (l'aperçu du DNG, ou pleine taille) et, si on le souhaite, un TIFF 16 bits dans "
+          "`<date>\\TIFF`, métadonnées intégrées."),
+    ("ul", ["Le **XMP** voisin du RAW (Lightroom, Bridge, l'appareil) est intégré au DNG, réglages de développement "
+            "compris ; les champs remplis dans Gerbil l'emportent, les **mots-clés s'ajoutent** à ceux qui y sont.",
+            "Un **profil** peut porter tout le renommage d'un site : les champs, leur **sens** et leur **champ "
+            "IPTC** (affichés dans le *guide des champs*), les **contrôles** (une US en chiffres seuls, ST8622…), le "
+            "modèle de nom et les **listes de mots-clés** à cocher (*Mots-clés…*). *Importer…* (étape 01) ajoute le "
+            "profil reçu de l'équipe.",
+            "`{building|first}` dans le modèle de nom : de plusieurs valeurs (`B27 ; B20`), celle au plus petit "
+            "numéro (`B20`).",
+            "Rien n'est écrit à côté des photographies : chaque DNG garde son RAW d'origine et les valeurs "
+            "données ; le renommage en lot d'un dossier déjà converti se **relit dans ses DNG**.",
+            "Les champs laissés vides sont seulement signalés (*Non renseigné*) ; seuls les champs obligatoires du "
+            "profil (pour QSR : *Creator* et *Area*) mettent une photographie *à vérifier*.",
+            "Les RAW ne sont jamais modifiés. Relancer ne refait que ce qui a changé, et renomme un DNG si son nom a "
+            "changé. **ExifTool** (gratuit) est fourni avec Gerbil."]),
+
     ("h2", "10. Métadonnées IPTC"),
     ("p", "Dans le renommage en lot, *Métadonnées IPTC…* remplit les champs IPTC standard (lus par Bridge, Lightroom, "
           "darktable, l'Explorateur Windows) : pour chaque champ (titre, description, mots-clés, auteur, "
@@ -297,7 +323,7 @@ PARTS = [
     ("p", "L'aperçu montre les pages telles qu'elles seront écrites ; la molette zoome, ◀ ▶ tourne les pages."),
 
     ("h2", "12 bis. Les planches libres : photographies de terrain et orthophotos"),
-    ("p", "*Planches libres* (étape 05) met en page des **photographies entières** au lieu d'objets détourés : "
+    ("p", "*Planches libres* (étape 06) met en page des **photographies entières** au lieu d'objets détourés : "
           "des photographies de sépultures ou de structures, des orthophotos. Chaque photographie est ramenée à "
           "l'échelle de la planche (1:10, 1:20, 1:50…) : une planche typologique montre ainsi les sépultures à la "
           "même échelle, rangées par type."),
@@ -323,7 +349,7 @@ PARTS = [
             "**Liste des figures** : `figures.csv`, toujours écrit à côté des planches, donne pour chaque planche "
             "son numéro, son fichier, son titre, sa légende (les objets de la planche), son échelle et le crédit "
             "(champ *Crédit*). Il s'ouvre dans Excel et se colle dans le rapport comme un tableau.",
-            "**Planches-contact** (étape 05) : toutes les photographies d'un dossier sur des pages, avec leur "
+            "**Planches-contact** (étape 06) : toutes les photographies d'un dossier sur des pages, avec leur "
             "nom, tant par rangée ; *Grouper par* un champ (l'US, le secteur) commence une page à chaque valeur. "
             "Les photographies n'y sont pas à l'échelle."]),
 
@@ -336,7 +362,7 @@ PARTS = [
             "sur blanc, marge transparente coupée."]),
 
     ("h2", "13 bis. Le contrôle avant versement"),
-    ("p", "*Versement* (étape 05) contrôle un dossier avant sa remise à un service d'archives, **sans rien "
+    ("p", "*Versement* (étape 05, revue finale) contrôle un dossier avant sa remise à un service d'archives, **sans rien "
           "copier, déplacer ni modifier**. Pour chaque fichier du dossier et de ses sous-dossiers :"),
     ("ul", ["son **format**, d'après la liste des extensions acceptées (à adapter : chaque service a la sienne) ;",
             "son **nom** : lettres sans accent, chiffres, `_`, `-` et `.` seulement, et pour les photographies "

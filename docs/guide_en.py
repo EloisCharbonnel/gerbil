@@ -87,21 +87,26 @@ PARTS = [
             "for a light object."),
 
     ("h2", "4. A first run, step by step"),
-    ("p", "The window of Gerbil follows the work: a column on the left gives the five steps, each with its page. "
+    ("p", "The window of Gerbil follows the work: a column on the left gives the six steps, each with its page "
+          "(two have a second page, indented). "
           "The steps can be visited in any order. The interface is in French and English (FR / EN at the bottom "
           "of the column)."),
     ("ol", ["**01 Source photographs**: *Add folder…* and choose the folder of the photos (their number is "
             "shown). Several can be added, folders dropped on the Gerbil icon, or the path of a folder pasted "
             "in the field provided (*Add*, or the Enter key).",
             "**02 Naming and metadata** (optional): the summary of the batch renaming of the folder, and the button "
-            "that opens it.",
-            "**03 Processing**: keep the default settings for a first try (resting the mouse on a setting shows its "
+            "that opens it; only the photos of step 01 are shown in it. Its second page, *Check the metadata*, gives "
+            "for each photo its output name and what to note: a required field missing or a value written the wrong "
+            "way (to verify), a field left empty (only mentioned).",
+            "**03 Outline and scale** (optional): keep the default settings for a first try (resting the mouse on a setting shows its "
             "explanation), then *Run*. The scale bar fills in; the table gives each photo, its state (green: ok, "
             "terracotta: to verify, red: failed), its scale and what to do, in a few words.",
-            "**04 Review**: the photos to look at with their problem; *Review* opens the correction window. A "
-            "double-click on a row opens straight what needs fixing.",
-            "**05 Publication**: plates, inventory, thumbnails. *Open results* opens the `outlined_result` folder, "
-            "created next to the photos."]),
+            "Its second page, *See the results*: the photos to look at with their problem; *Review* opens the "
+            "correction window. A double-click on a row opens straight what needs fixing.",
+            "**04 Convert**: the RAW photos to DNG, with a JPG and, if wanted, a 16-bit TIFF (see 9 bis).",
+            "**05 Final review**: every file written, and the check before a deposit.",
+            "**06 Publication**: plates at scale, free plates, contact sheets, inventory, thumbnails. *Open results* "
+            "opens the `outlined_result` folder, created next to the photos."]),
     ("p", "Count 3 to 4 seconds per photo; several photos are processed at the same time."),
 
     ("h2", "5. What comes out"),
@@ -202,6 +207,28 @@ PARTS = [
     ("p", "The information goes into the report (one column per field) and **into the PSD and TIFF files** (XMP: "
           "title = output name, keywords = values)."),
 
+    ("h2", "9 bis. Converting RAW photos to DNG (step 04)"),
+    ("p", "For teams that archive their RAW photos as DNG with their metadata (protocol of the QSR mission). "
+          "In step 04, Gerbil converts every RAW photo of step 01 "
+          "with **Adobe DNG Converter** (free, to install), with the settings of the protocol, under the **name of "
+          "the batch renaming** (for instance `QSR26_A4_B20_U113_IMG_6373.dng`), in `<date>\\DNG` with a JPG in "
+          "`<date>\\JPG` (the preview of the DNG, or full size) and, if wanted, a 16-bit TIFF in `<date>\\TIFF`, "
+          "metadata embedded."),
+    ("ul", ["The **XMP** next to the RAW (Lightroom, Bridge, the camera) is embedded in the DNG, development settings "
+            "included; the fields filled in Gerbil take precedence, the **keywords are added** to those already there.",
+            "A **profile** can carry the whole batch renaming of a site: the fields, their **meaning** and their "
+            "**IPTC field** (shown in the *guide of the fields*), **checks** (a context as a number only, ST8622…), the "
+            "name template and **keyword lists** to tick (*Keywords…*). *Import…* (step 01) adds the profile "
+            "received from the team.",
+            "`{building|first}` in the name template: of several values (`B27 ; B20`), the one with the smallest "
+            "number (`B20`).",
+            "Nothing is written next to the photos: each DNG keeps its original RAW and the values given; the batch "
+            "renaming of a folder already converted is **read back from its DNG files**.",
+            "Fields left empty are only mentioned (*Not mentioned*); only the required fields of the profile (for "
+            "QSR: *Creator* and *Area*) make a photo *to verify*.",
+            "The RAW files are never modified. Running again only redoes what changed, and renames a DNG whose name "
+            "changed. **ExifTool** (free) ships with Gerbil."]),
+
     ("h2", "10. IPTC metadata"),
     ("p", "In *Batch renaming*, *IPTC metadata…* fills the standard IPTC fields (read by Bridge, Lightroom, "
           "darktable, the Windows Explorer): for each field (title, description, keywords, creator, copyright, "
@@ -244,7 +271,7 @@ PARTS = [
     ("p", "The preview shows the pages as they will be written; the wheel zooms, ◀ ▶ turns the pages."),
 
     ("h2", "12 bis. Free plates: field photos and orthophotos"),
-    ("p", "*Free plates* (step 05) lays out **whole photos** instead of outlined objects: photos of graves or "
+    ("p", "*Free plates* (step 06) lays out **whole photos** instead of outlined objects: photos of graves or "
           "structures, orthophotos. Each photo is brought to the scale of the plate (1:10, 1:20, 1:50…): a "
           "typological plate thus shows the graves at the same scale, sorted by type."),
     ("ul", ["**Giving the scale of a photo**: *Scale of the photos…* lists the photos of the folder with their "
@@ -266,7 +293,7 @@ PARTS = [
             "**List of figures**: `figures.csv`, always written beside the plates, gives for each plate its "
             "number, file, title, caption (the objects of the plate), scale and the credit (*Credit* field). It "
             "opens in Excel and is pasted into the report as a table.",
-            "**Contact sheets** (step 05): every photo of a folder on pages, with its name, so many per row; "
+            "**Contact sheets** (step 06): every photo of a folder on pages, with its name, so many per row; "
             "*Group by* a field (the US, the sector) starts a page at each value. The photos are not to scale "
             "there."]),
 
@@ -279,7 +306,7 @@ PARTS = [
             "transparent margin cut off."]),
 
     ("h2", "13 bis. The check before a deposit"),
-    ("p", "*Deposit* (step 05) checks a folder before it is handed over to an archive, **without copying, "
+    ("p", "*Deposit* (step 05, final review) checks a folder before it is handed over to an archive, **without copying, "
           "moving or changing anything**. For every file of the folder and its sub-folders:"),
     ("ul", ["its **format**, against the list of accepted extensions (to adapt: each archive has its own);",
             "its **name**: letters without accents, digits, `_`, `-` and `.` only, and for the photos the "
