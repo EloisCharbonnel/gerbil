@@ -39,8 +39,10 @@ rem ExifTool (free) for the RAW to DNG conversion, when it was put in third_part
 if exist "third_party\exiftool" xcopy /e /i /q /y "third_party\exiftool" "build\dist\Gerbil\exiftool" >nul
 copy /y docs\PSEUDOCODE.txt build\dist\Gerbil\ >nul
 if not exist build\dist\Gerbil\docs mkdir build\dist\Gerbil\docs
-copy /y docs\Gerbil_guide_FR.odt build\dist\Gerbil\docs\ >nul
-copy /y docs\Gerbil_guide_EN.odt build\dist\Gerbil\docs\ >nul
+copy /y docs\Gerbil_guide_FR.pdf build\dist\Gerbil\docs\ >nul
+copy /y docs\Gerbil_guide_EN.pdf build\dist\Gerbil\docs\ >nul
+copy /y docs\Gerbil_code_guide_FR.pdf build\dist\Gerbil\docs\ >nul
+copy /y docs\Gerbil_code_guide_EN.pdf build\dist\Gerbil\docs\ >nul
 copy /y packaging\Gerbil_drop.bat build\dist\Gerbil\ >nul
 
 REM replace the previous version only now

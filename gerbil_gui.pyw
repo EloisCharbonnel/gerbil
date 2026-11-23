@@ -1238,9 +1238,10 @@ class ProjectWindow:
         self.fields_lbl.pack(anchor="w")
         bar = ttk.Frame(row0, style="Card.TFrame")
         bar.pack(anchor="w", pady=(4, 0))
-        for text, cmd in ((tr("Add field…"), self.add_field), (tr("Edit field…"), self.edit_field),
-                          (tr("Remove field…"), self.remove_field)):
-            ttk.Button(bar, text=text, command=cmd, style="Small.TButton").pack(side="left", padx=(0, 4))
+        for k, (text, cmd) in enumerate(((tr("Add field…"), self.add_field), (tr("Edit field…"), self.edit_field),
+                                         (tr("Remove field…"), self.remove_field))):  # two rows: never cut
+            ttk.Button(bar, text=text, command=cmd, style="Small.TButton").grid(
+                row=k // 2, column=k % 2, sticky="ew", padx=(0, 4), pady=(0, 3))
 
         ttk.Label(top, text=tr("NAME TEMPLATE"), style="Section.TLabel").grid(row=1, column=0, sticky="w", pady=(10, 0))
         self.template = tk.StringVar(value=pr.get("template", ""))
@@ -1707,7 +1708,7 @@ class ProjectWindow:
             return
         name = sel[0]
         self.thumb_name.set(name + (T(f"  (+{len(sel) - 1} sélectionnée(s))", f"  (+{len(sel) - 1} selected)") if len(sel) > 1 else "")
-                            + "   - double-click: whole photo")
+                            + T("   (double-clic : photographie entière)", "   (double-click: whole photo)"))
         bad = self.problems(name)
         self.check_msg.set((T("À revoir : ", "To check: ") + " ; ".join(bad)) if bad else "")
         if name not in self.thumbs:
@@ -6225,7 +6226,7 @@ class App:
 
     def help(self):
         """Opens the guide of the interface language (else the README)."""
-        guide = os.path.join(HERE, "docs", "Gerbil_guide_FR.odt" if LANG == "fr" else "Gerbil_guide_EN.odt")
+        guide = os.path.join(HERE, "docs", "Gerbil_guide_FR.pdf" if LANG == "fr" else "Gerbil_guide_EN.pdf")
         for path in (guide, README):
             if os.path.exists(path):
                 os.startfile(path)

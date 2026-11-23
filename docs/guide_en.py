@@ -1,778 +1,1047 @@
-"""Text of the guide in English (parts I to III). Part IV, the reference of the functions, is made from the
-code by docs/make_guide_odt.py, with the docstrings. Same blocks as docs/fr/guide_fr.py:
-("h1"|"h2"|"h3", title), ("p", text), ("ul"|"ol", [items]), ("code", text), ("tip"|"warn"|"note", text),
-("table", [header row, rows...]), ("figure", image, caption), ("defs", [(term, definition)...]),
-("annotated", file, function, [explanation of each line]), ("pagebreak",).
-In the texts: **bold**, *italic*, `code`."""
+"""Text of the guides in English, read by docs/make_guide_pdf.py:
 
-TITLE = "Gerbil"
-SUBTITLE = "Guide for archaeologists and to the code"
-TAGLINE = "Outline, measure, publish: using Gerbil and understanding what it does, function by function"
-FOOTER = "Gerbil — Guide for archaeologists and to the code"
+- USER: the user guide (docs/Gerbil_guide_EN.pdf);
+- CODE: the guide to the code (docs/Gerbil_code_guide_EN.pdf), followed by the reference of the functions made
+  from the code, with their docstrings.
+
+Same blocks as docs/fr/guide_fr.py: ("part", number, title, lead, anchor), ("h2"|"h3", title[, anchor]),
+("p", text), ("lead", text), ("ul"|"ol", [items]), ("code", text), ("tip"|"warn"|"note"|"key", text),
+("quote", text), ("table", [header, rows…][, widths]), ("figure", image, caption), ("shot", screenshot,
+caption[, "half"]), ("defs", [(term, definition)…]), ("flow", [(no., title, text, anchor)…]), ("cards",
+[(question, answer, anchor)…]), ("annotated", file, function, [explanation of each line]), ("pagebreak",).
+In the texts: **bold**, *italic*, `code`, [[anchor]] or [[anchor|text]] (cross reference), {{Ctrl+Z}} (keys),
+<https://…> (link). The anchors are the same as in the French guide."""
+
 LABELS = {
-    "contents": "Contents", "foreword": "Foreword", "line": "line", "lines": "lines", "function": "function",
-    "class": "class", "method": "method", "untranslated": "", "helper": "(small helper: see the code)",
-    "tip": "Tip", "warn": "Warning", "note": "Good to know", "code_col": "Code", "expl_col": "What the line does",
-    "part4": "Part IV — Reference of the functions, file by file",
-    "part4_intro": "Every file of the program, its sections (the \"# ----\" banners of the code) and, in each, all "
-        "its functions and classes, with their explanation and their line number in the file. The name in purple "
-        "is the one to look for in the code (Ctrl+F); in brackets, what the function receives.",
-    "generated": "This part is written automatically from the code (docs/make_guide_odt.py): it always follows the "
-        "version of the program.",
-    "version": "Version", "licence": "Free software under the GNU GPL v3 or later",
+    "contents": "Contents", "part": "PART", "in_part": "In this part", "line": "line", "lines": "lines",
+    "function": "function", "class": "class", "method": "method", "untranslated": "",
+    "helper": "(small helper: see the code)",
+    "tip": "Tip", "warn": "Warning", "note": "Good to know", "key": "The essentials",
+    "code_col": "Code", "expl_col": "What the line does",
+    "ref_title": "Reference of the functions",
+    "ref_intro": "Every file of the program, its sections (the \"# ----\" banners of the code) and, in each, all "
+        "its functions and classes, with their explanation and their line number. The name in bold is the one to "
+        "look for in the code (Ctrl+F); in brackets, what the function receives.",
+    "generated": "This part is written automatically from the code (docs/make_guide_pdf.py): it always follows "
+        "the version of the program.",
+    "version": "Version", "licence": "Free software, GNU GPL v3 or later",
     "date": "Guide made on",
 }
+
+USER_META = {
+    "subtitle": "User guide",
+    "tagline": "From photographs of finds and of the field to published plates and archives: the whole way, step "
+               "by step, with its possibilities, its methods and its sources.",
+    "footer": "Gerbil {version}, user guide",
+}
+CODE_META = {
+    "subtitle": "Guide to the code",
+    "tagline": "How the program is organised, the Python notions to read it, functions explained line by line, "
+               "and the reference of every function.",
+    "footer": "Gerbil {version}, guide to the code",
+    "ref_number": "5",
+}
+
 FILE_ROLES = {}                         # the roles of docs/make_code_guide.py
 SECTION_TITLES = {}                     # the banners of the code, as they are
 
-FOREWORD = [
-    ("p", "Gerbil outlines archaeological finds photographed with a scale and gives them back **at their real "
-          "size**: dropped into Illustrator, they show at 1:1, without any computation or scaling by hand. It also "
-          "prepares the plates, the file names, the metadata and the inventories."),
-    ("p", "This guide is for those who **use** Gerbil as well as for those who want to **understand** what it "
-          "does, to explain it in a report, check it or change it. It can be read in any order:"),
-    ("ul", ["**Part I — Using Gerbil**: from the installation to the plates, step by step.",
-            "**Part II — Understanding the processing**: every step explained in plain words, with the thresholds "
-            "and the measured precision; enough to write a methodology.",
-            "**Part III — Reading the code**: how the program is organised, the useful Python notions, and real "
-            "functions explained line by line.",
-            "**Part IV — Reference**: every function and class of the program (more than 400), with its line "
-            "number."]),
-]
+# =============================================================================================================
+# USER GUIDE
+# =============================================================================================================
 
-PARTS = [
-    # =========================================================================================== PART I
-    ("h1", "Part I — Using Gerbil"),
+USER = [
+    # ------------------------------------------------------------------------------------------------ 1
+    ("part", "1", "Welcome", "Gerbil is the archaeologist's photo toolkit: it outlines finds at their real "
+     "size, names and documents the photographs, converts them for the archive and lays out the plates. This "
+     "guide goes all the way round, from the shot to the deposit.", "bienvenue"),
 
-    ("h2", "1. What Gerbil does"),
-    ("p", "Gerbil is given a folder of photos of finds (objects, metal, lithics, bone, glass…) lying on a plain "
-          "background with a scale. For each photo, it:"),
-    ("ol", ["**finds the scale** (black / white / red checkerboard, single row or millimetre ruler) and measures "
-            "it: how many pixels make one centimetre on *this* photo;",
-            "**outlines the object**: separates it from the background, discards the labels, the supports, the "
-            "colour charts and the scale itself;",
-            "**writes the files**: a layered PSD and transparent TIFF files whose resolution is the real one, so "
-            "that the object shows at its real size in Illustrator, Photoshop or InDesign;",
-            "**flags its doubts**: everything that deserves a look gets the `_to_be_verified` suffix."]),
-    ("p", "The measurement comes from the scale of each photo, not from the EXIF data: the camera, the lens and "
-          "the distance do not matter. A photo taken closer simply gives more pixels per centimetre."),
-    ("figure", "fig_photo", "A photo to process (synthetic photo: an invented object and a 10 cm checkerboard "
-                            "scale)."),
+    ("h2", "I want to…", "je-veux"),
+    ("cards", [
+        ("Outline finds at their real size", "step 03, then review", "etape-03"),
+        ("Name my files from the inventory", "batch renaming, CSV import", "etape-02"),
+        ("Archive my RAW photos as DNG with their metadata", "step 04", "etape-04"),
+        ("Make plates at 1/3", "plates at scale", "planches"),
+        ("Show burials at the same scale", "free plates", "planches-libres"),
+        ("Prepare a deposit to an archive", "final review", "etape-05"),
+        ("Fix a cut-out", "review window", "verifier"),
+        ("Give the scale by hand", "two clicks and a length", "echelle-main"),
+        ("Share the settings with the team", "site profile", "profils"),
+        ("Write the methodology of the report", "a paragraph to adapt", "methodologie"),
+        ("Find a shortcut", "keyboard and mouse", "raccourcis"),
+        ("Understand a message", "troubleshooting", "depannage"),
+    ]),
 
-    ("h2", "2. Installing Gerbil"),
+    ("h2", "This guide", "ce-guide"),
+    ("p", "It is for those who **use** Gerbil, in the finds room as in the field, and for those who want to "
+          "**understand** what it does to explain it in a report. The code itself has its own guide, the *Guide "
+          "to the code*."),
+    ("ul", ["[[apercu|Gerbil at a glance]]: what the program does, the way from A to Z, the window.",
+            "[[prise-de-vue|Taking good photos]]: what happens before Gerbil.",
+            "[[etapes|The six steps]]: every page of the window, in detail, with screenshots.",
+            "[[workflows|Workflows]]: complete recipes, from finds to deposit.",
+            "[[comprendre|Understanding the processing]]: the methods, in plain words, for a methodology.",
+            "[[inspirations|Inspirations and sources]]: where Gerbil's choices come from.",
+            "[[annexes|Appendices]]: shortcuts, options, files, troubleshooting, glossary, libraries."]),
+    ("h3", "Conventions"),
+    ("table", [["Written", "Means"],
+               ["*Run*", "a button, box or menu of Gerbil (in italics, with its name on screen)."],
+               ["{{Ctrl+Z}}", "a key or a combination of keys."],
+               ["`outlined_result`", "a file or folder name, an option, text to type."],
+               ["[[raccourcis|Shortcuts]]", "a cross reference: a click goes to the page. The bookmarks of the PDF "
+                                            "also give the whole outline."]], [0.3, 0.7]),
+    ("note", "The interface is in English and French; this guide gives the English names of the buttons. The "
+             "photos of this guide are synthetic (made-up sherds, those of the automatic tests): the "
+             "screenshots show version 2.3."),
+
+    # ------------------------------------------------------------------------------------------------ 2
+    ("part", "2", "Gerbil at a glance", "What the program does, the way of a series of photos from A to Z, and "
+     "the window that follows it step by step.", "apercu"),
+
+    ("h2", "What Gerbil does", "ce-que-fait-gerbil"),
+    ("p", "Gerbil is given photos of finds (pottery, metal, lithics, bone, glass…) laid on a plain background "
+          "**with a scale**, or photos of the field. It:"),
+    ("ol", ["**finds and measures the scale** of each photo (checkerboard, single row, millimetre ruler, or a "
+            "scale it has learned): how many pixels make a centimetre on *this* photo;",
+            "**outlines the object**, leaving out labels, supports, colour charts and the scale itself;",
+            "**writes files at 1:1**: a layered PSD and transparent TIFFs whose resolution is the real one, so that "
+            "the object shows at its real size in Illustrator, Photoshop or InDesign;",
+            "**names and documents** the files from the batch renaming (site, context, number…) and writes the "
+            "IPTC metadata read by Bridge, Lightroom or Windows Explorer;",
+            "**converts RAW photos to archival DNG**, with their metadata, their new names and a JPG;",
+            "**lays out plates** at scale (1:1, 1:2, 1:3…), free plates of the field, contact sheets, the inventory "
+            "and thumbnails;",
+            "**checks a folder before a deposit**: formats, names, duplicates, checksums;",
+            "**says when it is unsure** instead of keeping quiet: whatever deserves a look gets the suffix "
+            "`_to_be_verified`."]),
+    ("p", "The measurement comes from the scale of each photo, not from the camera data: the lens and the distance "
+          "do not matter. The original photos are **never changed**."),
+    ("figure", "fig_control", "The control preview of a photo: outline of the cut-out in green, scale found in "
+                              "magenta, centimetres read in orange, measurement written at the top."),
+
+    ("h2", "The way from A to Z", "parcours"),
+    ("p", "Gerbil's window follows the work in six steps. Only the first is needed; the others are done as "
+          "needed, and in any order. A click on a card goes to its page."),
+    ("flow", [
+        ("01", "Source photographs", "The folders or photos to process, and the site profile.", "etape-01"),
+        ("02", "Naming and metadata", "The names of the files written, the information of each photo; then "
+                                      "checking it.", "etape-02"),
+        ("03", "Outline and scale", "The objects at 1:1 as PSD and TIFF; then the review of doubtful cases.",
+         "etape-03"),
+        ("04", "Convert", "RAW photos to archival DNG, with a JPG and, if wanted, a 16-bit TIFF.", "etape-04"),
+        ("05", "Final review", "Every file written, and the check before a deposit.", "etape-05"),
+        ("06", "Publication", "Plates at scale, free plates, contact sheets, inventory, thumbnails.", "etape-06"),
+    ]),
+    ("table", [["", "You do", "You get"],
+               ["**Before**", "[[prise-de-vue|Photograph]] with a scale in the plane of the object, on a plain "
+                              "background.", "Photos that Gerbil can measure."],
+               ["**01**", "Add the folder, choose the site profile.", "The list of photos."],
+               ["**02**", "Fill in the batch renaming, or import the inventory.", "Right file names and metadata."],
+               ["**03**", "*Run*, then *Review* the flagged photos.", "`outlined_result`: PSD, TIFF at 1:1, CSV "
+                                                                      "report."],
+               ["**04**", "*Convert* the RAW photos.", "`<date>\\DNG`, `<date>\\JPG`, `<date>\\TIFF`."],
+               ["**05**", "Look over the files; check before a deposit.", "`deposit_check`: inventory, checksums."],
+               ["**06**", "Make the plates, the inventory, the thumbnails.", "SVG, TIFF, JPEG, PDF, CSV."]],
+     [0.12, 0.5, 0.38]),
+    ("tip", "A team that only converts (the protocol of a field mission) goes from 02 to 04: its site profile marks "
+            "step 03 as optional and *Continue* goes straight to the conversion."),
+
+    ("h2", "The window", "la-fenetre"),
+    ("shot", "sources", "Gerbil's window, here at step 01: the column of steps on the left, the page of the step "
+                        "on the right, on squared paper."),
+    ("ul", ["**The column of steps**: a click opens a step. Under each title, a summary kept up to date (\"6 "
+            "photo(s)\", \"4 ok, 2 to verify\"); an orange badge counts what is left to look at. Two steps have a "
+            "second page, indented: *Check the metadata* and *See the results*.",
+            "**The page**: a title, a sentence that says what the step is for, then its cards. Leaving the mouse "
+            "on a setting shows its explanation.",
+            "**Continue** (light green, at the bottom) goes to the next useful step.",
+            "**At the bottom of the column**: the language (*FR*, *EN*), *Help* (this guide), the theme (*GREEN*, "
+            "*VIOLET*, *LIGHT*, *DARK*), the version."]),
+
+    ("h2", "Language and themes", "themes"),
+    ("p", "The interface is in English and French; the first time, it follows the language of Windows. It comes "
+          "in green (by default) or violet, light or dark: a click on *GREEN*, *VIOLET*, *LIGHT* or *DARK* changes "
+          "the window at once, and the choice is kept. Windows already open take the new colours when opened "
+          "again. The files written (plates, PDF) stay on white, whatever the theme."),
+    ("shot", "dark", "The dark green theme, at step 03."),
+
+    ("h2", "Install, update, uninstall", "installer"),
     ("h3", "On a computer without Python (the simplest)"),
-    ("ol", ["Double-click **Gerbil_Setup.exe** (one file, about 100 MB).",
+    ("ol", ["Double-click **Gerbil_Setup.exe** (a single file, about 100 MB).",
             "Keep the folder offered (no administrator rights needed), tick the desktop shortcut if wanted, then "
             "*Install*.",
             "Open Gerbil from the Start menu."]),
-    ("warn", "The programs are not signed: at the first launch, Windows may show \"Windows protected your PC\". "
-             "Click *More info*, then *Run anyway*."),
-    ("p", "To update, run a newer Gerbil_Setup.exe: the AI models already downloaded are kept. To uninstall: "
+    ("warn", "The programs are not signed: the first time, Windows may show \"Windows protected your PC\". Click "
+             "*More info*, then *Run anyway*."),
+    ("p", "**Update**: run a newer Gerbil_Setup.exe; the AI models already downloaded are kept. **Uninstall**: "
           "*Settings > Apps > Installed apps*. Photos and results are never touched."),
     ("h3", "With the Python scripts"),
-    ("p", "Copy the whole folder of the program, double-click **Install.bat** once (it installs Python if needed, "
-          "then numpy, OpenCV, Pillow and rawpy), then open the interface with **Gerbil.bat**."),
+    ("p", "Copy the folder of the program, double-click **Install.bat** once (it installs Python if needed, then "
+          "numpy, OpenCV, Pillow and rawpy), then open the interface with **Gerbil.bat**. **Gerbil_drop.bat** "
+          "processes the folders dropped on it."),
+    ("h3", "What is needed alongside"),
+    ("ul", ["**Adobe DNG Converter** (free, from Adobe) for step 04 only; Gerbil finds it once installed.",
+            "**ExifTool** ships with Gerbil (metadata of the DNG files).",
+            "**Inkscape** (free), to place `.ai`, `.pdf` or `.eps` drawings on the plates.",
+            "The **AI models** (AI cut-out, one-click cut-out) are downloaded once, the first time they are used; "
+            "then everything runs on the computer."]),
 
-    ("h2", "3. Taking the photos"),
-    ("ul", ["**The scale in the plane of the object**: at the height of the face photographed. A scale lying on "
-            "the table under a thick object gives a wrong measurement (the object is closer to the lens).",
-            "**A plain background**, different from the object: light (the intended situation) or dark (black "
-            "velvet, felt). A slight lighting gradient does no harm.",
-            "**A known scale**: black / white / red checkerboard of 5, 10 or 20 cm (one or two rows, digits "
-            "printed in the squares allowed), single black and white row, or ruler graduated in millimetres. "
-            "Another scale can be *learned* (see the site profiles).",
+    # ------------------------------------------------------------------------------------------------ 3
+    ("part", "3", "Taking good photos", "Gerbil measures what it sees: the quality of the result is decided "
+     "when the photo is taken. A few simple rules are enough.", "prise-de-vue"),
+
+    ("h2", "The five rules", "cinq-regles"),
+    ("ol", ["**The scale in the plane of the object**, at the height of the photographed face. Laid on the table "
+            "under a thick object, it gives a wrong measurement (the object is closer to the lens).",
+            "**A plain background** that differs from the object: light (paper, card) or dark (black velvet, "
+            "felt). A slight lighting gradient does not matter.",
+            "**A known scale**: a black and white (or red) checkerboard of 5, 10 or 20 cm, one or two rows, "
+            "printed digits accepted; a single row; a ruler graduated in millimetres. Any other scale can be "
+            "[[profils|learned]].",
             "**The whole object in the frame**, not touching the edge of the photo.",
-            "**Formats**: JPEG, TIFF, PNG or RAW (DNG, CR2, CR3, NEF, ARW, ORF, RW2, RAF…)."]),
-    ("tip", "Mounting putty: a blue putty (Blu-Tack type), or putty hidden behind the object, is never mistaken "
-            "for a light object."),
+            "**The camera parallel to the table**: from the front, not at an angle."]),
+    ("figure", "fig_photo", "A photo to process: a (synthetic) sherd and a 10 cm checkerboard scale, on a light "
+                            "background."),
+    ("h2", "Formats", "formats"),
+    ("p", "JPEG, TIFF, PNG or RAW (DNG, CR2, CR3, NEF, ARW, ORF, RW2, RAF…). A RAW photo is developed by Gerbil; "
+          "for very precise colours, develop it yourself (Lightroom, darktable) and give the TIFFs to Gerbil."),
+    ("h2", "Small tips", "conseils"),
+    ("ul", ["**Mounting putty**: a blue putty, or putty hidden behind the object, is not mistaken for a light object.",
+            "**Very light objects** (white fabric, chalk, cortex): on a grey or black background, or AI cut-out.",
+            "**A colour chart** in the frame lets you balance the whites afterwards ([[couleurs|Colour setting]]).",
+            "**A label** may stay on the photo: Gerbil leaves it out. Placing it on the other side of the scale "
+            "helps.",
+            "**Several objects** on one photo are outlined together, each at scale."]),
 
-    ("h2", "4. A first run, step by step"),
-    ("p", "The window of Gerbil follows the work: a column on the left gives the six steps, each with its page "
-          "(two have a second page, indented). "
-          "The steps can be visited in any order. The interface is in French and English (FR / EN at the bottom "
-          "of the column), green or violet, light or dark (GREEN / VIOLET, LIGHT / DARK, just below; the choice "
-          "is kept)."),
-    ("ol", ["**01 Source photographs**: *Add folder…* and choose the folder of the photos (their number is "
-            "shown). Several can be added, folders dropped on the Gerbil icon, or the path of a folder pasted "
-            "in the field provided (*Add*, or the Enter key).",
-            "**02 Naming and metadata** (optional): the summary of the batch renaming of the folder, and the button "
-            "that opens it; only the photos of step 01 are shown in it. Its second page, *Check the metadata*, gives "
-            "for each photo its output name and what to note: a required field missing or a value written the wrong "
-            "way (to verify), a field left empty (only mentioned).",
-            "**03 Outline and scale** (optional): keep the default settings for a first try (resting the mouse on a setting shows its "
-            "explanation), then *Run*. The scale bar fills in; the table gives each photo, its state (green: ok, "
-            "terracotta: to verify, red: failed), its scale and what to do, in a few words.",
-            "Its second page, *See the results*: the photos to look at with their problem; *Review* opens the "
-            "correction window. A double-click on a row opens straight what needs fixing.",
-            "**04 Convert**: the RAW photos to DNG, with a JPG and, if wanted, a 16-bit TIFF (see 9 bis).",
-            "**05 Final review**: every file written, and the check before a deposit.",
-            "**06 Publication**: plates at scale, free plates, contact sheets, inventory, thumbnails. *Open results* "
-            "opens the `outlined_result` folder, created next to the photos."]),
-    ("p", "Count 3 to 4 seconds per photo; several photos are processed at the same time."),
+    # ------------------------------------------------------------------------------------------------ 4
+    ("part", "4", "The six steps", "Every page of the window in detail: what is done there, what is set there, "
+     "what comes out.", "etapes"),
 
-    ("h2", "5. What comes out"),
-    ("p", "All the files of a photo keep its name, so that they follow one another in the Explorer:"),
+    ("h2", "01 Source photographs", "etape-01"),
+    ("p", "The list of folders and photos to process, and the site profile."),
+    ("ul", ["*Add folder…* (sub-folders included) or *Add photos…*; the number of photos is shown.",
+            "**Paste a path** in the *or paste a path* field, then *Add* or {{Enter}}.",
+            "**Drop folders** on Gerbil's icon to add them at start.",
+            "*Remove* (or {{Delete}}) takes the chosen row out, *Clear* the whole list. The files are never "
+            "touched."]),
+    ("p", "On the right, **the site profile** and **what it holds**: its work (cut-out or conversion), its fields "
+          "(required ones have a star), its name template, its keyword lists, its settings, its learned scales."),
+
+    ("h2", "Site profiles and learned scales", "profils"),
+    ("p", "A **site profile** gathers what is known of the photos of a site or season, chosen once and for all "
+          "(*New…*, *Edit…*, *Import…*):"),
+    ("ul", ["the **background**: found by Gerbil, light, or dark;",
+            "the **renaming**: fields, meaning of each field and its IPTC field, checks (a context in digits "
+            "only…), name template, keyword lists to tick;",
+            "the **settings** of the window (*Keep the options of the main window*) and the **work** of the team "
+            "(cut-out, or conversion only);",
+            "the **learned scales**: *Learn a scale from a photo…*, click both ends of the scale and give the width "
+            "of its printed band; Gerbil then finds it on the other photos."]),
+    ("p", "By default, a learned scale is a second chance, used when the usual reading fails; *Look for the learned "
+          "scales first* uses it first. *Put next to the photos…* copies the profile as `gerbil_profile.json` into "
+          "a folder: it then applies to those photos, for the whole team. *Import…* adds a profile received (a "
+          "`.json` file) to the library."),
+    ("tip", "Learn **each copy** of a scale in use: two prints of the same model may differ by 1%."),
+
+    ("h2", "02 Naming and metadata", "etape-02"),
+    ("p", "The page sums up the batch renaming of the folder; *Open the batch renaming…* opens the window that "
+          "gives each photo its information and the name of its files. Only the photos of step 01 are shown in it "
+          "(a box shows the whole folder)."),
+    ("shot", "project", "The batch renaming window: the fields and name template at the top, the rule helper on "
+                        "the right, the values for all photos, then one row per photo with its output name. "
+                        "Incomplete rows are in orange.", "half"),
+    ("h3", "Fields, name template, rule"),
+    ("ul", ["**Fields**: by default *Site*, *Sector*, *US*, *Object number*, *Material*, *View*; else those of the "
+            "profile. *Add field…*, *Edit field…* (name, meaning, IPTC field, required).",
+            "**Name template**, for instance `{site}_US{us}_{number}_{material}`: the files written take this name "
+            "(`EX24_US1043_1_pottery_outlined.tif`). The *Insert* buttons add a field. `{building|first}` keeps, of "
+            "several values (`B27 ; B20`), the one with the smallest number. **The original photos are never "
+            "renamed.**",
+            "**Naming rule** (optional): a regular expression, read as PowerShell's `-match`. The helper writes it "
+            "from tick boxes (uppercase only, ends with a number…) and shows the equivalent PowerShell line, to "
+            "learn. *Test a name* tries it."]),
+    ("h3", "Filling in the values as in Excel"),
+    ("ul", ["**Values for all the photos**: the site, the season, the author.",
+            "**The table**: double-click to edit a cell ({{Enter}} accepts, {{Esc}} cancels); the **handle** at the "
+            "corner of a cell copies down (with {{Ctrl}}: a series 187, 188, 189…); {{Ctrl+D}} copies the first "
+            "row chosen; {{Ctrl+A}} chooses all.",
+            "*Set for selected…*, *Number the selected…*; in *Keywords…*, a field finds a keyword.",
+            "*Import CSV / Excel…*: an inventory whose first row holds the column names; the column of photo names "
+            "is found by itself.",
+            "*Keywords…*: the lists of the profile, to tick for the rows chosen."]),
+    ("p", "*Save* keeps the renaming (in memory for a conversion, in `gerbil_project.json` for a cut-out); *Save and "
+          "process the photos* starts the step of the profile at once."),
+
+    ("h2", "Check the metadata", "relire"),
+    ("p", "The second page of step 02 checks, before any processing, each photo of step 01: its output name and "
+          "what to note. A double-click opens the batch renaming on that photo."),
+    ("shot", "meta", "Check the metadata: in orange, required information is missing."),
+    ("table", [["Remark", "Meaning", "The photo is"],
+               ["*Missing information: Site, Context*", "a required field of the profile is empty", "to verify"],
+               ["*Value not written as expected: Context 1043a*", "the value does not follow the check of its field",
+                "to verify"],
+               ["*Not mentioned: Material*", "an optional field is empty: only mentioned", "ok"]],
+     [0.4, 0.4, 0.2]),
+
+    ("h2", "IPTC metadata", "iptc"),
+    ("p", "*IPTC metadata…* (in the batch renaming) fills in the standard fields of photo libraries: title, "
+          "description, keywords, creator, copyright, location… For each, a text where `{field}` is replaced by the "
+          "value of the photo and `{name}` by the output name; a text without braces is the same for all (copyright, "
+          "creator). They are written into the PSD, TIFF, DNG and JPG files written, into the copy of the original "
+          "(without recompressing the image) and, if ticked, into a `NAME.xmp` file next to each original. A `.xmp` "
+          "written by another program is never replaced."),
+
+    ("h2", "03 Outline and scale", "etape-03"),
+    ("p", "The heart of Gerbil: the scale of each photo, the cut-out of the object, the files at 1:1. Keep the "
+          "default settings for a first try, then *Run*."),
+    ("shot", "cutout", "Step 03 after a run: the progress chart, one row per photo (green: ok, orange: to verify, "
+                       "red: failed), the settings on the right."),
+    ("table", [["Setting", "Choices"],
+               ["*Cut-out*", "*by the colour* (fast, exact on a plain background); *ai* or *ai-lite*: the BiRefNet "
+                             "network points out the objects ([[ia|see]])."],
+               ["*Colour*", "*unchanged*; white *balance*; *exposure*: balance and the same lightness for the whole "
+                            "series ([[couleurs|see]])."],
+               ["*White reference*", "*colour chart*, *scale* or *background*."],
+               ["*Photoshop file (.psd)*", "a layered PSD besides the TIFFs."],
+               ["*TIFF background*", "transparent or white."],
+               ["*Look for the scale*", "untick for photos without a scale."],
+               ["*Advanced settings…*", "margins, layout of the scale, putty, compression, AI second opinion, photos "
+                                        "in parallel…"],
+               ["*Results*", "*next to the photos* (`outlined_result` folder) or in a folder chosen."]], [0.3, 0.7]),
+    ("p", "*Changed from the defaults* recalls what was changed; *Back to the defaults* undoes it all. Count 3 to "
+          "4 seconds per photo; several are processed at the same time."),
+
+    ("h2", "What comes out", "ce-qui-sort"),
+    ("p", "All the files of a photo keep its name (or the name of the batch renaming), to follow them in Explorer:"),
     ("table", [["File", "Content"],
-               ["`NAME.JPG`", "Copy of the original photo (with the IPTC metadata added, without recompression)."],
-               ["`NAME.psd`", "Layered Photoshop file: *Original photo* (hidden, the whole photo), *Scale*, "
-                              "*Object*, with layer masks editable with the brush (white = show, black = hide)."],
+               ["`NAME.JPG`", "Copy of the original photo, with its IPTC metadata (no recompression)."],
+               ["`NAME.psd`", "Layered Photoshop: *Original photo* (hidden), *Scale*, *Object*, with layer masks "
+                              "that can be painted (white: show, black: hide)."],
                ["`NAME_outlined.tif`", "The object alone, transparent background, at the 1:1 resolution."],
-               ["`NAME_outlined_scale.tif`", "The object and its straightened scale under it, transparent."],
+               ["`NAME_outlined_scale.tif`", "The object and its straightened scale below."],
                ["`to_control/NAME_to_control.jpg`", "The control preview."],
-               ["`outlined_report.csv`", "The report: one row per photo, opens in Excel."]]),
-    ("figure", "fig_control", "The control preview: outline of the cut-out in green, scale in magenta, centimetres "
-                              "found in orange, and the measurement written at the top."),
-    ("p", "Colours of the control preview:"),
-    ("table", [["Colour", "Meaning"],
-               ["Green", "Outline of the cut-out."],
-               ["Magenta", "Frame of the scale found."],
-               ["Orange", "Centimetres read on the scale."],
-               ["Red", "What was discarded (label, chart, small isolated element), or possible mounting putty."],
-               ["Blue", "Plexiglass support removed."],
-               ["Cyan", "Background removed by the AI second opinion."]]),
+               ["`outlined_report.csv`", "The report: one row per photo ([[rapport|columns]])."]], [0.38, 0.62]),
+    ("table", [["Colour of the preview", "Meaning"],
+               ["Green", "outline of the cut-out"], ["Magenta", "frame of the scale found"],
+               ["Orange", "centimetres read on the scale"],
+               ["Red", "what was left out (label, chart, small isolated piece) or possible putty"],
+               ["Blue", "plexiglas support or cast shadow removed"],
+               ["Cyan", "background removed by the AI second opinion"]], [0.3, 0.7]),
     ("h3", "The _to_be_verified suffix"),
-    ("p", "When something is doubtful, all the files written for the photo get this suffix (e.g. "
-          "`NAME_outlined_to_be_verified.tif`): type `to_be_verified` in the search box of the Explorer to find "
-          "them. There is a doubt when:"),
-    ("ul", ["the scale is not found;",
-            "it is not 5, 10 or 20 cm long, or its squares / graduations are irregular or partly hidden;",
-            "an area looks like mounting putty;",
-            "a colour chart touches the object;",
-            "the object touches the edge of the photo;",
-            "a required piece of information is missing, or the name does not follow the naming rule."]),
-    ("p", "Processing a folder again replaces the files of the photos processed again; the suffix goes when the "
-          "doubt is lifted. The copy of the original photo always keeps its exact name."),
+    ("p", "When something is doubtful, all the files of the photo get this suffix (`NAME_outlined_to_be_verified.tif`): "
+          "type `to_be_verified` in Explorer's search to find them. There is a doubt when the scale is not found or "
+          "irregular, when an area looks like putty, a chart touches the object, the object touches the edge, "
+          "required information is missing or the name does not follow the rule. The suffix goes away at the next "
+          "run once the doubt is cleared."),
 
-    ("h2", "6. The report outlined_report.csv"),
-    ("p", "One row per photo, \";\" separator and decimal comma (Excel). Statuses: `ok`, `to verify`, `failed` (no "
-          "object found), `error`. Main columns:"),
-    ("table", [["Column", "Content"],
-               ["`file`, `output_name`", "Name of the photo, name of the output files (batch renaming)."],
-               ["`status`, `to_verify`", "Status, and the reasons for the doubt."],
-               ["`scale_found`, `scale_type`", "Scale found? Its kind: `checkerboard`, `ruler`, `manual` (given "
-                                               "by hand), `learned`."],
-               ["`squares`, `scale_length_cm`", "Number of squares, length of the scale."],
-               ["`px_per_cm`, `ppi_1_1`", "The measurement: pixels per centimetre, and the 1:1 resolution it "
-                                          "gives."],
-               ["`object_width_cm`, `object_height_cm`", "Size of the outlined object, in cm (columns called "
-                    "`ceramic_…` up to version 2.1; older reports are still read)."],
-               ["`pieces`", "Number of pieces outlined."],
-               ["`camera`, `lens`, `focal_mm`, `date_taken`", "Shooting information (EXIF)."],
-               ["`notes`, `duration_s`", "Remarks of the processing, duration."]]),
-    ("p", "The fields of the batch renaming (site, US, number…) are added as columns after these."),
-
-    ("h2", "7. Review and correct"),
-    ("p", "The review window shows the photos one by one, **doubtful and failed ones first**, with the outline of "
-          "the cut-out (green, background dimmed) and of the scale (magenta)."),
+    ("h2", "See the results and fix them", "verifier"),
+    ("p", "The second page of step 03 lists the photos to look at with their problem. *Review* opens the correction "
+          "window; a double-click on a row opens straight what needs fixing (the scale, the renaming or the "
+          "cut-out)."),
+    ("shot", "review", "The review window: doubtful photos first, the outline of the cut-out in green and of the "
+                       "scale in magenta, the tools on the right."),
     ("table", [["Tool", "Use"],
-               ["*One click on the object (more precise)*", "Click each object to keep: Segment Anything cuts it out "
-                    "(Shift + click removes one). More reliable on difficult photos, because the program is **told "
-                    "which object to cut out** instead of guessing what is an object, a label, a shadow or the "
-                    "background."],
-               ["*Erase* / *Add*", "Brush (adjustable size) or lasso (draw around an area) to remove or add."],
-               ["*Remove a piece*", "One click removes a whole piece (shadow, background patch)."],
-               ["*Undo* (Ctrl+Z), *Reset photo*", "Undo the last action, or all those of the photo."],
-               ["Orientation", "Draw a line along the rim: it becomes horizontal, the object below it. Or turn by "
-                               "quarter turns."],
-               ["*Fix the scale…*", "Opens the manual scale of the photo."],
-               ["*Accept and next*", "Saves the corrections and **exports the photo again at once**, in the "
-                                     "background (\"exporting…\", then \"✓ exported\")."]]),
-    ("p", "Navigation: mouse wheel to zoom, scroll bars, right or middle button, Space + drag or the arrow keys to "
-          "move the view; R to see the whole photo again."),
-    ("note", "The corrections are saved **next to the photos**, in a `gerbil_edits` folder: every later run keeps "
-             "them. Reopened later, the window shows the corrections already made. Keep this folder with the "
-             "photos."),
+               ["*One click on the object (more precise)*", "click each object to keep: Segment Anything outlines it "
+                    "({{Shift}} + click removes one). The surest on difficult photos, because you **show** the "
+                    "object instead of letting it guess."],
+               ["*Erase* / *Add*", "with a brush (adjustable size) or a lasso."],
+               ["*Remove a piece*", "a click removes a whole piece (shadow, stain of the background)."],
+               ["*Orient*", "draw a line along the rim: it becomes horizontal, the object below; or turn by quarter "
+                            "turns."],
+               ["*Undo*, *Reset photo*", "the last action ({{Ctrl+Z}}), or all of them."],
+               ["*Fix the scale…*", "opens the manual scale of the photo."],
+               ["*Information*", "the fields of the renaming, editable here."],
+               ["*Accept and next*", "saves and **exports the photo again at once**, in the background."]],
+     [0.34, 0.66]),
+    ("p", "Moving around: mouse wheel to zoom; right or middle button, {{Space}} + drag or the arrow keys to move "
+          "the view; {{R}} to see the whole photo again."),
+    ("note", "The corrections are kept **next to the photos**, in `gerbil_edits`: later runs keep them. Keep this "
+             "folder with the photos."),
 
-    ("h2", "8. Giving the scale by hand"),
-    ("p", "When the scale of a photo is not found or wrongly read: select the photo, *Set the scale by hand…*, click the two "
-          "ends of a known length (for example 0 and 5 cm, along the middle of the scale), give that length and "
-          "the width of the scale, then *Save*. The photo can be processed again at once."),
-    ("p", "The scale is kept in `gerbil_scales.json`, in the folder of the photos; it prevails over the automatic "
-          "search at every run (report: `scale_type` = `manual`). At the end of a run, Gerbil offers to set in a row "
-          "all the scales it did not find (*Save and next*, *Skip this photo*, *Stop*)."),
+    ("h2", "Give the scale by hand", "echelle-main"),
+    ("p", "When the scale is not found or misread: *Set the scale by hand…*, click both ends of a known length (0 "
+          "and 5 cm, in the middle of the scale), give this length and the width of the scale, then *Save*. The "
+          "scale is kept in `gerbil_scales.json` and wins over the automatic search (report: `scale_type = manual`). "
+          "At the end of a run, Gerbil offers to set in a row all the scales it did not find (*Save and next*, "
+          "*Skip this photo*, *Stop*)."),
 
-    ("h2", "9. Batch renaming and information of the photos"),
-    ("p", "*Open the batch renaming…* gives a folder of photos **fields** (by default *Site*, *Sector*, *US*, *Object "
-          "number*, *Material*, *View*), a **name template** and a **naming rule**. Everything is saved in "
-          "`gerbil_project.json`, next to the photos."),
-    ("ul", ["**Name template**, e.g. `{site}_{sector}_US{us}_{number}_{material}`: the output files take this name "
-            "(`QSR25_A5_US7549_187_metal_outlined.tif`). **The original photos are never renamed.**",
-            "**Values**: those common to all the photos (the site), and a table with one row per photo. As in "
-            "Excel: double-click to edit, **fill handle** at the corner of a cell to copy down (with Ctrl: a series "
-            "187, 188, 189…), Ctrl+D, *Set for selected…*, *Number the selected…*.",
-            "**Import CSV / Excel**: an inventory whose first row holds the column names; the column of the photo "
-            "names is found by itself.",
-            "**Naming rule** (optional): a regular expression read as PowerShell's `-match`. The helper writes it "
-            "from tick boxes (capitals only, ends with a number…) and shows the equivalent PowerShell line, to "
-            "learn from."]),
-    ("p", "The information goes into the report (one column per field) and **into the PSD and TIFF files** (XMP: "
-          "title = output name, keywords = values)."),
+    ("h2", "04 Convert: RAW to DNG", "etape-04"),
+    ("p", "To archive RAW photos as DNG with their metadata (the \"Convert RAW to DNG\" protocol of the MAFKF / QSR "
+          "mission, brought into Gerbil). Each RAW photo of step 01 is converted by **Adobe DNG Converter** with "
+          "the settings of the protocol (DNG 1.7, original RAW embedded, medium preview), under the **name of the "
+          "batch renaming**."),
+    ("shot", "convert", "Step 04: the conversion on the left, the extra exports on the right."),
+    ("ul", ["Sorted by date taken: `<date>\\DNG`, `<date>\\JPG` and, if ticked, `<date>\\TIFF` (16-bit, full "
+            "size).",
+            "**JPG**: the preview of the DNG (~1024 px, by default), developed at full size, or none. Metadata "
+            "embedded in each file.",
+            "The **XMP** next to the RAW (Lightroom, Bridge) is embedded in the DNG; the fields filled in Gerbil "
+            "win and the **keywords are added**.",
+            "**Nothing is written next to the photos**: each DNG keeps its original RAW and the values given; "
+            "opened later, the batch renaming of a converted folder is **read back from its DNG files**.",
+            "**Running again only redoes what changed**: a DNG already made is renamed (with its JPG and TIFF) if "
+            "its name changed, and its metadata written again if the values changed.",
+            "Empty optional fields are only mentioned; only the required fields of the profile make a photo to "
+            "verify."]),
 
-    ("h2", "9 bis. Converting RAW photos to DNG (step 04)"),
-    ("p", "For teams that archive their RAW photos as DNG with their metadata (protocol of the QSR mission). "
-          "In step 04, Gerbil converts every RAW photo of step 01 "
-          "with **Adobe DNG Converter** (free, to install), with the settings of the protocol, under the **name of "
-          "the batch renaming** (for instance `QSR26_A4_B20_U113_IMG_6373.dng`), in `<date>\\DNG` with a JPG in "
-          "`<date>\\JPG` (the preview of the DNG, or full size) and, if wanted, a 16-bit TIFF in `<date>\\TIFF`, "
-          "metadata embedded."),
-    ("ul", ["The **XMP** next to the RAW (Lightroom, Bridge, the camera) is embedded in the DNG, development settings "
-            "included; the fields filled in Gerbil take precedence, the **keywords are added** to those already there.",
-            "A **profile** can carry the whole batch renaming of a site: the fields, their **meaning** and their "
-            "**IPTC field** (shown in the *guide of the fields*), **checks** (a context as a number only, ST8622…), the "
-            "name template and **keyword lists** to tick (*Keywords…*). *Import…* (step 01) adds the profile "
-            "received from the team.",
-            "`{building|first}` in the name template: of several values (`B27 ; B20`), the one with the smallest "
-            "number (`B20`).",
-            "Nothing is written next to the photos: each DNG keeps its original RAW and the values given; the batch "
-            "renaming of a folder already converted is **read back from its DNG files**.",
-            "Fields left empty are only mentioned (*Not mentioned*); only the required fields of the profile (for "
-            "QSR: *Creator* and *Area*) make a photo *to verify*.",
-            "The RAW files are never modified. Running again only redoes what changed, and renames a DNG whose name "
-            "changed. **ExifTool** (free) ships with Gerbil."]),
+    ("h2", "05 Final review and deposit", "etape-05"),
+    ("p", "Every file written for the photos of step 01 (cut-out, DNG, JPG, TIFF); a double-click opens one, *Open "
+          "results* shows the folders in Explorer."),
+    ("shot", "final", "The final review: every file written, and the check before a deposit."),
+    ("p", "*Check before a deposit…* checks a folder before it goes to an archive, **without copying, moving or "
+          "changing anything**. For each file: its **format** (from the list of accepted extensions, to adapt to "
+          "the archive), its **name** (letters without accents, digits, `_`, `-`, `.`, and the naming rule of the "
+          "project), an **empty** file, a **path** too long (over 240 characters), the **same content present "
+          "twice**. The `deposit_check` folder receives the inventory (`deposit_inventory.csv`, with the SHA-256 "
+          "checksum of each file), `checksums.sha256` (to check the deposit after its transfer) and a readable "
+          "report (`deposit_report.txt`)."),
+    ("warn", "This check does not replace the deposit protocol of the archive."),
 
-    ("h2", "10. IPTC metadata"),
-    ("p", "In *Batch renaming*, *IPTC metadata…* fills the standard IPTC fields (read by Bridge, Lightroom, "
-          "darktable, the Windows Explorer): for each field (title, description, keywords, creator, copyright, "
-          "place…), a text where `{field}` is replaced by the value of the photo and `{name}` by the output name. "
-          "A text without braces is the same for every photo (copyright, creator)."),
-    ("p", "They are written into the PSD and TIFF files, into the copy of the original (JPEG: without recompressing "
-          "the image) and, if ticked, into a `NAME.xmp` file next to each original photo. The photos themselves "
-          "are never changed, and a `.xmp` written by another program is never replaced."),
+    ("h2", "06 Publication", "etape-06"),
+    ("p", "The outputs for the report and the publication, each in its window."),
+    ("shot", "publication", "Step 06: plates, free plates, contact sheets, inventory, thumbnails."),
 
-    ("h2", "11. Site profiles and learned scales"),
-    ("p", "A **site profile** gathers what is known of the photos of a site or a campaign, chosen once under *SITE "
-          "PROFILE* (*New…*, *Edit…*):"),
-    ("ul", ["the **background**: found by Gerbil, light, or dark (velvet, felt);",
-            "**learned scales**: *Learn a scale from a photo…*, click the two ends of the scale and give the width "
-            "of its printed band. Gerbil keeps its image and finds it again on the other photos. Learn **each "
-            "copy** used: two prints of the same model may differ by 1 %;",
-            "the **options** of the main window (*Keep the options of the main window*)."]),
-    ("p", "By default a learned scale is a second chance, used when the usual reading fails or is doubtful; *Look "
-          "for the learned scales first* uses it first. *Put next to the photos…* copies the profile as "
-          "`gerbil_profile.json` into a folder of photos: it then applies to these photos, for the whole team."),
+    ("h2", "Plates at scale", "planches"),
+    ("p", "*Plates* lays out the outlined objects of a results folder at a chosen scale (1:1, 1:2, 1:3…) and writes "
+          "them as **SVG**, which open in Illustrator or Inkscape at their real size: 1 cm of the object is 1 cm ÷ "
+          "scale on paper. *Files written* also gives each page as **TIFF** or **JPEG** (300 to 1200 ppi) and all "
+          "the plates in one **PDF**."),
+    ("shot", "plates", "The plates window: the settings in three tabs, the exact preview of the page on the right.",
+     "half"),
+    ("ul", ["Objects in **rows**, in the order chosen (name, context, material…), with a **caption** (`{name}`, or "
+            "`{site}_{us}_{number}`…); *Group by* starts a row or a page at each value.",
+            "**Scale bar** set as in QGIS (style, length, segments, colours, font), kept as house style.",
+            "**One scale per plate**; an object too large goes to 1:1.5, 1:2, 1:3… on its own plates. *Scale per "
+            "object…*, or a click on an object of the preview, chooses its scale.",
+            "**Scale per material**: pottery and glass at 1/3, iron at 2/3, stone at 1/3 by default (rules "
+            "`word=reduction` that can be changed), after the conventions of archaeological drawing.",
+            "**Drawings next to the photos**: a folder of drawings (`.svg`, or `.ai` `.pdf` `.eps` converted by "
+            "Inkscape); a drawing named like the object is placed next to its photo, at the same scale, as vectors.",
+            "**Title** and **file names** from templates (`{page}`, `{pages}`, `{group}`, `{scale}`); optional "
+            "**dimensions** on a hidden layer.",
+            "**List of figures**: `figures.csv`, written next to the plates (number, file, title, caption, scale, "
+            "credit), pastes into the report as a table."]),
+    ("p", "In the preview, the mouse wheel zooms, ◀ ▶ turn the pages."),
 
-    ("h2", "12. Plates"),
-    ("p", "*Plates* lays out the outlined objects of a results folder at a chosen scale (1:1, 1:2, 1:3…) and "
-          "writes them as **SVG** files (`plates` folder), which open in Illustrator or Inkscape at their true size: "
-          "1 cm of the object = 1 cm ÷ scale on the paper. *Files written* also gives each page as one image, "
-          "in **TIFF** (lossless) or **JPEG**, at 300, 600 or 1200 dpi: for a report or a slide."),
-    ("ul", ["Objects in **rows**, in the chosen order (name, US, material…), with a **caption** under each one "
-            "(`{name}`, or `{site}_{us}_{number}`…). *Group by* starts a row or a page at each value.",
-            "Graphic **scale bar** set as in QGIS (style, length, segments, colours, font), remembered as your "
-            "house style.",
-            "**One scale per plate**; an object too large goes to 1:1.5, 1:2, 1:3… on plates of its own. *Scale "
-            "per object…*, or a click on an object of the preview, chooses its scale.",
-            "**Scale by material**: ceramics and glass at 1/3, iron at 2/3, stone at 1/3 by default (editable rules "
-            "`word=reduction`).",
-            "**Drawings beside the photos**: a folder of drawings (`.svg`, or `.ai` `.pdf` `.eps` converted by "
-            "Inkscape); a drawing named like the object is placed beside its photo, at the same scale, **as "
-            "vectors** (editable in Illustrator).",
-            "**Title** and **file names** from templates (`{page}`, `{pages}`, `{group}`, `{scale}`).",
-            "Optional **measurements** on a hidden layer: layout guides, not data."]),
-    ("p", "The preview shows the pages as they will be written; the wheel zooms, ◀ ▶ turns the pages."),
+    ("h2", "Free plates: field photos and orthophotos", "planches-libres"),
+    ("p", "*Free plates* lays out **whole photos** (burials, structures, orthophotos), each brought to the scale of "
+          "the plate (1:10, 1:20, 1:50…): a typological plate thus shows the burials at the same scale, sorted by "
+          "type."),
+    ("ul", ["*Scale of the photos…* lists the photos with their real size; a double-click opens a photo: click both "
+            "ends of a known length (ranging pole, target, length of the pit measured in the field) and give it in "
+            "centimetres.",
+            "An **orthophoto** with its georeferencing file (`.jgw`, `.tfw`) needs nothing.",
+            "**A click on a photo of the preview**: choose its scale (1:5 to 1:100) or measure it.",
+            "**Captions, order and groups** come from the batch renaming of the folder (add *Burial*, *Type*, "
+            "*Phase*…), then *Group by: Type*.",
+            "Pages A4 to A2, portrait or landscape; scale bar in cm or m; SVG, TIFF, JPEG or PDF."]),
+    ("warn", "The scale holds in the plane of the two points clicked: a photo taken at an angle is not an "
+             "orthophoto."),
 
-    ("h2", "12 bis. Free plates: field photos and orthophotos"),
-    ("p", "*Free plates* (step 06) lays out **whole photos** instead of outlined objects: photos of graves or "
-          "structures, orthophotos. Each photo is brought to the scale of the plate (1:10, 1:20, 1:50…): a "
-          "typological plate thus shows the graves at the same scale, sorted by type."),
-    ("ul", ["**Giving the scale of a photo**: *Scale of the photos…* lists the photos of the folder with their "
-            "real size (or 'no scale'). A double-click opens the photo: click the two ends of a known length (a "
-            "ranging pole, a scale, or a measurement taken in the field such as the length of the grave) and "
-            "give that length in centimetres (1 m = 100).",
-            "An **orthophoto** with its world file (`.jgw`, `.tfw`) needs nothing: its scale is read from it.",
-            "**A click on a photo of the preview** opens its menu: choose the scale of this photo (1:5 to 1:100, "
-            "or *Another scale…*), or measure its scale on the photo.",
-            "**Captions, order and groups** come from the fields of the batch renaming of the folder: add for "
-            "instance *Grave*, *Type*, *Phase* there (a CSV or Excel table can be imported), then *Group by: "
-            "Type*.",
-            "**Page**: A4, A3, A2… portrait or landscape; scale bar in cm or in m; files as SVG, TIFF or JPEG.",
-            "The scale holds in the plane of the two points clicked: a photo taken at an angle is not an "
-            "orthophoto."]),
-
-    ("h2", "12 ter. The PDF of the plates, the list of figures and the contact sheets"),
-    ("ul", ["**PDF**: in *Files written*, ticking *PDF* puts all the plates in one file, to join to the report.",
-            "**List of figures**: `figures.csv`, always written beside the plates, gives for each plate its "
-            "number, file, title, caption (the objects of the plate), scale and the credit (*Credit* field). It "
-            "opens in Excel and is pasted into the report as a table.",
-            "**Contact sheets** (step 06): every photo of a folder on pages, with its name, so many per row; "
-            "*Group by* a field (the US, the sector) starts a page at each value. The photos are not to scale "
-            "there."]),
-
-    ("h2", "13. Inventory and thumbnails"),
-    ("ul", ["*Inventory*: one row per file of the chosen folders (photos, drawings, 3D models), with "
-            "folder, kind, size, date, **the fields read from the name** (same template as the batch renaming), "
-            "and for the images their size, resolution, date taken and camera. The window shows the **PowerShell "
-            "line** that makes the same inventory with Windows alone, to copy and learn from.",
-            "*Thumbnails*: reduced copies for databases (128 to 1,024 px), transparent PNG or JPEG on white, "
+    ("h2", "Contact sheets, inventory, thumbnails", "planches-contact"),
+    ("ul", ["**Contact sheets**: all the photos of a folder on pages, with their name, so many per row; *Group by* a "
+            "field (context, sector) starts a page at each value. The photos are not at scale there.",
+            "**Inventory**: one row per file of the folders chosen (photos, drawings, 3D models), with folder, type, "
+            "size, date, **the fields read in the name** (same template as the renaming), and for images their "
+            "size, resolution, date taken and camera. The window shows the **PowerShell line** that makes the same "
+            "inventory with Windows alone.",
+            "**Thumbnails**: reduced copies for databases (128 to 1,024 px), transparent PNG or JPEG on white, "
             "transparent margin cut off."]),
 
-    ("h2", "13 bis. The check before a deposit"),
-    ("p", "*Deposit* (step 05, final review) checks a folder before it is handed over to an archive, **without copying, "
-          "moving or changing anything**. For every file of the folder and its sub-folders:"),
-    ("ul", ["its **format**, against the list of accepted extensions (to adapt: each archive has its own);",
-            "its **name**: letters without accents, digits, `_`, `-` and `.` only, and for the photos the "
-            "naming rule of the project;",
-            "an **empty** file, a **path** of more than 240 characters, the **same content present twice**."]),
-    ("p", "A `deposit_check` folder receives the inventory (`deposit_inventory.csv`: size, date, SHA-256 "
-          "checksum, metadata, remarks), the checksums (`checksums.sha256`, to verify the deposit after its "
-          "transfer) and a report (`deposit_report.txt`). This check does not replace the deposit protocol of "
-          "the archive."),
+    # ------------------------------------------------------------------------------------------------ 5
+    ("part", "5", "Workflows", "Complete recipes, from the box of finds to the report, from the field to the "
+     "archive. Each points to the pages it needs.", "workflows"),
 
-    ("h2", "14. The options"),
-    ("p", "The same options exist in the interface and on the command line (`py gerbil.py FOLDER --option`, or "
-          "`gerbil_cli.exe FOLDER --option` in the .exe version):"),
-    ("table", [["Option", "Effect"],
-               ["`--background white`", "TIFF on a white background instead of transparent."],
-               ["`--remove-putty`", "Removes the putty found (otherwise only flagged)."],
-               ["`--layout original`", "Leaves the scale where it is on the photo, instead of centring it under the "
-                                       "object."],
-               ["`--scale-cm 10`", "Forces the length of the scale."],
-               ["`--margin-cm 0.5`, `--gap-cm 0.5`", "Margin around the object, gap between object and scale."],
-               ["`--no-original-layer`", "PSD 2 to 4 times lighter (no layer of the whole photo)."],
-               ["`--no-original-copy`", "Does not copy the original photo into the results."],
-               ["`--no-psd`, `--no-control`", "No PSD; no control previews."],
-               ["`--compression zip`", "Slightly smaller TIFF files (LZW by default, the most compatible)."],
-               ["`--default-ppi 300`", "Resolution used when there is no scale."],
-               ["`--no-scale`", "Does not look for a scale."],
-               ["`--colour balance`, `--colour exposure`, `--white scale`", "White balance (and exposure) from a "
-                    "white of the photo: round chart by default, scale or background if chosen."],
-               ["`--cutout ai`, `--cutout ai-lite`", "Cut-out drawn from the AI: the BiRefNet network says what "
-                    "is an object (shadows, table border, white on white); about 8 s more per photo, 4 s with "
-                    "the lighter network (ai-lite)."],
-               ["`--ai`, `--ai-model birefnet`, `--ai-device cpu`", "AI second opinion (it can only remove "
-                    "background); more precise but slower model; force the processor."],
-               ["`--profile FILE`", "Site profile to use."],
-               ["`-o FOLDER`, `--open`, `-j 4`, `-v`", "Output folder; open the results at the end; photos in "
-                    "parallel; details of the errors."]]),
+    ("h2", "Finds: from the sherd to the published plate", "wf-mobilier"),
+    ("ol", ["**Photograph** each object with its scale, on a plain background ([[cinq-regles|the five rules]]).",
+            "**01**: add the folder of the box; choose the site profile.",
+            "**02**: *Import CSV / Excel…* the finds inventory, or fill in the table (context, number, material); "
+            "check the output name; *Check the metadata*.",
+            "**03**: *Run*. Then *See the results*: *Review* the flagged photos, one click on the object if needed; "
+            "set by hand the scales not found.",
+            "**06**: *Plates*, at 1/3 for pottery, *Group by* context; tick *PDF*; add the folder of drawings.",
+            "**Report**: paste `figures.csv` and the [[methodologie|methodology paragraph]]."]),
+    ("key", "The simplest check of the measurement: drop `NAME_outlined_scale.tif` into Illustrator; the scale must "
+            "measure exactly 5 or 10 cm with the ruler."),
 
-    ("h2", "15. The files Gerbil writes next to the photos"),
-    ("p", "What is decided is saved **next to the photos**, in small files, so that a later run or a colleague "
-          "finds it again. To archive with the photos:"),
-    ("table", [["File", "Content"],
-               ["`gerbil_project.json`", "Batch renaming: fields, template, rule, values, IPTC settings."],
-               ["`gerbil_scales.json`", "Scales given by hand."],
-               ["`gerbil_edits/`", "Corrections of the review window (corrected masks, angles)."],
-               ["`gerbil_profile.json`", "Site profile put in the folder."],
-               ["`NAME.xmp`", "IPTC metadata next to the photo, if asked."]]),
+    ("h2", "Field: archive the RAW photos as DNG", "wf-terrain"),
+    ("ol", ["**Import the profile** of the mission (*Import…*, step 01): fields, checks, name template, keywords, "
+            "\"conversion\" work.",
+            "**01**: add the folder of the day.",
+            "**02**: batch renaming: *Creator* and *Area* for all photos, then building, structure, unit, context "
+            "row by row; *Keywords…*; *Check the metadata* until nothing is orange.",
+            "**04**: *Convert*, with the preview JPG (and the TIFF if asked for).",
+            "**05**: look over the files; *Check before a deposit…* before copying to the server.",
+            "**The next day**: a corrected renaming converts again in a few seconds; only the DNG files that changed "
+            "are renamed or rewritten."]),
 
-    ("h2", "16. Limits"),
-    ("ul", ["The measurement is right only if the scale is **in the plane of the object**.",
-            "The background must be plain and different from the object. An opaque white or cream support lodged "
-            "in a hollow is not recognised: erase it in *Review* or in Photoshop.",
-            "A very light object on a white background (white paste, flint cortex, chalk spindle whorl) cannot be "
-            "told from the background by its colour or its grain where it is almost white: parts may be lost. "
-            "Photograph such objects on a darker background (grey or black), choose *Cut-out: ai* (the network "
-            "sees them), or use *One click on the object* in *Review*, which is told which object to cut out.",
-            "Another form of scale will most often be flagged to verify: learn it in a site profile, or give it by "
-            "hand.",
-            "For a precise colour rendering of RAW files, develop them yourself (Lightroom, darktable) and give "
-            "Gerbil the TIFF files."]),
+    ("h2", "Burials and structures at the same scale", "wf-sepultures"),
+    ("ol", ["Photograph each burial from above (vertical photo, or an orthophoto from photogrammetry) with a ranging "
+            "pole or a target.",
+            "**02**: in the batch renaming, add the fields *Burial*, *Type*, *Phase*.",
+            "**06**: *Free plates*; *Scale of the photos…*: measure the pole of each.",
+            "Plate scale 1:20, *Group by: Type*, caption `{burial}`; write SVG and PDF."]),
 
-    # =========================================================================================== PART II
-    ("pagebreak",),
-    ("h1", "Part II — Understanding the processing"),
-    ("p", "This part explains what Gerbil does, step by step, without programming. The thresholds given are those "
-          "of the code; `docs/PSEUDOCODE.txt` details them all."),
+    ("h2", "Prepare a deposit", "wf-versement"),
+    ("ol", ["Gather the folder to deposit (photos, DNG, plates, inventory).",
+            "**05**: *Check before a deposit…*; adapt the list of accepted formats to the archive's (TIFF, PNG, SVG, "
+            "PDF/A, CSV…).",
+            "Read `deposit_report.txt`: rename the files with refused names, remove duplicates, shorten the paths; "
+            "start again until the report is clean.",
+            "Attach `deposit_inventory.csv` and `checksums.sha256` to the transfer slip; after the transfer, the "
+            "archive can check each file."]),
 
-    ("h2", "1. The path of a photo"),
-    ("ol", ["**Reading**: the photo is opened and turned upright (EXIF orientation); a RAW file is developed.",
-            "**Reduced copy** of 1,500 px for the analysis: faster, and enough to find things; the fine "
-            "measurements are made again at full resolution.",
-            "**Background model**: the colour of the background at every point of the photo.",
-            "**Scale**: manual if one was given, else looked for (checkerboard, ruler, dark background), else a "
-            "learned scale of the site profile.",
+    ("h2", "Working as a team", "wf-equipe"),
+    ("ul", ["**One profile for the whole site**: prepare it once, send it (`.json` file); each imports it. Or *put "
+            "it next to the photos* of a shared folder.",
+            "**Decisions travel with the photos**: `gerbil_project.json`, `gerbil_scales.json`, `gerbil_edits` "
+            "([[fichiers-voisins|see]]); for the conversion, everything is in the DNG files.",
+            "**Same settings, same results**: a run started again elsewhere gives the same files."]),
+
+    ("h2", "Large batches and the command line", "wf-ligne"),
+    ("p", "The engine runs without a window, with the same options ([[options|list]]):"),
+    ("code", "py gerbil.py \"D:\\Dig\\Box 12\" --no-psd -j 6 --open\n"
+             "gerbil_cli.exe \"D:\\Dig\\Box 12\" --cutout ai\n"
+             "py gerbil.py --dng \"D:\\Field\\2026-02-14\" --jpg preview --tiff"),
+    ("p", "Dropping folders on **Gerbil_drop.bat** processes them with the default settings. `--refresh-names` "
+          "applies a changed renaming to the results already made, without processing again."),
+
+    ("h2", "Process again without losing anything", "wf-retraiter"),
+    ("p", "Processing a folder again replaces the files of the photos processed again and **keeps** the scales "
+          "given by hand, the corrections of the review and the renaming. The `_to_be_verified` suffix goes away "
+          "if the doubt is cleared; the copy of the original always keeps its name. For a change of name only, "
+          "`--refresh-names` (or *Save* in the batch renaming, which offers to apply it) is enough."),
+
+    # ------------------------------------------------------------------------------------------------ 6
+    ("part", "6", "Understanding the processing", "What Gerbil does, step by step, without programming: enough to "
+     "explain it, check it and write a methodology. The thresholds are those of the code; docs/PSEUDOCODE.txt gives "
+     "them all.", "comprendre"),
+
+    ("h2", "The way of a photo", "chemin"),
+    ("ol", ["**Reading**: the photo is opened and turned upright (EXIF orientation); a RAW photo is developed.",
+            "**Reduced copy** at 1,500 px for the analysis; the fine measurements are made again at full resolution.",
+            "**Background model**: the colour of the background at every point.",
+            "**Scale**: manual if one was given, else searched (checkerboard, ruler, dark background), else a learned "
+            "scale.",
             "**Cut-out**: what differs from the background, sorted, refined at full resolution.",
-            "**Mounting putty** looked for along the outline.",
-            "**Files**: layers, PSD, TIFF at the 1:1 resolution, metadata, preview, row of the report."]),
+            "**Putty** searched along the outline; **colours** corrected if asked for.",
+            "**Files**: layers, PSD, TIFF at 1:1, metadata, preview, report row."]),
 
-    ("h2", "2. Seeing colours as the eye does: CIELAB"),
-    ("p", "A photo is made of red, green and blue pixels (RGB). But in RGB, two colours that look \"equally "
-          "different\" may have very different gaps in numbers. Gerbil therefore works in **CIELAB**: **L\\*** is "
-          "the lightness (0 = black, 100 = white), **a\\*** goes from green to red, **b\\*** from blue to yellow. In "
-          "this space, a distance between two colours roughly matches what is perceived, which makes it possible "
-          "to say in numbers that a pixel is \"different from the background\"."),
-    ("p", "The distance of a pixel to the background is computed as:"),
+    ("h2", "Seeing colours as the eye does: CIELAB", "cielab"),
+    ("p", "A photo is made of red, green and blue pixels. But in RGB, two colours that look \"equally different\" "
+          "may have very different gaps in numbers. Gerbil therefore works in **CIELAB**: **L\\*** is the "
+          "lightness (0 black, 100 white), **a\\*** goes from green to red, **b\\*** from blue to yellow. A distance "
+          "there roughly matches what we perceive:"),
     ("code", "d = sqrt( (0.5 × ΔL*)² + Δa*² + Δb*² )"),
-    ("p", "Lightness counts only for half: a **soft shadow** mostly changes the lightness of the background, not its "
-          "colour; it thus stays out of the object. The **chroma** C\\* = sqrt(a\\*² + b\\*²) says whether a "
-          "colour is vivid or grey; the **hue** h is its angle (red, yellow, green, blue)."),
+    ("p", "Lightness counts for half only: a **soft shadow** mostly changes the lightness of the background, not its "
+          "colour, and so stays out of the object."),
 
-    ("h2", "3. The background model"),
-    ("p", "The background is never perfectly even: the lighting makes a gradient. Gerbil therefore does not take "
-          "one background colour, but a **surface** that follows this gradient: for each of the L\\*, a\\* and b\\* "
-          "channels, a polynomial of degree 2 in x and y (a slightly curved \"sheet\"), fitted by **least squares** "
-          "on the background pixels."),
-    ("ol", ["Start: the median colour of the photo (the background is the largest part). When the object fills the "
-            "frame, the median of a 3 % band along the edges is taken instead.",
-            "The pixels close to this colour (distance < 12) are the first background.",
-            "Four times: the sheet is fitted on these pixels, then only those very close to it (distance < 6) are "
-            "kept as background. The object and the scale, too different, are left out of the fit."]),
-    ("p", "When the median lightness of the background is under 35, the background is **dark** (velvet, felt): "
-          "several rules then change (labels, edges, scale)."),
+    ("h2", "The background model", "modele-fond"),
+    ("p", "The background is never even: the lighting makes a gradient. Gerbil therefore fits a **surface** that "
+          "follows it: for L\\*, a\\* and b\\*, a polynomial of degree 2 in x and y, fitted by **least squares** "
+          "on the background pixels. It starts from the median colour (the background is the largest part), keeps "
+          "the close pixels (distance < 12), then four times fits and keeps only the very close ones (< 6). If the "
+          "median lightness of the background is under 35, the background is **dark** (velvet, felt) and several "
+          "rules change."),
 
-    ("h2", "4. Finding the object"),
-    ("ul", ["**Distance to the background** of each pixel, with the background sheet.",
-            "**Hysteresis threshold** (thresholds 8 and 18): the regions more different than 8 that contain at "
-            "least one pixel more different than 18 are kept. A faint edge is thus kept when it belongs to a clear "
-            "object, but an isolated faint patch is not (the principle of Canny's edge detector, applied to "
-            "regions).",
-            "**Mathematical morphology**: an *opening* (shrink, then grow back) erases dust and thin threads; a "
-            "*closing* (grow, then shrink back) fills small gaps.",
-            "**Holes**: a hole whose mean colour is that of the background and of at least 0.02 cm² is a true "
-            "opening (handle, perforation) and stays transparent; the others (gloss reflection, light concretion) "
-            "are filled."]),
+    ("h2", "Finding the object", "trouver-objet"),
+    ("ul", ["**Hysteresis thresholding** (thresholds 8 and 18): the regions more different than 8 that hold at "
+            "least one pixel more different than 18 are kept. A pale edge is kept if it belongs to a sharp object, "
+            "an isolated pale stain is not (the principle of Canny's edge detector, applied to regions).",
+            "**Morphology**: an *opening* removes dust and thin threads, a *closing* fills small gaps.",
+            "**Holes**: a hole of the background colour and at least 0.02 cm² stays transparent (handle, "
+            "perforation); the others (glare, light concretion) are filled."]),
 
-    ("h2", "5. Sorting"),
+    ("h2", "Sorting", "tri"),
     ("p", "Not everything that differs from the background is the object. The pieces found are sorted:"),
     ("table", [["Element", "How it is recognised"],
-               ["The scale", "Its zone (enlarged for its support or its putty) is removed; an object lying close to "
-                             "it is kept when it reaches at least 8 mm from it and clearly differs from the "
-                             "background."],
-               ["Scale, ruler, label without a measured scale", "When the scale is not measured (not found, "
-                    "of another kind, or `--no-scale`), it stays out of the cut-out: its outline is made of long "
-                    "straight sides at right angles (even an L-shaped bar, or a ruler whose ticks make a comb), "
-                    "and its content is that of a print (black and white, uncoloured, or a full rectangle). On 191 "
-                    "open photos, no object discarded this way: a pin, a black blade or a long bone tool stay "
-                    "objects."],
-               ["Cast shadow (light background)", "Darker than the background but of its colour, smooth, along the "
-                    "outline, and it fades into the background: its outer edge is soft (penumbra), the edge of an "
-                    "object is sharp. A dark, smooth part of the object (black gloss, obsidian, grey flint) does "
-                    "not touch the background that way and stays. Blue outline in the preview."],
-               ["Plexiglass support", "Colour almost that of the background (distance < 15), sticks out of the "
-                                      "object, as light as or whiter than the background. A reflection on a black "
-                                      "gloss, darker and along the object, is left alone."],
-               ["Colour chart", "Many vivid hues: at least 5 hue sectors out of 12, with a warm one, a green and a "
-                                "blue. An object, even painted, covers 2 at most (1,763 photos tested); the charts 5 "
-                                "to 9."],
-               ["Labels, writing", "What lies on the other side of the scale; what is everywhere thinner than 1.7 mm "
-                                   "(writing, thread, line of a bag); small isolated elements more than 8 mm from "
-                                   "the object (on a light background)."],
-               ["Paper label (dark background)", "Light and rectangular (it fills 85 % of its rectangle): white, "
-                    "bluish white (optical brighteners of the paper) or pale yellow; or very rectangular (95 %) and "
-                    "light, whatever its colour — a broken sherd never fills its rectangle that much."]]),
-    ("p", "A label touching an object by a corner is cut at the narrow join. When the only object of a photo looks "
-          "like a label (small, pale, square sherd), it is kept and the photo is flagged."),
-    ("figure", "fig_dark", "On dark felt: the paper label is recognised and discarded (red outline), the object is "
-                           "kept (green outline)."),
+               ["The scale", "its area is removed; an object laid close by is kept if it is 8 mm away and clearly "
+                             "differs from the background."],
+               ["Unmeasured scale, label", "long straight sides at right angles and printed content (black and "
+                                           "white, little colour); on 191 free photos, no object left out this way."],
+               ["Cast shadow", "darker than the background but of its colour, smooth, with a blurred outer edge "
+                               "(penumbra); the edge of an object is sharp."],
+               ["Plexiglas support", "almost the colour of the background, sticks out of the object, as light or "
+                                     "whiter."],
+               ["Colour chart", "at least 5 sectors of vivid hue out of 12; a painted pot covers 2 at most (1,763 "
+                                "photos tested)."],
+               ["Labels, writing", "on the other side of the scale; everywhere thinner than 1.7 mm; small isolated "
+                                   "pieces more than 8 mm from the object."],
+               ["Paper label on a dark background", "light and rectangular (85% of its rectangle); a broken sherd never "
+                                                    "fills its rectangle that much."]], [0.3, 0.7]),
+    ("figure", "fig_dark", "On dark felt: the paper label is left out (red outline), the object kept (green "
+                           "outline)."),
 
-    ("h2", "6. Refining and softening the edge"),
-    ("p", "The first cut-out is made on the reduced copy; it is made again **at full resolution** in a band around "
-          "its outline. One part is \"sure\" (well inside and different from the background), another "
-          "\"allowed\" (near the outline): the final edge is looked for in the band, pixel by pixel. The mask is "
-          "then softened (Gaussian blur of 0.8 px): a sharp edge without staircase, like a cut-out made by hand."),
-    ("p", "On a dark background the edge of a light object is a ramp several pixels wide (slight blur, shadow). The "
-          "edge is placed **in the middle of this ramp**, then the colour of the last pixels of the edge is "
-          "replaced by that of the object just inside, without moving the outline: no dark line remains."),
+    ("h2", "Refining the edge", "bord"),
+    ("p", "The first cut-out, made on the reduced copy, is made again **at full resolution** in a band around the "
+          "outline, then softened (0.8 px blur): a sharp edge without steps, like a cut-out by hand. On a dark "
+          "background, the edge is placed in the middle of the gradient and its last pixels take the colour of the "
+          "object: no dark fringe."),
 
-    ("h2", "7. Reading a checkerboard scale"),
-    ("ol", ["**Spot** the ink: black and vivid red pixels, joined into elongated groups (a scale is at least 2.5 "
-            "times longer than wide).",
-            "**Straighten**: a crop is extracted and turned so that the scale is horizontal.",
-            "**Read the squares**: column by column, which row is inked (top, bottom, both, none); the runs of "
-            "similar columns are the squares. Runs too short (digits, arrows) are absorbed by their neighbours.",
-            "**Second reading** when digits are printed in the squares (\"5\", \"10\", \"cm\"): the **boundaries** "
-            "between squares are looked for (where the ink goes from one row to the other), and a regular \"comb\" "
-            "is fitted on them over the whole length.",
-            "**Measure at full resolution**: px/cm = length of the squares ÷ number of squares (one square = 1 cm), "
-            "at the sub-pixel (where the profile crosses half the contrast).",
-            "**Turn upright**: the printed signs (\"5\", \"10\", \"cm\") are compared with templates of digits drawn "
-            "with 12 common fonts, upright and turned over. On 1,265 scales of known orientation: no error."]),
-    ("p", "Checks: usual length (5, 10 or 20 cm), regular squares (gap < 15 %). A scale cut by the edge of the "
-          "photo is measured on its complete squares. On a dark background the black squares merge with the "
-          "background: the scale is looked for from its light squares, then everything around it is painted white "
-          "to read it as on a light background."),
+    ("h2", "Reading a checkerboard scale", "damier"),
+    ("ol", ["**Spot** the ink: black or red pixels, in elongated groups (2.5 times longer than wide).",
+            "**Straighten** a thumbnail of the scale to horizontal.",
+            "**Read the squares**, column by column: which row is inked; runs of similar columns are the squares.",
+            "**Second reading** if digits are printed in the squares: a regular \"comb\" is fitted on the boundaries "
+            "between squares.",
+            "**Measure at full resolution**, to the sub-pixel: px/cm = length of the squares ÷ number of squares.",
+            "**Turn it the right way up**: the printed signs (\"5\", \"10\", \"cm\") are compared with digits drawn "
+            "in 12 fonts; on 1,265 scales of known orientation, no error."]),
+    ("p", "Checks: usual length (5, 10 or 20 cm), regular squares (gap < 15%). A scale cut by the edge is measured "
+          "on its complete squares."),
 
-    ("h2", "8. Reading a millimetre ruler"),
-    ("p", "The graduations are thin, parallel dark strokes. Gerbil spots them (\"black-hat\" filter, which brings out "
-          "small dark details), groups them into regular rows, then fits a regular sequence x = start + step × k on "
-          "the fifty or so graduations. Measuring one step over ~50 intervals gives a precision of about **0.1 %**. "
-          "The centimetre graduations, longer, give the length (5 or 10 cm)."),
+    ("h2", "Reading a millimetre ruler", "reglet"),
+    ("p", "The ticks are thin, parallel dark lines: Gerbil spots them (\"black-hat\" filter), groups them in regular "
+          "rows and fits a series x = start + step × k on the fifty or so ticks. Measuring a step over ~50 intervals "
+          "gives a precision of about **0.1%**."),
 
-    ("h2", "9. Learned scales"),
-    ("p", "For a scale of another form, its two ends are shown once: Gerbil keeps its straightened image. On "
-          "another photo, it looks for it in two steps:"),
-    ("ul", ["**Roughly**: characteristic points (SIFT method: corners, details recognisable even turned or at "
-            "another size) are matched between the learned image and the photo; a common position, size and angle "
-            "are found by **RANSAC** (many small groups of points are tried, and the explanation most points agree "
-            "with is kept).",
-            "**Finely**: the learned image is aligned on the photo by correlation (ECC method), which measures the "
-            "length within 0.1 % when it is the same physical scale (0.05 % measured)."]),
+    ("h2", "Learned scales", "apprises"),
+    ("p", "Both ends of a scale of another kind are shown once; Gerbil keeps its image. On another photo, it looks "
+          "for it **roughly** with keypoints (SIFT) matched and filtered by **RANSAC**, then **finely** by "
+          "correlation (ECC), which measures the length to better than 0.1% (0.05% measured) when it is the same "
+          "physical scale."),
 
-    ("h2", "10. Mounting putty"),
-    ("p", "Gerbil looks along the outline for two hollows (concavities) that cut off a part of the object. This "
-          "part is possible putty when it is at once **smoother** (half the texture), **of another colour**, **less "
-          "coloured** and **lighter** than the rest. By default it is only flagged (red area): a light, smooth "
-          "vessel base looks too much like it to be removed without a check."),
+    ("h2", "Mounting putty", "pate"),
+    ("p", "Gerbil looks along the outline for two hollows that cut off a part of the object. That part is possible "
+          "putty if it is at once smoother, of another colour, less colourful and lighter than the rest. By default "
+          "it is only flagged (red area); `--remove-putty` removes it."),
 
-    ("h2", "10 bis. The cut-out drawn from the AI (setting Cut-out: ai or ai-lite)"),
-    ("p", "By default (*Cut-out: colour*) the object is what differs from the background by its colour: fast, and "
-          "exact on a plain background, but a cast shadow, the border of the table or a white object on a white "
-          "background mislead it. With *Cut-out: ai* (`--cutout ai`), the **BiRefNet** neural network first says "
-          "what is an object; Gerbil then sorts the pieces as usual (scale, label, chart, support) and still "
-          "draws the edge from the photo, at full resolution. Where the colour cannot tell (a shadow, an object "
-          "of the colour of the background), the network decides."),
+    ("h2", "AI cut-out", "ia"),
+    ("p", "By default, the object is what differs from the background by its colour: fast and exact on a plain "
+          "background, but a cast shadow, the edge of the table or a white object on white fool it. With *Cut-out: "
+          "ai*, the **BiRefNet** network first points out the objects; Gerbil then sorts the pieces as usual and "
+          "always draws the edge from the photo, at full resolution."),
     ("ul", ["Everything runs on the computer: no photo is sent over the internet.",
-            "*ai*: the BiRefNet network (970 MB, downloaded once), about 8 seconds more per photo.",
-            "*ai-lite*: a lighter network (224 MB), about 4 seconds more per photo; it gives the same cut-out "
-            "in the great majority of cases, and is a little less sure on difficult photos.",
-            "A label is an object for the network: Gerbil discards it when it is a light, uncoloured card with "
-            "straight sides or bearing writing (red outline in the preview).",
-            "The results of the default cut-out are not changed by this setting."]),
+            "*ai*: BiRefNet (970 MB, downloaded once), about 8 s more per photo; *ai-lite*: a lighter network "
+            "(224 MB), about 4 s, a little less sure on difficult cases.",
+            "**AI second opinion** (*Advanced settings*): IS-Net or BiRefNet may only **remove** background "
+            "(perforations, gaps, halos), never add: its mistakes therefore have no effect.",
+            "**One click on the object** (review): **Segment Anything**, MobileSAM version (45 MB); it is told which "
+            "object to outline, Gerbil keeps its own edge where both agree."]),
 
-    ("h2", "10 ter. Colours: white balance and exposure (setting Colour)"),
-    ("p", "By default the colours of the photo are kept. With *Colour: balance*, Gerbil removes the colour cast "
-          "of the light (bluish shade, yellowish lamp) by making a white of the photo neutral; with *Colour: "
-          "exposure* it also brings that white to the same lightness on every photo, for an even series. The "
-          "correction is made **after the cut-out**, which therefore stays exactly the same; it applies to "
-          "everything written (PSD layers, TIFF files, preview). The copy of the original is never changed, and "
-          "the report gives the factors applied."),
-    ("p", "**Which white?** (*White reference*, under *Colour*). The choice is yours, because no "
-          "white is right everywhere:"),
-    ("ul", ["*chart* (default): the white of a colour chart, the only reference made for this: the white patch "
-            "of a chart made of patches (SpyderCheckr 24 or 48, ColorChecker, Farbkarte) or the white centre of "
-            "a round Archaeo Colorimeter. A photo without a chart is not corrected, and it is noted.",
-            "*scale*: the white of the scale, when it is really white. Some scales are cream: balancing on "
-            "them turns the photo blue.",
-            "*background*: the background itself, on white paper only."]),
-    ("p", "**Is the exposure right for the objects?** It multiplies the three channels by the same factor: the "
-          "hue and the saturation of an object do not change, only its lightness, and every photo ends up as if "
-          "its white had been exposed the same way (85 % of luminance). This is sound when the white lies in "
-          "the same light as the object, in its plane. It is not a measurement: the true reflectance of a "
-          "paper or of a scale is not known, and a white in the shade of the object lightens the whole photo."),
-    ("p", "These are corrections of the light, not a colour calibration: a Munsell reading is still made on "
-          "the object."),
+    ("h2", "Colours: balance and exposure", "couleurs"),
+    ("p", "By default, the colours are kept. *Colour: balance* removes the cast of the light by making a white of "
+          "the photo neutral; *exposure* also brings this white to the same lightness on every photo (85% "
+          "luminance), for an even series. The correction comes **after** the cut-out, which stays the same; the "
+          "copy of the original is never changed."),
+    ("ul", ["*colour chart* (default): the white patch of a chart (SpyderCheckr, ColorChecker, Farbkarte) or the "
+            "white centre of an Archaeo Colorimeter; without a chart, no correction.",
+            "*scale*: when it is really white (some are cream).",
+            "*background*: on white paper only."]),
+    ("note", "These are corrections of the light, not a calibration: reading the Munsell code is still done on the "
+             "object."),
 
-    ("h2", "11. The AI second opinion (option)"),
-    ("p", "With `--ai`, a neural cut-out network (IS-Net or BiRefNet) gives its opinion. It can **only remove** "
-          "background, never add: an area is removed only when the cut-out keeps it, the AI sees background there, "
-          "its colour stays close to the background and it covers at least 0.02 cm². This opens shadowed "
-          "perforations, gaps between two objects, halos along a blurred edge. When the AI is wrong, it is by "
-          "keeping too much (label, support): its errors therefore have no effect."),
+    ("h2", "From the measurement to 1:1", "un-pour-un"),
+    ("p", "An image file holds a **resolution** (pixels per inch) that Illustrator uses to size a placed image. "
+          "Gerbil writes the measured resolution there:"),
+    ("code", "ppi = px/cm × 2.54        (1 inch = 2.54 cm)\n"
+             "example: 100 px/cm → 254 ppi: an object 600 px wide measures 6 cm"),
+    ("p", "The image is never enlarged or reduced: only the resolution tag changes. The **PSD** is written byte by "
+          "byte (layer masks: nothing is erased); the **TIFFs** are lossless (LZW), with transparency."),
 
-    ("h2", "12. The one-click cut-out"),
-    ("p", "In the review window, the one-click tool uses **Segment Anything** (MobileSAM version, offline, 45 MB): "
-          "click the object, it cuts it out. It is more reliable on difficult photos because it is **told which "
-          "object** to cut out: it no longer has to guess what is an object, a label, a shadow or the background. Its "
-          "edge being less precise, Gerbil keeps the edge of its own cut-out where both agree."),
+    ("h2", "Metadata", "metadonnees"),
+    ("ul", ["**EXIF**: the camera information (body, lens, focal length, date, aperture, ISO), copied.",
+            "**XMP**: a structured text packet inside the file: the measurement of the scale, the output name, the "
+            "fields of the renaming.",
+            "**IPTC Core**: the fields of photo libraries (title, keywords, creator, copyright, location), written in "
+            "the XMP. In a JPEG, the XMP is added without touching the image (checked pixel by pixel)."]),
 
-    ("h2", "13. From the measurement to 1:1"),
-    ("p", "An image file carries a **resolution**: the number of pixels per inch (ppi). Illustrator uses it to give "
-          "a placed image its size. Gerbil therefore writes into each file the resolution measured on the scale:"),
-    ("code", "ppi = px/cm × 2.54        (1 inch = 2.54 cm)\nexample: 100 px/cm → 254 ppi: an object 600 px wide is 6 cm wide"),
-    ("p", "Dropped into Illustrator, the object therefore has its real size. The scale of `NAME_outlined_scale.tif` "
-          "measures exactly 5 or 10 cm with Illustrator's ruler: the simplest check. The image is never enlarged or "
-          "reduced; only its resolution tag changes."),
-    ("p", "The **PSD** is written byte by byte: the *Object* layer holds the original pixels and a **layer mask** "
-          "(nothing is erased: a stroke of white brush brings back what was hidden); *Scale* holds the straightened "
-          "scale; *Original photo*, hidden, the whole photo aligned on the object. The **TIFF** files are lossless "
-          "(LZW), with transparency; a JPEG would compress the image again at every save."),
+    ("h2", "The conversion to DNG", "conversion"),
+    ("p", "For each RAW photo: the date taken sorts the file; Adobe DNG Converter writes the DNG under the name of "
+          "the renaming; **ExifTool** embeds the neighbouring XMP, then Gerbil's IPTC fields, and keeps in it the "
+          "original RAW and the values given (`gerbil` XMP namespace). This is what lets everything be read back "
+          "from the DNG files, and only what changed be redone, without any file next to the photos."),
 
-    ("h2", "14. Metadata"),
-    ("ul", ["**EXIF**: the camera information (body, lens, focal length, date, aperture, speed, ISO), copied and "
-            "updated.",
-            "**XMP**: a packet of structured text written into the files: the measurement of the scale, the output "
-            "name, the fields of the batch renaming.",
-            "**IPTC Core**: the standard fields of photo libraries (title, keywords, creator, copyright, place), "
-            "written into the XMP from the model of the project. In a JPEG, the XMP segment is added without "
-            "touching the image data (checked pixel for pixel by the tests)."]),
+    ("h2", "Plates: from the real to the paper", "planches-papier"),
+    ("p", "Each object has its real size, read in the resolution of its TIFF; at scale 1:r, its size on paper is "
+          "real size ÷ r (6 cm at 1:2 make 3 cm). The page is described as a list of shapes **in millimetres**; "
+          "this same description is written as SVG and drawn for the preview, which thus shows exactly what will "
+          "be written."),
 
-    ("h2", "15. Plates: from the real object to the paper"),
-    ("p", "Each object has its real size, read from the resolution of its TIFF. At the scale 1:r, its size on the "
-          "paper is: real size ÷ r. Example: a 6 cm object at 1:2 is 3 cm on the plate. The page is first "
-          "described as a list of shapes **in millimetres** (rectangles, texts, images, drawings); this same "
-          "description is written as SVG and drawn for the preview, which therefore shows exactly what will be "
-          "written."),
+    ("h2", "Precision and limits", "limites"),
+    ("ul", ["The measurement is only right if the scale is **in the plane of the object**.",
+            "The background must be plain and differ from the object; an opaque white support in a hollow is not "
+            "recognised (erase it in *Review*).",
+            "A very light object on white may lose parts: darker background, AI cut-out, or one click on the object.",
+            "Another kind of scale is most often flagged: learn it, or give it by hand.",
+            "On 1,764 reference photos, no scale already found changed from one version to the next: every change "
+            "of the program is checked to the pixel on these sets."]),
 
-    ("h2", "16. For a methodology"),
-    ("p", "An example of paragraph, to adapt:"),
-    ("note", "\"The finds were photographed on a plain background with a scale in the plane of the face "
-             "photographed. The photographs were outlined and scaled with Gerbil 2.3 (Charbonnel 2026, free "
-             "software, GPL v3). The scale of each photograph is detected and measured automatically "
-             "(checkerboard: length of the squares fitted at the sub-pixel; ruler: millimetre step fitted over all "
-             "the graduations, precision about 0.1 %), then the real resolution is written into the files, which "
-             "gives back the finds at 1:1. The cut-out relies on the colour distance (CIELAB) to a polynomial model "
-             "of the background, with a hysteresis threshold; the doubtful cases were flagged by the software and "
-             "checked one by one.\""),
+    ("h2", "For a methodology", "methodologie"),
+    ("p", "A paragraph to adapt for the report:"),
+    ("quote", "\"The finds were photographed on a plain background with a scale in the plane of the photographed "
+              "face. The photographs were outlined and scaled with Gerbil 2.3 (Charbonnel 2026, free software, GPL "
+              "v3). The scale of each photograph is detected and measured automatically (checkerboard: length of the "
+              "squares fitted to the sub-pixel; ruler: millimetre step fitted over all the ticks, precision about "
+              "0.1%), then the real resolution is written into the files, which gives the objects back at 1:1. The "
+              "cut-out relies on the colour distance (CIELAB) to a polynomial model of the background, with "
+              "hysteresis thresholding; doubtful cases were flagged by the software and checked one by one.\""),
 
-    # =========================================================================================== PART III
-    ("pagebreak",),
-    ("h1", "Part III — Reading the code"),
+    # ------------------------------------------------------------------------------------------------ 7
+    ("part", "7", "Inspirations and sources", "The practices, conventions, methods and programs whose ideas Gerbil "
+     "takes up.", "inspirations"),
 
-    ("h2", "1. The files"),
+    ("h2", "Where Gerbil comes from", "origine"),
+    ("p", "Gerbil was born from a gesture repeated thousands of times in the finds room: outlining an object in "
+          "Photoshop, then scaling it again by hand for the plate. It grew with the needs of a team: file names "
+          "and metadata, then the \"Convert RAW to DNG\" protocol of the MAFKF / QSR mission (Failaka, Kuwait), "
+          "written by Eloïs Charbonnel and brought as it is into step 04, then plates, the field and the deposit."),
+    ("p", "Three principles guide it: **never change the originals**, **say when unsure** rather than be wrong in "
+          "silence, and **keep identical to the pixel** the results already right from one version to the next."),
+
+    ("h2", "Archaeological drawing and plates", "normes-dessin"),
+    ("ul", ["Conventions for drawing archaeological objects (Brussels, DMS 2009): publication reductions, pottery "
+            "and glass at 1/3, iron at 2/3 or 1/3, stone at 1/3 or 1/6: the **scales per material** of the plates.",
+            "M. Jean, *Le dessin archéologique* (2008): \"the graphic scale must always be present\": the **scale "
+            "bar** of every plate.",
+            "M. Jean, *Didacticiel infographie céramique* (2010): pottery presented at 1/3 and plates mounted in "
+            "Illustrator.",
+            "Arcelin and Rigoir, Feugère, Foy and Vallauri (1982), SA (2011), Prodhomme: conventions for drawing "
+            "pottery and other finds, preparing publications.",
+            "S. Eusèbe (Inrap), *La représentation scientifique des vestiges archéologiques*: \"details\" such as "
+            "the graphic scale matter."]),
+
+    ("h2", "Image processing methods", "methodes"),
+    ("table", [["Method", "In Gerbil", "Reference"],
+               ["CIELAB", "colour distance to the background", "CIE, L\\*a\\*b\\* space (1976)"],
+               ["Hysteresis", "keep the pale edges of a sharp object", "J. Canny, *A Computational Approach to Edge "
+                                                                      "Detection*, 1986"],
+               ["Least squares", "polynomial model of the background, comb of the ruler", "Legendre, Gauss"],
+               ["SIFT", "find a learned scale again", "D. Lowe, *Distinctive Image Features from Scale-Invariant "
+                                                      "Keypoints*, 2004"],
+               ["RANSAC", "keep the matches that agree", "M. Fischler and R. Bolles, 1981"],
+               ["ECC", "fine alignment of a learned scale", "G. Evangelidis and E. Psarakis, 2008"],
+               ["IS-Net", "AI second opinion", "X. Qin et al., *Highly Accurate Dichotomous Image Segmentation*, "
+                                               "2022"],
+               ["BiRefNet", "AI cut-out, second opinion", "P. Zheng et al., *Bilateral Reference for High-Resolution "
+                                                         "Dichotomous Image Segmentation*, 2024"],
+               ["Segment Anything", "one click on the object", "A. Kirillov et al., 2023; MobileSAM: C. Zhang et al., "
+                                                               "*Faster Segment Anything*, 2023"]],
+     [0.2, 0.36, 0.44]),
+
+    ("h2", "Programs that inspired the interface", "logiciels-inspiration"),
+    ("ul", ["**Excel**: the handle that copies a cell down, series, {{Ctrl+D}}.",
+            "**QGIS**: the scale bar (style, segments, units) of the plates.",
+            "**PowerShell**: the naming rule read as `-match`, and the inventory line to copy, to learn.",
+            "**Bridge and Lightroom**: the IPTC fields and the neighbouring XMP, embedded as they are.",
+            "**Photoshop**: the PSD with layers and layer masks, to take the cut-out up again with a brush.",
+            "**The draughtsman's graph paper**: the grid of the window and of this guide, and the checkered progress "
+            "chart."]),
+
+    ("h2", "Formats, metadata and archiving", "formats-archivage"),
+    ("ul", ["**IPTC Photo Metadata Standard** (IPTC Core), written as **XMP** (ISO 16684-1).",
+            "**DNG** (Adobe Digital Negative), an open archival format for RAW photos.",
+            "**CINES**: selection of formats for long-term preservation and the FACILE validation tool "
+            "(<https://www.cines.fr/preservation/expertises/file-format/selection/>).",
+            "**HEG Geneva (ArchiLab)**: TIFF for digitised images, PNG for the web, SVG for vectors.",
+            "**Consortium 3D (Huma-Num)** and **CND3D**: life cycle and archiving of 3D data, leads for the future."]),
+
+    # ------------------------------------------------------------------------------------------------ 8
+    ("part", "8", "Appendices", "Everything one looks up once used to the program.", "annexes"),
+
+    ("h2", "Keyboard and mouse shortcuts", "raccourcis"),
+    ("table", [["Where", "Key or gesture", "Effect"],
+               ["Step 01", "{{Enter}} in the path field", "adds the folder pasted"],
+               ["Step 01", "{{Delete}}", "removes the chosen row"],
+               ["Step 01", "drop folders on the icon", "adds them at start"],
+               ["Tables of the steps", "double-click a row", "opens what needs fixing"],
+               ["Batch renaming", "double-click a cell", "edit it; {{Enter}} accepts, {{Esc}} cancels"],
+               ["Batch renaming", "drag the handle of a cell", "copies down; with {{Ctrl}}: a series"],
+               ["Batch renaming", "{{Ctrl+D}}", "copies the first row chosen to the others"],
+               ["Batch renaming", "{{Ctrl+A}}", "chooses all rows"],
+               ["Batch renaming", "{{Ctrl}} / {{Shift}} + click", "choose several rows"],
+               ["Review", "mouse wheel", "zoom"],
+               ["Review", "right or middle button, {{Space}} + drag, arrows", "move the view"],
+               ["Review", "{{R}}", "whole photo"],
+               ["Review", "{{Ctrl+Z}}", "undo the last action"],
+               ["Review", "{{Shift}} + click (one-click tool)", "remove an object"],
+               ["Scale by hand", "drag a point", "adjust it; wheel: zoom; {{R}}: see all"],
+               ["Plates", "mouse wheel, ◀ ▶", "zoom, pages"],
+               ["Plates", "click an object", "choose its scale"],
+               ["Everywhere", "mouse on a setting", "its explanation"]], [0.22, 0.38, 0.4]),
+
+    ("h2", "Command line options", "options"),
+    ("p", "`py gerbil.py FOLDER --option` (scripts) or `gerbil_cli.exe FOLDER --option` (.exe version):"),
+    ("table", [["Option", "Effect"],
+               ["`-o FOLDER`", "output folder (default `outlined_result` next to the photos)"],
+               ["`--cutout colour|ai|ai-lite`", "cut-out by the colour or by the AI"],
+               ["`--colour none|balance|exposure`, `--white chart|scale|background`", "colours and white reference"],
+               ["`--background white`", "TIFF on white"],
+               ["`--remove-putty`", "removes the putty found"],
+               ["`--layout original`", "leaves the scale where it is"],
+               ["`--scale-cm 10`, `--no-scale`", "forces the length of the scale; no scale"],
+               ["`--margin-cm`, `--gap-cm`", "margin around the object, gap object / scale (0.5 cm)"],
+               ["`--no-psd`, `--no-original-layer`, `--no-original-copy`, `--no-control`", "fewer files"],
+               ["`--compression lzw|zip|none`", "TIFF compression"],
+               ["`--default-ppi 300`", "resolution without a scale"],
+               ["`--ai`, `--ai-model isnet|birefnet|birefnet-lite`, `--ai-device cpu`", "AI second opinion"],
+               ["`--profile FILE`", "site profile"],
+               ["`--refresh-names`", "applies a changed renaming without processing again"],
+               ["`-j 4`, `--open`, `-v`", "photos in parallel; open at the end; error details"],
+               ["`--dng FOLDER`, `--jpg preview|full|none`, `--tiff`", "RAW to DNG conversion (step 04)"]],
+     [0.5, 0.5]),
+
+    ("h2", "The outlined_report.csv report", "rapport"),
+    ("p", "One row per photo, \";\" separator and decimal comma (French Excel). States: `ok`, `to verify`, `failed`, "
+          "`error`. The fields of the renaming are added as columns."),
+    ("table", [["Column", "Content"],
+               ["`file`, `output_name`", "name of the photo, name of the files written"],
+               ["`status`, `to_verify`", "state, and reasons for the doubt"],
+               ["`scale_found`, `scale_type`", "`checkerboard`, `ruler`, `manual`, `learned`"],
+               ["`squares`, `scale_length_cm`", "number of squares, length of the scale"],
+               ["`px_per_cm`, `ppi_1_1`", "the measurement, and the 1:1 resolution"],
+               ["`object_width_cm`, `object_height_cm`", "size of the outlined object"],
+               ["`pieces`", "number of pieces outlined"],
+               ["`camera`, `lens`, `focal_mm`, `date_taken`", "shooting data (EXIF)"],
+               ["`notes`, `duration_s`", "remarks, duration"]], [0.42, 0.58]),
+
+    ("h2", "Files written next to the photos", "fichiers-voisins"),
+    ("p", "What is decided for a **cut-out** is kept next to the photos, so that a later run or a colleague finds it; "
+          "archive them together. The **conversion** writes nothing next to them: everything is in the DNG files."),
+    ("table", [["File", "Content"],
+               ["`gerbil_project.json`", "batch renaming: fields, template, rule, values, IPTC"],
+               ["`gerbil_scales.json`", "scales given by hand"],
+               ["`gerbil_edits/`", "corrections of the review (masks, angles)"],
+               ["`gerbil_profile.json`", "site profile placed in the folder"],
+               ["`NAME.xmp`", "IPTC metadata next to the original, if asked for"]], [0.35, 0.65]),
+
+    ("h2", "Troubleshooting", "depannage"),
+    ("table", [["What you see", "What to do"],
+               ["\"Windows protected your PC\"", "*More info*, then *Run anyway* (unsigned program)."],
+               ["An orange \"missing packages\" banner", "*Install now* (scripts version): numpy, OpenCV, Pillow, "
+                                                         "rawpy."],
+               ["\"Scale not found\"", "check it is whole and sharp; [[echelle-main|give it by hand]] or "
+                                       "[[profils|learn it]]."],
+               ["Parts of a light object are missing", "darker background, *Cut-out: ai*, or one click on the object "
+                                                       "in *Review*."],
+               ["The shadow is kept with the object", "*Cut-out: ai*, or *Remove a piece*."],
+               ["\"Missing information\"", "fill in the required fields of the batch renaming ([[relire|check]])."],
+               ["Two photos have the same output name", "Gerbil adds a suffix; complete the template (number, view)."],
+               ["Step 04 asks for Adobe DNG Converter", "install it (free, from Adobe), then run again."],
+               ["The AI cut-out is slow", "*ai-lite*, or fewer photos in parallel."],
+               ["The measurement seems a few % off", "was the scale in the plane of the object? Check with "
+                                                     "`NAME_outlined_scale.tif` in Illustrator."]], [0.42, 0.58]),
+
+    ("h2", "Glossary", "lexique"),
+    ("defs", [("1:1, scale 1:r", "1:1: real size. At scale 1:3, the object is three times smaller on paper."),
+              ("Batch renaming", "The names and information of all the photos of a folder, at once."),
+              ("Checkerboard", "A scale of alternating 1 cm squares, black and white (or red)."),
+              ("CIELAB", "A colour space close to perception: lightness L\\*, axes a\\* and b\\*."),
+              ("Colour chart", "A card of reference colours (SpyderCheckr, ColorChecker) photographed with the "
+                               "object."),
+              ("Contact sheet", "All the photos of a folder, small, on pages, to find one's way."),
+              ("Cut-out", "Separating the object from its background; the background becomes transparent."),
+              ("Deposit", "Handing a set of files over to an archive."),
+              ("DNG", "Digital Negative: Adobe's open format to archive RAW photos, with their metadata."),
+              ("EXIF", "Information written by the camera: body, lens, date, settings."),
+              ("Hysteresis", "Thresholding with two thresholds: keep what passes the low one if it touches what passes "
+                             "the high one."),
+              ("IPTC", "The standard set of fields of photo libraries (title, creator, location, keywords…)."),
+              ("Layer mask", "In a PSD, what hides part of a layer without erasing it."),
+              ("Metadata", "Information written into a file, besides the image."),
+              ("Naming rule", "What every name must follow, written as a regular expression."),
+              ("Orthophoto", "A straightened image, without perspective, at a constant scale, often georeferenced."),
+              ("Plate", "A page of figures of a publication, at a given scale."),
+              ("PSD", "Layered Photoshop file."),
+              ("px/cm, ppi", "Pixels per centimetre (measured on the scale); pixels per inch (= px/cm × 2.54), "
+                             "written into the files."),
+              ("RAW", "The raw file of the camera (CR2, CR3, NEF, ARW…), before development."),
+              ("Ruler", "A rule graduated in millimetres."),
+              ("SHA-256", "A fingerprint of a file: if a single byte changes, it changes; used to check a transfer."),
+              ("Site profile", "What Gerbil knows of a site: background, scales, fields, name template, settings."),
+              ("SVG", "A vector drawing format, opened by Illustrator and Inkscape."),
+              ("Thumbnail", "A small copy of an image, for a database."),
+              ("TIFF", "A lossless image format, with transparency: the format of the outlined objects."),
+              ("White balance", "A correction that makes a white neutral, to remove the cast of the light."),
+              ("XMP", "The format of the metadata written into files (or into a neighbouring .xmp file).")]),
+
+    ("h2", "Libraries and programs", "bibliotheques"),
+    ("p", "Gerbil relies on free software; many thanks to their authors."),
+    ("table", [["Name", "Role in Gerbil", "Licence"],
+               ["Python", "the language of the program", "PSF"],
+               ["numpy", "images as arrays of numbers, computations", "BSD"],
+               ["OpenCV", "image processing: colours, morphology, contours, SIFT, ECC", "Apache 2.0"],
+               ["Pillow", "reading and writing images, drawing the plates", "MIT-CMU"],
+               ["rawpy, LibRaw", "developing RAW photos", "MIT; LGPL 2.1 or CDDL"],
+               ["onnxruntime", "running the AI networks on the computer", "MIT"],
+               ["BiRefNet, IS-Net", "cut-out networks (ONNX exports by rembg)", "MIT; Apache 2.0"],
+               ["MobileSAM", "one click on the object (ONNX export by Acly)", "MIT"],
+               ["Tk (tkinter)", "the windows", "Tcl/Tk BSD licence"],
+               ["ExifTool", "writing the metadata of the DNG files (shipped)", "Perl licence"],
+               ["Adobe DNG Converter", "converting RAW photos to DNG (to install)", "free, proprietary"],
+               ["Inkscape", "converting .ai, .pdf, .eps drawings (optional)", "GPL"],
+               ["PyInstaller", "building Gerbil.exe", "GPL with exception"],
+               ["Source Serif 4, Cormorant Garamond, Courier Prime", "the fonts of the interface and of the guides",
+                "SIL OFL"]], [0.3, 0.48, 0.22]),
+
+    ("h2", "Citing Gerbil, licence", "citer"),
+    ("p", "Charbonnel E. 2026. *Gerbil: the archaeologist's photo toolkit*, version 2.3. Free software, GNU GPL v3 "
+          "or later. <https://github.com/EloisCharbonnel/gerbil>"),
+    ("p", "Gerbil comes without any warranty. It may be used, studied, changed and shared under the terms of the "
+          "licence (`LICENSE` file)."),
+]
+
+# =============================================================================================================
+# GUIDE TO THE CODE
+# =============================================================================================================
+
+CODE = [
+    ("part", "1", "The program as a whole", "The files, how they talk to each other, and the way of a photo in the "
+     "code. The processing itself (methods, thresholds) is described in the user guide and in docs/PSEUDOCODE.txt.",
+     "programme"),
+
+    ("h2", "The files", "fichiers"),
     ("table", [["File", "Role"],
-               ["`gerbil.py`", "The engine: everything that processes a photo, and the command line. It knows "
-                               "nothing about the windows."],
-               ["`gerbil_gui.pyw`", "The interface: the windows. It starts the engine as a separate program and "
-                                    "reads what it prints."],
-               ["`gerbil_plates.py`", "The SVG plates."],
-               ["`gerbil_tools.py`", "The CSV inventory and the thumbnails."],
-               ["`packaging/gerbil_setup.pyw`", "The installer."],
-               ["`tests/`", "The automatic tests, on synthetic photos."],
-               ["`docs/`", "Pseudocode, roadmap, sources, this guide."]]),
+               ["`gerbil.py`", "the engine: everything that processes a photo, and the command line; it knows nothing "
+                               "of the windows"],
+               ["`gerbil_gui.pyw`", "the interface: the windows; it runs the engine as a separate program"],
+               ["`gerbil_dng.py`", "the RAW to DNG conversion (Adobe DNG Converter, ExifTool)"],
+               ["`gerbil_plates.py`", "the SVG plates"],
+               ["`gerbil_tools.py`", "the CSV inventory and the thumbnails"],
+               ["`gerbil_lang_fr.py`", "the French texts of the interface"],
+               ["`packaging/gerbil_setup.pyw`", "the installer"],
+               ["`tests/`", "the automatic tests, on synthetic photos"],
+               ["`docs/`", "pseudo-code, roadmap, sources, guides and their generators"]], [0.35, 0.65]),
 
-    ("h2", "2. How they talk to each other"),
+    ("h2", "How they talk to each other", "dialogue"),
     ("code", "gerbil_gui.pyw  (windows)  --runs-->  gerbil.py / gerbil_cli.exe  (engine, one photo after the other)\n"
-             "       |                                   |\n"
-             "       |  reads its printed lines          +--> outlined_result/ : PSD, TIFF, previews, report\n"
-             "       |  (\"[3/12] NAME: ok ...\")          |\n"
-             "       +--> gerbil_plates.py (plates)      +--> reads gerbil_project.json, gerbil_scales.json,\n"
-             "       +--> gerbil_tools.py  (inventory)        gerbil_edits/, gerbil_profile.json"),
-    ("p", "The interface does not process the photos itself: it builds the command line from the options, starts "
-          "the engine (`subprocess`), and reads the lines it prints to show the progress. Some windows also call "
-          "functions of the engine directly (`import gerbil`), for instance to read a photo or learn a scale."),
+             "       |                                  |\n"
+             "       |  reads the printed lines         +--> outlined_result/ : PSD, TIFF, previews, report\n"
+             "       |  (\"[3/12] NAME: ok ...\")         |\n"
+             "       |                                  +--> reads gerbil_project.json, gerbil_scales.json,\n"
+             "       |                                       gerbil_edits/, gerbil_profile.json\n"
+             "       +--> gerbil.py --dng  -->  gerbil_dng.py  -->  Adobe DNG Converter, ExifTool\n"
+             "       +--> gerbil_plates.py (plates)    gerbil_tools.py (inventory, thumbnails)"),
+    ("p", "The interface does not process photos itself: it builds the command line from the settings, starts the "
+          "engine (`subprocess`) and reads the lines it prints to show the progress. A few windows call functions of "
+          "the engine directly (`import gerbil`), to read a photo or learn a scale. The batch renamings kept in "
+          "memory are given to the engine through a temporary file named in the `GERBIL_PROJECTS` variable."),
 
-    ("h2", "3. The path of a photo in the code"),
-    ("p", "The function `process_photo` of `gerbil.py` calls, in order:"),
+    ("h2", "The way of a photo in the code", "chemin-code"),
+    ("p", "The `process_photo` function of `gerbil.py` calls, in order:"),
     ("ol", ["`load_photo`: reads the file (RAW through `develop_raw`), turns it upright, keeps EXIF and colour "
             "profile.",
             "`BackgroundModel`: the background model, on the reduced copy.",
-            "`manual_scale`, else `detect_scale` (which calls `analyze_pattern`, `analyze_comb`, `detect_ruler`, "
-            "`_scale_on_dark`…), else `detect_learned_scale`. The result is a `Scale` object.",
-            "`outline_object` (or `cutout_from_mask` for a mask corrected by hand).",
-            "`find_putty`.",
+            "`manual_scale`, else `detect_scale` (`analyze_pattern`, `analyze_comb`, `detect_ruler`, "
+            "`_scale_on_dark`…), else `detect_learned_scale`: a `Scale` object.",
+            "`outline_object` (or `cutout_from_mask` for a mask fixed by hand), then `find_putty`.",
             "`layout`, then `write_psd`, `write_tiff` (with `make_xmp`), `control_image`, `write_review`.",
-            "The row of the report is returned; `main` writes `outlined_report.csv` and the summary."]),
+            "The report row is returned; `main` writes `outlined_report.csv` and the summary."]),
+    ("h2", "The way of a conversion", "chemin-dng"),
+    ("ol", ["`gerbil.py --dng` hands over to `gerbil_dng.main`, which opens ExifTool once (`-stay_open`) with the "
+            "`gerbil` XMP namespace.",
+            "`convert` groups the RAW photos by folder; `convert_folder` reads the renaming (`gerbil.load_project`) "
+            "and the DNG files already made (`previous_outputs`).",
+            "For each RAW photo: the date taken, the name, Adobe DNG Converter, the neighbouring XMP, the IPTC "
+            "fields, the JPG (and the TIFF through `develop_to`), a report row."]),
 
-    ("h2", "4. Useful Python notions"),
+    ("part", "2", "Python notions", "Enough to read any line of the program.", "python"),
+    ("h2", "Useful notions", "notions"),
     ("defs", [("Module, import", "Each file is a module. `import gerbil as g` gives access to its functions "
-                                 "(`g.load_photo`); `from PIL import Image` takes one name from a library."),
-              ("Function", "`def name(arguments):` takes values and returns a result (`return`). The body of the "
-                           "function is the indented block under the `def` line."),
-              ("Docstring", "The first string of a function, between triple quotes: its explanation. Part IV shows "
+                                 "(`g.load_photo`); `from PIL import Image` takes a single name."),
+              ("Function", "`def name(arguments):` receives values and returns a result (`return`); the body is the "
+                           "indented block under the `def` line."),
+              ("Docstring", "The first string of a function, in triple quotes: its explanation. The reference shows "
                             "it."),
-              ("Class, method, self", "`class Name:` groups data and the functions that work on them (its "
-                    "*methods*). The first argument of a method, `self`, is the object itself. Each window is a "
-                    "class (`ReviewWindow`, `PlatesWindow`): its `__init__` builds it, its methods react to the "
-                    "user."),
-              ("@dataclass", "A class that is mostly a record of named values (`Scale`, `PlateSettings`), written "
-                             "without repetitions."),
-              ("Dictionary, list, tuple", "`{\"key\": value}`: settings, report rows, JSON files. `[a, b]`: ordered "
-                    "values, changeable. `(x, y)`: fixed group (coordinates, colours)."),
-              ("numpy array", "An image is an array: `rgb[y, x]` is a pixel, `rgb.shape` is (height, width, 3), "
-                    "values 0 to 255. An operation applies to all pixels at once (`rgb * 0.5`), without a loop: "
-                    "that is what makes the processing fast."),
-              ("Mask", "An array of true / false the size of the image: `rgb[mask]` gives the pixels of the "
-                       "object."),
-              ("OpenCV (cv2)", "Image processing: resizing, blurring, converting to Lab, morphology (`cv2.erode` "
-                    "shrinks a mask, `cv2.dilate` grows it), connected components (the separate pieces of a mask), "
-                    "contours."),
-              ("Pillow (PIL)", "Reading and writing image files, drawing texts, colour profiles."),
-              ("Coordinates", "x to the right, y downwards, in pixels of the photo; in millimetres of the page for "
-                    "the plates. An affine matrix `M` (2 × 3) goes from a straightened crop to the photo."),
-              ("Exceptions", "`try: … except OSError:` catches an error (a file that cannot be read) instead of "
-                             "stopping the program."),
-              ("f-string", "`f\"{px_cm:.2f} px/cm\"` writes values inside a text (here with 2 decimals)."),
-              ("Parallel work", "The engine processes several photos at once in separate processes "
-                    "(`ProcessPoolExecutor`). The interface stays responsive by doing long work in threads "
-                    "(`threading.Thread`) and checking regularly with `after(ms, function)`."),
-              ("tkinter", "The windows: widgets (`ttk.Button`, `tk.Canvas`) placed with `pack` or `grid`; "
-                          "`command=` and `bind(\"<Event>\", function)` tie a click or a key to a method; "
-                          "`mainloop()` waits for the events.")]),
-
-    ("h2", "5. A small lexicon to read a line"),
+              ("Class, method, self", "`class Name:` gathers data and the functions that work on it (its methods); "
+                    "`self` is the object itself. Each window is a class: its `__init__` builds it, its methods "
+                    "answer the user."),
+              ("@dataclass", "A class that is mostly a record of named values (`Scale`, `PlateSettings`)."),
+              ("Dictionary, list, tuple", "`{\"key\": value}`: settings, report rows, JSON; `[a, b]`: ordered values; "
+                    "`(x, y)`: a fixed group."),
+              ("numpy array", "An image is an array: `rgb[y, x]` is a pixel, `rgb.shape` is (height, width, 3). An "
+                              "operation applies to all pixels at once, without a loop."),
+              ("Mask", "An array of true / false the size of the image: `rgb[mask]` gives the pixels of the object."),
+              ("OpenCV (cv2)", "Image processing: resize, blur, Lab, morphology (`cv2.erode`, `cv2.dilate`), "
+                               "connected components, contours."),
+              ("Exceptions", "`try: … except OSError:` catches an error instead of stopping the program."),
+              ("f-string", "`f\"{px_cm:.2f} px/cm\"` writes values into a text."),
+              ("Parallel work", "The engine processes several photos at once (`ProcessPoolExecutor`); the interface "
+                                "stays responsive with threads (`threading.Thread`) and `after(ms, function)`."),
+              ("tkinter", "The windows: widgets (`ttk.Button`, `tk.Canvas`) placed with `pack` or `grid`; `command=` "
+                          "and `bind(\"<Event>\", function)` link a click to a method."),
+              ("Themes", "The colours are named by their role (`INK`, `TINT`, `RAIL`, `CARD_BG`…) and chosen by "
+                         "`use_theme()` before the windows are built.")]),
+    ("h2", "A small glossary to read a line", "lexique-ligne"),
     ("table", [["Written", "Read as"],
-               ["`a = b`", "a receives the value of b (not an equality)."],
-               ["`a == b`, `a != b`", "is a equal to b? different from b? (true or false)"],
-               ["`a += 1`, `a *= 2`", "a grows by 1; a is multiplied by 2."],
-               ["`x ** 2`", "x squared."],
-               ["`if … :`, `elif … :`, `else:`", "if…, else if…, otherwise."],
-               ["`for x in items:`", "for each element of the list."],
-               ["`and`, `or`, `not`", "and, or, not."],
-               ["`# text`", "a comment: ignored by Python, written for the reader."],
-               ["`lab[..., 0]`", "in an image array, channel 0 (L\\*) of all the pixels."],
-               ["`rgb[y0:y1, x0:x1]`", "a rectangle of the image (from y0 to y1 excluded, from x0 to x1 excluded)."],
-               ["`np.`, `cv2.`", "a function of numpy, of OpenCV."],
-               ["`self.name`", "a piece of data of the object (the window, the scale…)."],
-               ["`None`", "\"nothing\": no value (scale not found, for instance)."]]),
+               ["`a = b`", "a receives the value of b (not an equality)"],
+               ["`a == b`, `a != b`", "is a equal to b? different?"],
+               ["`a += 1`", "a increases by 1"],
+               ["`x ** 2`", "x squared"],
+               ["`if … :`, `elif … :`, `else:`", "if…, else if…, else"],
+               ["`for x in items:`", "for each element of the list"],
+               ["`# text`", "a comment, for the reader"],
+               ["`lab[..., 0]`", "channel 0 (L\\*) of all the pixels"],
+               ["`rgb[y0:y1, x0:x1]`", "a rectangle of the image"],
+               ["`self.name`", "a piece of data of the object (the window, the scale…)"],
+               ["`None`", "\"nothing\": no value"]], [0.35, 0.65]),
 
-    ("h2", "6. Real functions, line by line"),
-    ("p", "The extracts below are read from the code when this guide is made: they are exactly the lines of the "
-          "program."),
-    ("h3", "to_lab: going to CIELAB colours"),
+    ("part", "3", "Real functions, line by line", "These extracts are read from the code when the guide is made: "
+     "they are exactly the lines of the program.", "lignes"),
+    ("h2", "to_lab: going to CIELAB", "to-lab"),
     ("annotated", "gerbil.py", "to_lab", [
         "Defines the function `to_lab`, which receives `rgb`, an image in red-green-blue.",
-        "The docstring: what the function does and why (see Part II, § 2).",
-        "OpenCV converts the image to Lab; `.astype(np.float32)` turns it into decimal numbers, to compute "
-        "without rounding. OpenCV stores each channel from 0 to 255.",
-        "Channel 0 (L\\*) is brought from 0–255 to the usual 0–100 scale.",
-        "Channels 1 and 2 (a\\* and b\\*) are centred on 0 (OpenCV shifts them by 128).",
+        "The docstring: what the function does and why.",
+        "OpenCV converts the image to Lab; `.astype(np.float32)` goes to decimal numbers. OpenCV stores each channel "
+        "from 0 to 255.",
+        "Channel 0 (L\\*) is brought back to the usual 0–100 scale.",
+        "Channels 1 and 2 (a\\* and b\\*) are centred on 0.",
         "Returns the image in Lab."]),
-    ("h3", "distance: how different a pixel is from the background"),
+    ("h2", "distance: how much a pixel differs from the background", "distance"),
     ("annotated", "gerbil.py", "distance", [
-        "Receives the image in Lab, the reference colour (the background model) and the weight of lightness, by "
-        "default `L_WEIGHT` (0.5).",
+        "Receives the image in Lab, the reference colour (the background model) and the weight of lightness (0.5).",
         "The docstring.",
-        "Gap in lightness (L\\*) of each pixel to the background, multiplied by the weight: a shadow counts less.",
-        "Gap in a\\* (green–red).",
-        "Gap in b\\* (blue–yellow).",
-        "The distance: square root of the sum of the squares (Pythagoras in the space of colours), for all pixels "
-        "at once."]),
-    ("h3", "hysteresis: keeping the clear regions and their faint edges"),
+        "Lightness gap of each pixel to the background, times the weight: a shadow counts less.",
+        "Gap on a\\* (green–red).",
+        "Gap on b\\* (blue–yellow).",
+        "The distance: square root of the sum of squares, for all pixels at once."]),
+    ("h2", "hysteresis: keep sharp regions and their pale edges", "hysteresis"),
     ("annotated", "gerbil.py", "hysteresis", [
-        "Receives the map of distances `d` and the two thresholds (8 and 18 for the cut-out).",
+        "Receives the distance map `d` and both thresholds (8 and 18).",
         "The docstring.",
-        "`weak`: the pixels above the low threshold (1 = yes, 0 = no).",
-        "OpenCV numbers the connected regions of `weak` (`n` regions; `lab` gives the number of each pixel). This "
-        "`lab` has nothing to do with Lab colours: it is a \"label\".",
-        "A list of `n` answers \"keep?\", all set to no to start with.",
-        "The numbers of the regions that contain at least one pixel above the high threshold are set to yes.",
+        "`weak`: the pixels above the low threshold.",
+        "OpenCV numbers the connected regions of `weak`; `lab` gives the number of each pixel (a \"label\", nothing "
+        "to do with Lab colours).",
+        "A list of `n` answers \"keep?\", all no.",
+        "The regions that hold a pixel above the high threshold turn to yes.",
         "Region 0, the background, is never kept.",
-        "Each pixel takes the answer of its region: this is the mask."]),
-    ("h3", "parse_ratio: reading a scale written \"1/3\""),
+        "Each pixel takes the answer of its region: the mask."]),
+    ("h2", "parse_ratio: reading a scale written \"1/3\"", "parse-ratio"),
     ("annotated", "gerbil_plates.py", "parse_ratio", [
-        "Receives a text, for instance \"1/3\", \"1:3\" or \"3\".",
-        "The docstring gives examples: \"2/3\" gives 1.5 (reduction to two thirds).",
-        "The text is cleaned (spaces removed); a decimal comma becomes a point, as Python wants.",
+        "Receives a text: \"1/3\", \"1:3\" or \"3\".",
+        "The docstring: \"2/3\" gives 1.5 (reduction to two thirds).",
+        "The text is cleaned; a decimal comma becomes a point.",
         "Try what follows; on an error, go to `except`.",
         "If the text holds \"/\" or \":\"…",
-        "… cut it in two at this sign: `a` before, `b` after.",
-        "… and return b ÷ a (1/3 → 3, 2/3 → 1.5).",
-        "Otherwise the text is a number alone: return it.",
-        "If the reading fails (not a number) or divides by zero…",
-        "… return `None`: the interface then keeps the previous value."]),
-    ("h3", "Tooltip.__init__: tying a help bubble to a button"),
+        "… cut it in two: `a` before, `b` after…",
+        "… and return b ÷ a (1/3 → 3).",
+        "Else, return the number alone.",
+        "If reading fails or divides by zero…",
+        "… return `None`: the interface keeps the old value."]),
+    ("h2", "Tooltip.__init__: a help bubble on a button", "tooltip"),
     ("annotated", "gerbil_gui.pyw", "Tooltip.__init__", [
-        "The method that builds a help bubble: `self` is the bubble, `widget` the element (button, box), `text` the "
-        "explanation.",
+        "The method that builds a help bubble: `widget` is the element, `text` the explanation.",
         "The docstring.",
-        "Keeps the element and the text; the bubble itself (`tip`) and the planned task (`job`) do not exist yet.",
-        "When the mouse **enters** the element: plan the display (`_schedule`, in 450 ms). `add=\"+\"` adds this "
-        "binding without removing those already there.",
+        "Keeps the element and the text; the bubble and the planned task do not exist yet.",
+        "When the mouse **enters**: plan the display (450 ms); `add=\"+\"` keeps the other bindings.",
         "When the mouse **leaves**: hide the bubble.",
         "On a **click**: hide it.",
         "When the element loses the **focus**: hide it.",
-        "When the element is **destroyed** (window closed): hide it."]),
+        "When the element is **destroyed**: hide it."]),
 
-    ("h2", "7. Changing the code without breaking anything"),
-    ("ul", ["Names and messages in English; constants in capitals at the top of their section (`LOW_T`, "
-            "`LABEL_FILL`…), with a comment saying what they are.",
-            "Comments say *why* when it is not obvious; the docstrings say *what* and, briefly, *how*.",
-            "**A change must leave the results already right identical, to the pixel**: it is checked on the "
-            "reference sets of photos before being adopted (see `CONTRIBUTING.md`).",
-            "The automatic tests run with `py -3 -m pytest tests`; they make their own synthetic photos (the "
-            "repository holds no real photo).",
-            "After a change of the code, run `py -3 docs/make_guide_odt.py` again: this guide is updated."]),
-
-    ("h2", "8. Glossary"),
-    ("defs", [("Affine (transformation)", "Rotation, change of size and shift combined; used to straighten a "
-                                          "scale."),
-              ("Alpha, layer mask", "The transparency of each pixel: 0 = transparent, 255 = opaque. In the PSD, the "
-                                    "mask hides without erasing."),
-              ("Connected component", "A piece of a mask in one block."),
-              ("ECC", "Method of fine alignment of two images by correlation."),
-              ("Hysteresis", "Threshold with two levels: keep what is above the low one when it touches what is "
-                             "above the high one."),
-              ("Least squares", "Fitting a curve or a surface so that the sum of the squared gaps is the smallest."),
-              ("Morphology (opening, closing)", "Operations on the shape of a mask: the opening erases what is "
-                    "thinner than a given disc, the closing fills narrower gaps."),
-              ("ONNX, onnxruntime", "Format of neural networks, and the program that runs them."),
-              ("px/cm, ppi", "Pixels per centimetre (measured on the scale); pixels per inch (= px/cm × 2.54), "
-                             "written into the files."),
-              ("RANSAC", "Robust method: try many small explanations and keep the one most of the data confirm."),
-              ("SIFT", "Characteristic points of an image, recognisable even turned or enlarged."),
-              ("Sub-pixel", "Position measured more finely than the pixel, by interpolating the lightness "
-                            "profile."),
-              ("SVG", "Vector drawing format (XML) read by Illustrator and Inkscape."),
-              ("XMP, IPTC, EXIF", "Metadata written into the files: XMP is the format, IPTC the set of fields of photo "
-                                  "libraries, EXIF the camera information.")]),
+    ("part", "4", "Changing the code without breaking anything", "The house rules, the tests, and how to make the "
+     "guides again.", "modifier"),
+    ("h2", "The rules", "regles"),
+    ("ul", ["Names and messages in English; constants in capitals at the top of their section, with a comment.",
+            "Comments say *why*; docstrings say *what* and, briefly, *how*.",
+            "**A change must leave identical, to the pixel, the results already right**: it is checked on the "
+            "reference sets before being adopted (`CONTRIBUTING.md`).",
+            "The names of the files written do not change without a reason: other tools read them.",
+            "The `.bat` files keep Windows line endings (CRLF)."]),
+    ("h2", "Tests and guides", "tests-guides"),
+    ("code", "py -3 -m pytest tests                    the automatic tests (synthetic photos)\n"
+             "py -3 docs/make_code_guide.py            docs/CODE_GUIDE.md\n"
+             "py -3 docs/make_guide_shots.py           the screenshots of the interface (needs a screen)\n"
+             "py -3 docs/make_guide_pdf.py             the four PDF guides (Edge or Chrome)"),
+    ("p", "A new function shows in the French reference with its English explanation, flagged \"à traduire\": add "
+          "it to `docs/fr/reference_fr_more.py`."),
 ]

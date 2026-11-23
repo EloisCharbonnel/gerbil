@@ -69,9 +69,11 @@ is taken over and converted at the next run in the same folder.
 
 `docs\PSEUDOCODE.txt` describes the whole processing step by step (pseudocode, libraries, methods);
 `docs\CODE_GUIDE.md` explains the Python code itself, file by file and function by function.
-`docs\Gerbil_guide_FR.odt` (French) and `docs\Gerbil_guide_EN.odt` gather everything in one illustrated
-document: using Gerbil, the processing explained in plain words, reading the code (real functions explained
-line by line) and the reference of every function (`py -3 docs/make_guide_odt.py` writes them again).
+`docs\Gerbil_guide_FR.pdf` (French) and `docs\Gerbil_guide_EN.pdf` are the user guides, opened by *Help*: the
+way from A to Z with screenshots, every step, workflows, the processing explained in plain words, inspirations
+and sources, shortcuts, glossary and libraries. `docs\Gerbil_code_guide_FR.pdf` and `_EN.pdf` explain the code
+(real functions line by line) and give the reference of every function. `py -3 docs/make_guide_shots.py` takes
+the screenshots again, `py -3 docs/make_guide_pdf.py` writes the four PDF files again (with Edge or Chrome).
 `docs\ROADMAP.md` lists what is planned next, and `docs\REFERENCES.md` the sources behind
 the choices (drawing conventions, graphic documentation, archiving of 2D and 3D data).
 
@@ -797,7 +799,7 @@ build_exe.bat, gerbil.spec, packaging\       building the .exe version and the i
 requirements.txt                             Python packages
 icons\                                       icon (draw_gerbil.py redraws it)
 fonts\                                       fonts of the interface (SIL Open Font License)
-docs\                                        PSEUDOCODE.txt, ROADMAP.md, REFERENCES.md, guides (.odt)
+docs\                                        PSEUDOCODE.txt, ROADMAP.md, REFERENCES.md, guides (.pdf)
 tests\                                       automatic checks on synthetic photos (py -3 -m pytest tests)
 models\, build\, dist\                       downloaded or built: not in the repository
 ```
