@@ -651,7 +651,7 @@ PARTS = [
     ("h2", "16. Pour une méthodologie"),
     ("p", "Exemple de paragraphe, à adapter :"),
     ("note", "« Les objets ont été photographiés sur fond uni avec une échelle dans le plan de la face photographiée. "
-             "Les photographies ont été détourées et mises à l'échelle avec Gerbil 2.2 (Charbonnel 2026, logiciel "
+             "Les photographies ont été détourées et mises à l'échelle avec Gerbil 2.3 (Charbonnel 2026, logiciel "
              "libre, GPL v3). L'échelle de chaque photographie est détectée et mesurée automatiquement (damier : "
              "longueur des cases ajustée au sous-pixel ; réglet : pas du millimètre ajusté sur l'ensemble des "
              "graduations, précision d'environ 0,1 %), puis la résolution réelle est inscrite dans les fichiers, ce "

@@ -60,7 +60,7 @@ def open_photo_image(path, small=False):
 
 
 CREDITS = "© 2026 Eloïs CHARBONNEL"
-VERSION = "2.2"
+VERSION = "2.3"
 REQUIRED = {"numpy": "numpy", "cv2": "opencv-python-headless", "PIL": "pillow",
             "rawpy": "rawpy"}   # module: pip package
 AI_PACKAGE = "onnxruntime-directml" if sys.platform == "win32" else "onnxruntime"

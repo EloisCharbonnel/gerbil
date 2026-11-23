@@ -585,7 +585,7 @@ PARTS = [
     ("h2", "16. For a methodology"),
     ("p", "An example of paragraph, to adapt:"),
     ("note", "\"The finds were photographed on a plain background with a scale in the plane of the face "
-             "photographed. The photographs were outlined and scaled with Gerbil 2.2 (Charbonnel 2026, free "
+             "photographed. The photographs were outlined and scaled with Gerbil 2.3 (Charbonnel 2026, free "
              "software, GPL v3). The scale of each photograph is detected and measured automatically "
              "(checkerboard: length of the squares fitted at the sub-pixel; ruler: millimetre step fitted over all "
              "the graduations, precision about 0.1 %), then the real resolution is written into the files, which "

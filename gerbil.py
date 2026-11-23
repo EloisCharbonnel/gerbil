@@ -60,7 +60,7 @@ except ImportError as _e:
              f"Install the required packages once: double-click Install.bat, or run\n"
              f'  py -3 -m pip install -r "{os.path.join(os.path.dirname(os.path.abspath(__file__)), "requirements.txt")}"')
 
-VERSION = "2.2"
+VERSION = "2.3"
 EXTENSIONS = {".jpg", ".jpeg", ".tif", ".tiff", ".png"}
 RAW_EXTENSIONS = {".dng", ".cr2", ".cr3", ".crw", ".nef", ".nrw", ".arw", ".sr2", ".srf", ".orf", ".rw2", ".raw", ".rwl",
                   ".raf", ".pef", ".srw", ".3fr", ".fff", ".iiq", ".mos", ".mef", ".erf", ".mrw", ".dcr", ".kdc"}

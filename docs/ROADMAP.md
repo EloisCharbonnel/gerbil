@@ -32,6 +32,7 @@ Sources behind these choices: `docs/REFERENCES.md`.
 | 2.0 | First public version: review window, batch renaming and IPTC metadata, plates, site profiles and learned scales, one-click cut-out, RAW files, installer |
 | 2.1 | Main window in five steps, French and English, cast shadows removed, scale or label discarded on photos without a scale |
 | 2.2 | Cut-out drawn from the AI (BiRefNet), colour correction from a white of the photo, free plates of field photos, contact sheets, plates as PDF with a list of figures, check before a deposit, "object" instead of "ceramic", naming alerts updated without processing again |
+| 2.3 | RAW to DNG conversion (QSR protocol: IPTC metadata, camera XMP embedded, JPG and 16-bit TIFF exports, nothing written next to the photos), main window in six steps (metadata check, final review), site profile shown in step 01, only required fields flag a photo |
 
 Measured on a 2025 sample from Qusur (42 photos, velvet and light backgrounds): 10 → 37 photos ready
 without retouching. On 1,764 reference photos: no scale already found changed; photos without a
