@@ -66,16 +66,58 @@ REQUIRED = {"numpy": "numpy", "cv2": "opencv-python-headless", "PIL": "pillow",
 AI_PACKAGE = "onnxruntime-directml" if sys.platform == "win32" else "onnxruntime"
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
-# palette: violet ink, ITINERA blue-green, light grey squared paper
-VIOLET, VIOLET_2, LILAS, LILAS_2, LILAS_PALE = "#34245A", "#5B4794", "#DCD5EC", "#C9BFE3", "#F1EEF7"
-TEAL, TERRA = "#215353", "#B5582F"
-SAGE, SAGE_2, SAGE_DARK = "#ABD6B4", "#97CBA2", "#80BA8D"   # the green behind the gerbil of the logo
-PAPER, GRID, GRID_2, LINE = "#F3F3F4", "#E5E5E8", "#D5D5DA", "#D3CEDC"
-# the earlier names, used by the other windows
-LAVENDER, MINT, TERRACOTTA = "#B5A8DA", "#9FD3CF", "#D9A58C"
-LAVENDER_DARK, LAVENDER_PALE, LAVENDER_LINE = VIOLET, LILAS_PALE, LINE
-MINT_DARK, TERRACOTTA_DARK = TEAL, TERRA
-WINDOW_BG, CARD_BG, TEXT, MUTED, RED = PAPER, "#FFFFFF", "#1F1D24", "#66626E", "#A8322B"
+# palette: an ink (green or violet), ITINERA blue-green, grey squared paper; light or dark. The colours are
+# named by their role and set by use_theme() before the windows are built.
+LIGHT = dict(
+    PAPER="#F3F3F4", GRID="#E5E5E8", GRID_2="#D5D5DA", CARD_BG="#FFFFFF", FIELD="#FFFFFF", TEXT="#1F1D24",
+    MUTED="#66626E", RED="#A8322B", TEAL="#215353", TERRA="#B5582F", TERRA_PALE="#FBEFE9", TEAL_PALE="#E6F0EF",
+    DISABLED_BG="#F1F0F3", DISABLED_FG="#A9A5B4", BANNER_FG="#3D2017", TIP_BG="#1F1D24", TIP_FG="#FFFFFF",
+    BADGE="#B5582F", SAGE="#ABD6B4", SAGE_2="#97CBA2", SAGE_DARK="#80BA8D")   # sage: the green of the logo
+DARK = dict(
+    PAPER="#16191A", GRID="#1E2223", GRID_2="#262B2C", CARD_BG="#202425", FIELD="#191C1D", TEXT="#E3E6E3",
+    MUTED="#9AA19D", RED="#E57B72", TEAL="#7CC7C2", TERRA="#E69A6E", TERRA_PALE="#3A2A22", TEAL_PALE="#1F3533",
+    DISABLED_BG="#26292A", DISABLED_FG="#666C6A", BANNER_FG="#F2D9CC", TIP_BG="#E3E6E3", TIP_FG="#16191A",
+    BADGE="#B5582F", SAGE="#7FB58C", SAGE_2="#93C39F", SAGE_DARK="#6AA078", LINE="#363C3D")
+INKS = {
+    ("green", False): dict(
+        INK="#1E4230", INK_2="#3B7656", TINT="#D2E7D8", TINT_2="#B6D6BE", TINT_PALE="#EEF6F0", SELECT="#A8CFB3",
+        ON_INK="#FFFFFF", LINE="#CFD9D2", READONLY="#F1F7F3", CANVAS_SOFT="#E1EEE5", VIEW_BG="#243029",
+        RAIL="#1E4230", RAIL_LINE="#36604A", RAIL_TEXT="#E9F3EC", RAIL_SOFT="#D0E5D6", RAIL_SUB="#B7D3BF",
+        RAIL_FAINT="#A2C3AB", RAIL_OFF="#7FA58A", RAIL_NUM="#B6D6BE"),
+    ("violet", False): dict(
+        INK="#34245A", INK_2="#5B4794", TINT="#DCD5EC", TINT_2="#C9BFE3", TINT_PALE="#F1EEF7", SELECT="#B5A8DA",
+        ON_INK="#FFFFFF", LINE="#D3CEDC", READONLY="#F3F1FA", CANVAS_SOFT="#E6E2F2", VIEW_BG="#2B2738",
+        RAIL="#34245A", RAIL_LINE="#4A3A72", RAIL_TEXT="#EDE8F7", RAIL_SOFT="#D9D2EC", RAIL_SUB="#C9C1DE",
+        RAIL_FAINT="#B9B0D3", RAIL_OFF="#9C92BD", RAIL_NUM="#C9BFE3"),
+    ("green", True): dict(
+        INK="#9AD3AC", INK_2="#6FB585", TINT="#2C4637", TINT_2="#3B5D48", TINT_PALE="#243229", SELECT="#35553F",
+        ON_INK="#10201A", READONLY="#1F2522", CANVAS_SOFT="#1B201E", VIEW_BG="#0F1211",
+        RAIL="#121A16", RAIL_LINE="#24332B", RAIL_TEXT="#E9F3EC", RAIL_SOFT="#D0E5D6", RAIL_SUB="#B7D3BF",
+        RAIL_FAINT="#A2C3AB", RAIL_OFF="#6F8F78", RAIL_NUM="#9AD3AC"),
+    ("violet", True): dict(
+        INK="#C3B5EE", INK_2="#9C88D8", TINT="#3A3152", TINT_2="#4C4170", TINT_PALE="#2A2538", SELECT="#463C66",
+        ON_INK="#1A1427", READONLY="#221F29", CANVAS_SOFT="#1D1B22", VIEW_BG="#100E15",
+        RAIL="#17131F", RAIL_LINE="#2C2540", RAIL_TEXT="#EDE8F7", RAIL_SOFT="#D9D2EC", RAIL_SUB="#C9C1DE",
+        RAIL_FAINT="#B9B0D3", RAIL_OFF="#8A80AA", RAIL_NUM="#C3B5EE"),
+}
+INK_NAMES = {"green": ("Vert", "Green"), "violet": ("Violet", "Violet")}
+THEME = ("green", False)
+
+
+def use_theme(ink="green", dark=False):
+    """Sets the colours of the interface: an ink (green or violet), light or dark. The windows built after
+    take them."""
+    global THEME
+    ink = ink if ink in INK_NAMES else "green"
+    THEME = (ink, bool(dark))
+    colours = dict(DARK if dark else LIGHT)
+    colours.update(INKS[THEME])
+    colours["WINDOW_BG"] = colours["PAPER"]
+    colours["NEXT_FG"] = "#10201A" if dark else colours["INK"]
+    globals().update(colours)
+
+
+use_theme()
 
 # fonts: serif only (titles, text, typewriter numbers); the ones of the fonts folder when shipped, else the
 # closest ones of the system
@@ -357,7 +399,7 @@ DEFAULTS = {
     "ai": False, "ai_model": "isnet", "ai_device": "auto", "cutout": "colour", "colour": "none", "white": "chart",
     "mode": "cutout", "dng_jpg": "preview", "dng_tiff": False,
     "jobs": max(1, min(4, (os.cpu_count() or 2) // 2)), "open": True, "last_dir": "",
-    "plates": {}, "profile": "", "lang": "",
+    "plates": {}, "profile": "", "lang": "", "theme": "green", "dark": False,
 }
 
 HELP = {
@@ -538,7 +580,7 @@ class Tooltip:
         self.tip = tk.Toplevel(self.widget)
         self.tip.wm_overrideredirect(True)
         self.tip.wm_geometry(f"+{x}+{y}")
-        tk.Label(self.tip, text=self.text, justify="left", wraplength=340, bg=TEXT, fg="white",
+        tk.Label(self.tip, text=self.text, justify="left", wraplength=340, bg=TIP_BG, fg=TIP_FG,
                  font=(FONT_SERIF, 9), padx=8, pady=5).pack()
         Tooltip.current = self
         self.shown_at = time.time()
@@ -654,7 +696,7 @@ class ScaleWindow:
         ttk.Button(side, text=tr("Stop") if seq else tr("Close"), command=self.close).pack(fill="x", pady=(10, 0))
         win.protocol("WM_DELETE_WINDOW", self.close)
 
-        self.canvas = tk.Canvas(win, bg="#2B2738", highlightthickness=0, cursor="crosshair")
+        self.canvas = tk.Canvas(win, bg=VIEW_BG, highlightthickness=0, cursor="crosshair")
         self.canvas.pack(side="left", fill="both", expand=True)
         self.canvas.bind("<Configure>", lambda _: self.fit() if not hasattr(self, "zoom") else self.redraw())
         self.canvas.bind("<ButtonPress-1>", self.press)
@@ -1243,7 +1285,7 @@ class ProjectWindow:
         ttk.Label(helper, text=tr("In PowerShell:"), style="Section.TLabel").grid(row=r + 2, column=0, sticky="w", pady=(8, 0))
         self.ps_code = tk.StringVar()
         code = tk.Entry(helper, textvariable=self.ps_code, state="readonly", font=(FONT_MONO, 9), width=46,
-                        readonlybackground="#F3F1FA", relief="flat")
+                        readonlybackground=READONLY, fg=TEXT, relief="flat")
         code.grid(row=r + 3, column=0, columnspan=2, sticky="ew")
         ttk.Button(helper, text=tr("Copy the PowerShell line"), style="Small.TButton",
                    command=lambda: (self.win.clipboard_clear(), self.win.clipboard_append(self.ps_code.get()))).grid(
@@ -1317,7 +1359,7 @@ class ProjectWindow:
                             "(Ctrl: count up). Ctrl+A: all rows; Ctrl+D: copy down the first selected row."),
                   style="Muted.TLabel", wraplength=520, justify="left").pack(side="left", padx=12)
         # table and photo preview side by side; the bar between them can be dragged
-        pane = tk.PanedWindow(mid, orient="horizontal", sashwidth=8, bg=LAVENDER_LINE, bd=0, sashrelief="flat")
+        pane = tk.PanedWindow(mid, orient="horizontal", sashwidth=8, bg=LINE, bd=0, sashrelief="flat")
         pane.pack(fill="both", expand=True)
         tablef = ttk.Frame(pane, style="Window.TFrame")
         side = ttk.Frame(pane, style="Card.TFrame", padding=8)
@@ -1338,7 +1380,7 @@ class ProjectWindow:
             tk.Label(side, text=T("GUIDE DES CHAMPS", "GUIDE OF THE FIELDS"), bg=CARD_BG, fg=MUTED,
                      font=(FONT_MONO, 9, "bold"), anchor="w").pack(fill="x", pady=(10, 2))
             guide = tk.Text(side, height=14, wrap="word", bg=CARD_BG, relief="flat", font=(FONT_SERIF, 10))
-            guide.tag_configure("label", font=(FONT_SERIF, 10, "bold"), foreground=VIOLET)
+            guide.tag_configure("label", font=(FONT_SERIF, 10, "bold"), foreground=INK)
             guide.tag_configure("iptc", font=(FONT_MONO, 9), foreground=TEAL)
             for f in pr.get("fields", []):
                 guide.insert("end", f["label"], "label")
@@ -1363,7 +1405,7 @@ class ProjectWindow:
         self.tree.bind("<Control-a>", lambda _: (self.select_all(), "break")[1])
         self.tree.bind("<Control-d>", lambda _: (self.fill_down(), "break")[1])
         self.active = None                          # (row, key) of the cell with the fill handle
-        self.handle = tk.Frame(self.tree, bg=LAVENDER_DARK, cursor="crosshair", width=8, height=8)
+        self.handle = tk.Frame(self.tree, bg=INK, cursor="crosshair", width=8, height=8)
         self.handle.bind("<ButtonPress-1>", self.fill_start)
         self.handle.bind("<B1-Motion>", self.fill_move)
         self.handle.bind("<ButtonRelease-1>", self.fill_end)
@@ -2055,7 +2097,7 @@ class ReviewWindow:
         left.pack(side="left", fill="y")
         ttk.Label(left, text=tr("PHOTOS"), style="Section.TLabel").pack(anchor="w")
         self.listbox = tk.Listbox(left, width=34, activestyle="none", font=(FONT_SERIF, 9),
-                                  selectbackground=LAVENDER, highlightthickness=0, relief="flat")
+                                  selectbackground=SELECT, highlightthickness=0, relief="flat")
         self.listbox.pack(fill="y", expand=True, pady=(4, 0))
         for it in items:
             self.listbox.insert("end", self.list_text(it))
@@ -2114,7 +2156,7 @@ class ReviewWindow:
         view.pack(side="left", fill="both", expand=True)
         view.rowconfigure(0, weight=1)
         view.columnconfigure(0, weight=1)
-        self.canvas = tk.Canvas(view, bg="#2B2738", highlightthickness=0, cursor="crosshair")
+        self.canvas = tk.Canvas(view, bg=VIEW_BG, highlightthickness=0, cursor="crosshair")
         self.canvas.grid(row=0, column=0, sticky="nsew")
         # scroll bars: move the zoomed view (also middle button, Space + drag, arrow keys)
         self.hbar = ttk.Scrollbar(view, orient="horizontal", command=lambda *a: self.scroll_view(0, *a))
@@ -2964,7 +3006,7 @@ class PlatesWindow:
 
         r = 0
         self.bar_canvas = tk.Canvas(barf, width=360, height=70, bg="white", highlightthickness=1,
-                                    highlightbackground=LAVENDER_LINE)
+                                    highlightbackground=LINE)
         self.bar_canvas.grid(row=r, column=0, columnspan=2, pady=(0, 8))
         r += 1
         row(barf, "Style", combo(barf, "bar.style", b.style, list(gp.BAR_STYLES), 16))
@@ -3005,7 +3047,7 @@ class PlatesWindow:
             "ceramics and glass 1/3, iron 2/3, stone 1/3… The scale per object still prevails.")
         row(drawf, tr("Material column"), combo(drawf, "material_field", st.material_field, fields, 16, "normal"))
         rules = tk.Text(drawf, width=34, height=4, wrap="word", font=(FONT_SERIF, 9), relief="flat",
-                        highlightthickness=1, highlightbackground=LAVENDER_LINE)
+                        highlightthickness=1, highlightbackground=LINE)
         rules.insert("1.0", st.material_ratios)
         rules_var = var("material_ratios", st.material_ratios)
         rules.bind("<KeyRelease>", lambda _: rules_var.set(rules.get("1.0", "end").strip()))
@@ -3054,7 +3096,7 @@ class PlatesWindow:
         cv.pack(fill="both", expand=True, pady=(6, 0))
         cv.rowconfigure(0, weight=1)
         cv.columnconfigure(0, weight=1)
-        self.canvas = tk.Canvas(cv, bg="#E6E2F2", highlightthickness=0)
+        self.canvas = tk.Canvas(cv, bg=CANVAS_SOFT, highlightthickness=0)
         self.canvas.grid(row=0, column=0, sticky="nsew")
         xs = ttk.Scrollbar(cv, orient="horizontal", command=self.canvas.xview)
         ys = ttk.Scrollbar(cv, orient="vertical", command=self.canvas.yview)
@@ -3505,7 +3547,7 @@ class ProfileWindow:
             "reading fails."))).grid(row=r, column=0, columnspan=2, sticky="w")
         r += 1
         self.lb = tk.Listbox(card, height=5, activestyle="none", font=(FONT_SERIF, 9), relief="flat",
-                             highlightthickness=1, highlightbackground=LAVENDER_LINE, selectbackground=LAVENDER)
+                             highlightthickness=1, highlightbackground=LINE, selectbackground=SELECT)
         self.lb.grid(row=r, column=0, columnspan=2, sticky="ew", pady=4)
         r += 1
         bar = ttk.Frame(card, style="Card.TFrame")
@@ -3705,7 +3747,7 @@ class InventoryWindow:
         folders = [p for p in app.tree.get_children() if os.path.isdir(p)] if hasattr(app, "tree") else []
         ttk.Label(card, text=tr("Folders")).grid(row=0, column=0, sticky="nw", pady=2)
         self.folders = tk.Listbox(card, height=4, width=60, relief="flat", highlightthickness=1,
-                                  highlightbackground=LAVENDER_LINE)
+                                  highlightbackground=LINE)
         self.folders.grid(row=0, column=1, sticky="ew", padx=8)
         for f in folders:
             self.folders.insert("end", f)
@@ -3748,7 +3790,7 @@ class InventoryWindow:
             tr("The same inventory with Windows only (without the image information): paste this line into "
             "PowerShell."))).grid(row=7, column=0, columnspan=2, sticky="w")
         self.line = tk.Text(card, height=6, width=80, wrap="char", font=(FONT_MONO, 9), relief="flat",
-                            highlightthickness=1, highlightbackground=LAVENDER_LINE)
+                            highlightthickness=1, highlightbackground=LINE)
         self.line.grid(row=8, column=0, columnspan=2, sticky="ew", pady=4)
         ttk.Button(card, text=tr("Copy the line"), style="Small.TButton",
                    command=lambda: (win.clipboard_clear(), win.clipboard_append(self.line.get("1.0", "end").strip()))
@@ -4137,7 +4179,7 @@ class Mire(tk.Canvas):
             self._job = None
 
     def _draw(self):
-        """The squares: inked (violet / white) up to the value, light (white / lilac) beyond."""
+        """The squares: inked (ink / white) up to the value, light (white / lilac) beyond."""
         self.delete("all")
         w = self.winfo_width()
         if w < 40:
@@ -4150,10 +4192,10 @@ class Mire(tk.Canvas):
             for i in range(n):
                 ink = (i % 2 == 0) == (row == 0)
                 on = (abs(i - self._phase) <= 2) if st["mode"] == "indeterminate" else i < done
-                colour = (VIOLET if ink else "#FFFFFF") if on else ("#FFFFFF" if ink else LILAS)
+                colour = (INK if ink else FIELD) if on else (FIELD if ink else TINT)
                 x0 = 1 + i * sq
                 self.create_rectangle(x0, top + row * h, x0 + sq, top + (row + 1) * h, fill=colour, width=0)
-        self.create_rectangle(1, top, w - 1, top + 2 * h, outline=VIOLET, width=1)
+        self.create_rectangle(1, top, w - 1, top + 2 * h, outline=INK, width=1)
 
 
 class App:
@@ -4169,6 +4211,7 @@ class App:
         self.s = load_settings() if not selftest else dict(
             DEFAULTS, output_mode="other", output_dir=selftest, psd=False, open=False)
         LANG = self.s.get("lang") or system_lang()
+        use_theme(self.s.get("theme", "green"), self.s.get("dark", False))
         self.proc = None
         self.lines = queue.Queue()
         self.results = []
@@ -4208,73 +4251,92 @@ class App:
             self.gerbil = tk.PhotoImage(file=os.path.join(ICONS, f"gerbil_{size}.png"))
         except (tk.TclError, OSError):
             img = tk.PhotoImage(width=32, height=32)            # icons folder missing: colour stripes
-            for x0, colour in ((0, VIOLET), (11, TEAL), (22, TERRA)):
+            for x0, colour in ((0, INK), (11, TEAL), (22, TERRA)):
                 img.put(colour, to=(x0, 0, x0 + 10, 32))
             self.root.iconphoto(True, img)
             self._icon_img = img
 
     def _style(self):
-        """Colours and fonts of the widgets (ttk styles), shared by every window."""
+        """Colours and fonts of the widgets (ttk styles, and those of the plain tk widgets: text boxes, lists,
+        windows), from the theme; shared by every window."""
         st = ttk.Style(self.root)
         st.theme_use("clam")
         st.configure(".", background=CARD_BG, foreground=TEXT, font=(FONT_SERIF, 10), bordercolor=LINE,
-                     lightcolor=CARD_BG, darkcolor=CARD_BG, focuscolor=LILAS)
+                     lightcolor=CARD_BG, darkcolor=CARD_BG, focuscolor=TINT)
         st.configure("Window.TFrame", background=WINDOW_BG)
         st.configure("Card.TFrame", background=CARD_BG)
         st.configure("Card.TLabelframe", background=CARD_BG, bordercolor=LINE, relief="solid")
-        st.configure("Card.TLabelframe.Label", background=CARD_BG, foreground=VIOLET, font=(FONT_DISPLAY, 14, "bold"))
+        st.configure("Card.TLabelframe.Label", background=CARD_BG, foreground=INK, font=(FONT_DISPLAY, 14, "bold"))
         st.configure("Section.TLabel", background=CARD_BG, foreground=MUTED, font=(FONT_MONO, 9, "bold"))
         st.configure("Muted.TLabel", background=CARD_BG, foreground=MUTED, font=(FONT_SERIF, 9))
-        st.configure("Status.TLabel", background=CARD_BG, foreground=VIOLET, font=(FONT_MONO, 10, "bold"))
+        st.configure("Status.TLabel", background=CARD_BG, foreground=INK, font=(FONT_MONO, 10, "bold"))
         st.configure("Footer.TLabel", background=WINDOW_BG, foreground=MUTED, font=(FONT_SERIF, 9))
-        for name, bg, hover, fg, border in (("TButton", "#FFFFFF", LILAS_PALE, VIOLET, VIOLET),
-                                            ("Run.TButton", VIOLET, VIOLET_2, "#FFFFFF", VIOLET),
-                                            ("Next.TButton", SAGE, SAGE_2, VIOLET, SAGE_DARK),
-                                            ("Cancel.TButton", "#FFFFFF", "#FBEFE9", TERRA, TERRA),
-                                            ("Teal.TButton", "#FFFFFF", "#E6F0EF", TEAL, TEAL)):
+        for name, bg, hover, fg, border in (("TButton", FIELD, TINT_PALE, INK, INK),
+                                            ("Run.TButton", INK, INK_2, ON_INK, INK),
+                                            ("Next.TButton", SAGE, SAGE_2, NEXT_FG, SAGE_DARK),
+                                            ("Cancel.TButton", FIELD, TERRA_PALE, TERRA, TERRA),
+                                            ("Teal.TButton", FIELD, TEAL_PALE, TEAL, TEAL)):
             st.configure(name, background=bg, foreground=fg, borderwidth=1, padding=(12, 5),
                          bordercolor=border, lightcolor=bg, darkcolor=bg, font=(FONT_SERIF, 10, "bold"))
-            st.map(name, background=[("disabled", "#F1F0F3"), ("pressed", hover), ("active", hover)],
-                   foreground=[("disabled", "#A9A5B4")], bordercolor=[("disabled", LINE)],
+            st.map(name, background=[("disabled", DISABLED_BG), ("pressed", hover), ("active", hover)],
+                   foreground=[("disabled", DISABLED_FG)], bordercolor=[("disabled", LINE)],
                    lightcolor=[("active", hover)], darkcolor=[("active", hover)])
         st.configure("Run.TButton", font=(FONT_SERIF, 11, "bold"), padding=(24, 7))
         st.configure("Next.TButton", font=(FONT_SERIF, 11, "bold"), padding=(24, 7))
         st.configure("Small.TButton", font=(FONT_SERIF, 9), padding=(6, 1))
         st.configure("Cancel.TButton", padding=(14, 7))
         st.configure("Teal.TButton", padding=(14, 7))
-        st.configure("Link.TButton", background=CARD_BG, foreground=VIOLET_2, borderwidth=0, padding=(0, 2),
+        st.configure("Link.TButton", background=CARD_BG, foreground=INK_2, borderwidth=0, padding=(0, 2),
                      bordercolor=CARD_BG, lightcolor=CARD_BG, darkcolor=CARD_BG, font=(FONT_SERIF, 10, "bold"))
-        st.map("Link.TButton", background=[("active", CARD_BG)], foreground=[("active", VIOLET)])
+        st.map("Link.TButton", background=[("active", CARD_BG)], foreground=[("active", INK)])
         for w in ("TCheckbutton", "TRadiobutton"):
-            st.configure(w, background=CARD_BG, foreground=TEXT, indicatorbackground="white",
-                         indicatorforeground=VIOLET_2, upperbordercolor=VIOLET, lowerbordercolor=VIOLET,
+            st.configure(w, background=CARD_BG, foreground=TEXT, indicatorbackground=FIELD,
+                         indicatorforeground=INK_2, upperbordercolor=INK, lowerbordercolor=INK,
                          indicatormargin=(0, 0, 6, 0))
             st.map(w, background=[("active", CARD_BG)],
-                   indicatorbackground=[("selected", LILAS_PALE), ("disabled", "#F2F1F5")],
-                   foreground=[("disabled", "#A9A5B4")])
-        st.configure("TCombobox", fieldbackground="white", background=LILAS_PALE, arrowcolor=VIOLET,
+                   indicatorbackground=[("selected", TINT_PALE), ("disabled", DISABLED_BG)],
+                   foreground=[("disabled", DISABLED_FG)])
+        st.configure("TCombobox", fieldbackground=FIELD, insertcolor=TEXT, selectbackground=TINT,
+                     selectforeground=INK, background=TINT_PALE, arrowcolor=INK,
                      bordercolor=LINE, padding=3)
-        st.map("TCombobox", fieldbackground=[("readonly", "white"), ("disabled", "#F2F1F5")],
-               foreground=[("disabled", "#A9A5B4")])
+        st.map("TCombobox", fieldbackground=[("readonly", FIELD), ("disabled", DISABLED_BG)],
+               foreground=[("disabled", DISABLED_FG)])
         self.root.option_add("*TCombobox*Listbox.font", (FONT_SERIF, 10))
-        st.configure("TSpinbox", fieldbackground="white", background=LILAS_PALE, arrowcolor=VIOLET,
+        # the plain tk widgets (text boxes, lists, menus, windows) take the colours of the theme
+        for key, value in (("*Background", CARD_BG), ("*Foreground", TEXT), ("*selectBackground", TINT),
+                           ("*selectForeground", INK), ("*insertBackground", TEXT),
+                           ("*highlightBackground", LINE), ("*Listbox.background", FIELD),
+                           ("*Text.background", FIELD), ("*Entry.background", FIELD),
+                           ("*activeBackground", TINT_PALE), ("*activeForeground", INK),
+                           ("*TCombobox*Listbox.background", FIELD), ("*TCombobox*Listbox.foreground", TEXT)):
+            self.root.option_add(key, value)
+        st.configure("TSpinbox", fieldbackground=FIELD, insertcolor=TEXT, background=TINT_PALE, arrowcolor=INK,
                      bordercolor=LINE, padding=3)
-        st.configure("TEntry", fieldbackground="white", bordercolor=LINE, padding=4)
-        st.map("TEntry", fieldbackground=[("disabled", "#F2F1F5")])
-        st.configure("Treeview", background="white", fieldbackground="white",
+        st.configure("TEntry", fieldbackground=FIELD, bordercolor=LINE, padding=4, insertcolor=TEXT)
+        st.map("TEntry", fieldbackground=[("disabled", DISABLED_BG)])
+        st.configure("Treeview", background=FIELD, fieldbackground=FIELD,
                      rowheight=int(27 * self.root.winfo_fpixels("1i") / 96.0),
                      bordercolor=LINE, font=(FONT_SERIF, 10))
-        st.configure("Treeview.Heading", background="white", foreground=MUTED, font=(FONT_MONO, 9, "bold"),
-                     relief="flat", padding=(6, 5), bordercolor=VIOLET)
-        st.map("Treeview", background=[("selected", LILAS)], foreground=[("selected", VIOLET)])
-        st.configure("Lav.Horizontal.TProgressbar", troughcolor=LILAS_PALE, background=VIOLET_2,
-                     bordercolor=LILAS_PALE, lightcolor=VIOLET_2, darkcolor=VIOLET_2, thickness=10)
+        st.configure("Treeview.Heading", background=FIELD, foreground=MUTED, font=(FONT_MONO, 9, "bold"),
+                     relief="flat", padding=(6, 5), bordercolor=INK)
+        st.map("Treeview", background=[("selected", TINT)], foreground=[("selected", INK)])
+        st.configure("TNotebook", background=CARD_BG, bordercolor=LINE, lightcolor=CARD_BG, darkcolor=CARD_BG)
+        st.configure("TNotebook.Tab", background=TINT_PALE, foreground=MUTED, bordercolor=LINE, padding=(10, 4),
+                     lightcolor=TINT_PALE, darkcolor=TINT_PALE)
+        st.map("TNotebook.Tab", background=[("selected", CARD_BG)], foreground=[("selected", INK)],
+               lightcolor=[("selected", CARD_BG)])
+        for name in ("Vertical.TScrollbar", "Horizontal.TScrollbar"):
+            st.configure(name, background=TINT_PALE, troughcolor=CARD_BG, bordercolor=LINE, arrowcolor=MUTED,
+                         lightcolor=TINT_PALE, darkcolor=TINT_PALE)
+            st.map(name, background=[("active", TINT)])
+        st.configure("Lav.Horizontal.TProgressbar", troughcolor=TINT_PALE, background=INK_2,
+                     bordercolor=TINT_PALE, lightcolor=INK_2, darkcolor=INK_2, thickness=10)
 
     # ---------------------------------------------------------------- layout
     def _build(self):
         """The column of steps on the left, the page of the step on the squared paper."""
         root = self.root
-        self.rail = tk.Frame(root, bg=VIOLET, width=int(290 * self.k))
+        self.rail = tk.Frame(root, bg=RAIL, width=int(290 * self.k))
         self.rail.pack(side="left", fill="y")
         self.rail.pack_propagate(False)
         self._rail()
@@ -4284,8 +4346,8 @@ class App:
         # banner shown while required Python packages are missing
         self.banner_anchor = tk.Frame(right, bg=PAPER, height=0)
         self.banner_anchor.pack(fill="x")
-        self.banner = tk.Frame(right, bg="#FBEFE9")
-        self.banner_text = tk.Label(self.banner, bg="#FBEFE9", fg="#3D2017", font=(FONT_SERIF, 10),
+        self.banner = tk.Frame(right, bg=TERRA_PALE)
+        self.banner_text = tk.Label(self.banner, bg=TERRA_PALE, fg=BANNER_FG, font=(FONT_SERIF, 10),
                                     justify="left", anchor="w")
         self.banner_text.pack(side="left", padx=18, pady=10, fill="x", expand=True)
         self.install_btn = ttk.Button(self.banner, text=T("Installer maintenant", "Install now"),
@@ -4311,39 +4373,39 @@ class App:
         self.show_page(self.page)
 
     def _rail(self):
-        """The column of steps: the gerbil, the name, the six steps (two with a second page), the credits and
-        the languages."""
+        """The column of steps: the gerbil, the name, the six steps (two with a second page), the languages,
+        the themes and the credits."""
         rail = self.rail
-        brand = tk.Frame(rail, bg=VIOLET)
+        brand = tk.Frame(rail, bg=RAIL)
         brand.pack(fill="x", padx=18, pady=(20, 14))
         if self.gerbil is not None:
-            tk.Label(brand, image=self.gerbil, bg=VIOLET).pack(side="left")
-        names = tk.Frame(brand, bg=VIOLET)
+            tk.Label(brand, image=self.gerbil, bg=RAIL).pack(side="left")
+        names = tk.Frame(brand, bg=RAIL)
         names.pack(side="left", padx=(12, 0))
-        tk.Label(names, text="GERBIL", bg=VIOLET, fg="#EDE8F7", font=(FONT_DISPLAY, 24, "bold")).pack(anchor="w")
+        tk.Label(names, text="GERBIL", bg=RAIL, fg=RAIL_TEXT, font=(FONT_DISPLAY, 24, "bold")).pack(anchor="w")
         tk.Label(names, text=T("Gestionnaire de photographies\narchéologiques", "Archaeological\nphotography manager"),
-                 bg=VIOLET, fg="#D9D2EC", font=(FONT_DISPLAY, 11, "bold"), justify="left").pack(anchor="w")
-        tk.Frame(rail, bg="#4A3A72", height=1).pack(fill="x")
+                 bg=RAIL, fg=RAIL_SOFT, font=(FONT_DISPLAY, 11, "bold"), justify="left").pack(anchor="w")
+        tk.Frame(rail, bg=RAIL_LINE, height=1).pack(fill="x")
         self.step_widgets, self.step_sub = [], []
         for i, (num, fr, en) in enumerate(STEPS):
             second = not num                            # second page of a step: indented, smaller
-            row = tk.Frame(rail, bg=VIOLET, cursor="hand2")
+            row = tk.Frame(rail, bg=RAIL, cursor="hand2")
             row.pack(fill="x", pady=(10 if i == 0 else 0, 0))
-            stripe = tk.Canvas(row, width=max(4, int(4 * self.k)), height=1, bg=VIOLET, highlightthickness=0)
+            stripe = tk.Canvas(row, width=max(4, int(4 * self.k)), height=1, bg=RAIL, highlightthickness=0)
             stripe.pack(side="left", fill="y")
-            n = tk.Label(row, text=num or "", bg=VIOLET, fg=LILAS_2, font=(FONT_MONO, 11, "bold"),
+            n = tk.Label(row, text=num or "", bg=RAIL, fg=RAIL_NUM, font=(FONT_MONO, 11, "bold"),
                          width=2 if not second else 4, anchor="w")
             n.pack(side="left", anchor="n", padx=(14, 10), pady=(10 if not second else 4, 0))
-            texts = tk.Frame(row, bg=VIOLET)
+            texts = tk.Frame(row, bg=RAIL)
             texts.pack(side="left", fill="x", expand=True, pady=8 if not second else (2, 6))
-            head = tk.Frame(texts, bg=VIOLET)
+            head = tk.Frame(texts, bg=RAIL)
             head.pack(anchor="w")
-            title = tk.Label(head, text=T(fr, en), bg=VIOLET, fg="#EDE8F7",
+            title = tk.Label(head, text=T(fr, en), bg=RAIL, fg=RAIL_TEXT,
                              font=(FONT_SERIF, 11 if not second else 10, "bold" if not second else "normal"))
             title.pack(side="left")
-            badge = tk.Label(head, text="", bg=TERRA, fg="white", font=(FONT_MONO, 8, "bold"), padx=5)
+            badge = tk.Label(head, text="", bg=BADGE, fg="#FFFFFF", font=(FONT_MONO, 8, "bold"), padx=5)
             sub = tk.StringVar(value="")
-            subl = tk.Label(texts, textvariable=sub, bg=VIOLET, fg="#C9C1DE", font=(FONT_SERIF, 9),
+            subl = tk.Label(texts, textvariable=sub, bg=RAIL, fg=RAIL_SUB, font=(FONT_SERIF, 9),
                             justify="left", wraplength=int(200 * self.k), anchor="w")
             subl.pack(anchor="w")
             parts = (row, stripe, n, texts, head, title, subl)
@@ -4352,41 +4414,53 @@ class App:
             self.step_widgets.append({"parts": parts, "stripe": stripe, "n": n, "title": title, "sub": subl,
                                       "badge": badge})
             self.step_sub.append(sub)
-        foot = tk.Frame(rail, bg=VIOLET)
+        foot = tk.Frame(rail, bg=RAIL)
         foot.pack(side="bottom", fill="x", padx=18, pady=14)
-        langs = tk.Frame(foot, bg=VIOLET)
+        langs = tk.Frame(foot, bg=RAIL)
         langs.pack(anchor="w", pady=(0, 8))
         for code in ("fr", "en"):
-            b = tk.Label(langs, text=code.upper(), bg=VIOLET, cursor="hand2",
-                         fg="#FFFFFF" if LANG == code else "#9C92BD", font=(FONT_MONO, 10, "bold"))
+            b = tk.Label(langs, text=code.upper(), bg=RAIL, cursor="hand2",
+                         fg=RAIL_TEXT if LANG == code else RAIL_OFF, font=(FONT_MONO, 10, "bold"))
             b.pack(side="left", padx=(0, 10))
             b.bind("<Button-1>", lambda _, c=code: self.set_lang(c))
-        h = tk.Label(langs, text=T("Aide", "Help"), bg=VIOLET, fg="#D9D2EC", cursor="hand2", font=(FONT_SERIF, 10, "underline"))
+        h = tk.Label(langs, text=T("Aide", "Help"), bg=RAIL, fg=RAIL_SOFT, cursor="hand2", font=(FONT_SERIF, 10, "underline"))
         h.pack(side="left", padx=(6, 0))
         h.bind("<Button-1>", lambda _: self.help())
+        themes = tk.Frame(foot, bg=RAIL)
+        themes.pack(anchor="w", pady=(0, 8))
+        for ink in INK_NAMES:
+            b = tk.Label(themes, text=T(*INK_NAMES[ink]).upper(), bg=RAIL, cursor="hand2",
+                         fg=RAIL_TEXT if THEME[0] == ink else RAIL_OFF, font=(FONT_MONO, 9, "bold"))
+            b.pack(side="left", padx=(0, 10))
+            b.bind("<Button-1>", lambda _, i=ink: self.set_theme(i, THEME[1]))
+        for dark, fr, en in ((False, "Clair", "Light"), (True, "Sombre", "Dark")):
+            b = tk.Label(themes, text=T(fr, en).upper(), bg=RAIL, cursor="hand2",
+                         fg=RAIL_TEXT if THEME[1] == dark else RAIL_OFF, font=(FONT_MONO, 9, "bold"))
+            b.pack(side="left", padx=(6 if not dark else 0, 10))
+            b.bind("<Button-1>", lambda _, d=dark: self.set_theme(THEME[0], d))
         tk.Label(foot, text=T("version", "version") + f" {VERSION}, " + T("licence GPL v3", "GPL v3 licence"),
-                 bg=VIOLET, fg="#B9B0D3", font=(FONT_SERIF, 9)).pack(anchor="w")
-        tk.Label(foot, text="© 2026 Eloïs Charbonnel", bg=VIOLET, fg="#B9B0D3", font=(FONT_SERIF, 9)).pack(anchor="w")
-        tk.Label(foot, text="ITINERA", bg=VIOLET, fg="#EDE8F7", font=(FONT_DISPLAY, 12, "bold")).pack(anchor="w")
+                 bg=RAIL, fg=RAIL_FAINT, font=(FONT_SERIF, 9)).pack(anchor="w")
+        tk.Label(foot, text="© 2026 Eloïs Charbonnel", bg=RAIL, fg=RAIL_FAINT, font=(FONT_SERIF, 9)).pack(anchor="w")
+        tk.Label(foot, text="ITINERA", bg=RAIL, fg=RAIL_TEXT, font=(FONT_DISPLAY, 12, "bold")).pack(anchor="w")
 
     def show_page(self, i):
         """Shows the page of step i and marks the step in the column."""
         self.page = i
         for k, w in enumerate(self.step_widgets):
             on = k == i
-            bg = PAPER if on else VIOLET
+            bg = PAPER if on else RAIL
             for part in w["parts"]:
                 part.configure(bg=bg)
-            w["title"].configure(fg=VIOLET if on else "#EDE8F7")
-            w["n"].configure(fg=VIOLET if on else LILAS_2)
-            w["sub"].configure(fg=MUTED if on else "#C9C1DE")
+            w["title"].configure(fg=INK if on else RAIL_TEXT)
+            w["n"].configure(fg=INK if on else RAIL_NUM)
+            w["sub"].configure(fg=MUTED if on else RAIL_SUB)
             s = w["stripe"]
             s.delete("all")
             if on:
                 s.update_idletasks()
                 u = max(7, int(7 * self.k))
                 for y in range(0, max(60, s.winfo_height()), 2 * u):
-                    s.create_rectangle(0, y, int(s["width"]), y + u, fill=VIOLET_2, width=0)
+                    s.create_rectangle(0, y, int(s["width"]), y + u, fill=INK_2, width=0)
         for k, p in enumerate(self.pages):
             for item in p["items"]:
                 self.canvas.itemconfigure(item, state="normal" if k == i else "hidden")
@@ -4419,7 +4493,7 @@ class App:
         c = self.canvas
         p = {"left": left, "right": right, "actions": list(actions), "items": []}
         p["kicker"] = c.create_text(0, 0, text=kicker.upper(), anchor="nw", fill=TEAL, font=(FONT_MONO, 9, "bold"))
-        p["title"] = c.create_text(0, 0, text=title, anchor="nw", fill=VIOLET, font=(FONT_DISPLAY, 24, "bold"))
+        p["title"] = c.create_text(0, 0, text=title, anchor="nw", fill=INK, font=(FONT_DISPLAY, 24, "bold"))
         p["desc"] = c.create_text(0, 0, text=desc, anchor="nw", fill=MUTED, font=(FONT_SERIF, 10))
         p["items"] += [p["kicker"], p["title"], p["desc"]]
         for key in ("left", "right"):
@@ -4536,8 +4610,8 @@ class App:
                                     font=(FONT_SERIF, 10), highlightthickness=0, padx=0, pady=0, cursor="arrow")
         self.profile_info.pack(fill="both", expand=True)
         self.profile_info.tag_configure("key", foreground=MUTED, font=(FONT_MONO, 9, "bold"))
-        self.profile_info.tag_configure("work", foreground=VIOLET, font=(FONT_SERIF, 10, "bold"))
-        self.profile_info.tag_configure("mono", foreground=VIOLET, font=(FONT_MONO, 9))
+        self.profile_info.tag_configure("work", foreground=INK, font=(FONT_SERIF, 10, "bold"))
+        self.profile_info.tag_configure("mono", foreground=INK, font=(FONT_MONO, 9))
         self._section(right, T("Astuce", "Tip"), top=12)
         self._text(right, T("On peut aussi déposer des dossiers sur l'icône de Gerbil pour les ajouter.",
                             "Folders can also be dropped on the Gerbil icon to add them."))
@@ -4561,7 +4635,7 @@ class App:
         summary.pack(fill="x")
         left.bind("<Configure>", lambda e: summary.configure(wraplength=max(200, e.width - int(40 * self.k))))
         self.naming_example = tk.StringVar(value="")
-        tk.Label(left, textvariable=self.naming_example, bg=CARD_BG, fg=VIOLET, font=(FONT_MONO, 11),
+        tk.Label(left, textvariable=self.naming_example, bg=CARD_BG, fg=INK, font=(FONT_MONO, 11),
                  justify="left", anchor="w").pack(fill="x", pady=(10, 0))
         b = tk.Frame(left, bg=CARD_BG)
         b.pack(fill="x", pady=(16, 0))
@@ -4604,7 +4678,7 @@ class App:
         prog.pack(fill="x", pady=(0, 10))
         r["bar"] = Mire(prog, CARD_BG)
         r["bar"].pack(side="left", fill="x", expand=True)
-        tk.Label(prog, textvariable=r["status"], bg=CARD_BG, fg=VIOLET, font=(FONT_MONO, 10, "bold")).pack(
+        tk.Label(prog, textvariable=r["status"], bg=CARD_BG, fg=INK, font=(FONT_MONO, 10, "bold")).pack(
             side="left", padx=(14, 0))
         tf = tk.Frame(left, bg=CARD_BG)
         tf.pack(fill="both", expand=True)
@@ -4645,7 +4719,7 @@ class App:
         log.configure(yscrollcommand=lsb.set)
         log.pack(side="left", fill="both", expand=True)
         lsb.pack(side="right", fill="y")
-        for tag, colour in (("ok", TEAL), ("verify", TERRA), ("failed", RED), ("info", VIOLET_2), ("cmd", MUTED)):
+        for tag, colour in (("ok", TEAL), ("verify", TERRA), ("failed", RED), ("info", INK_2), ("cmd", MUTED)):
             log.tag_configure(tag, foreground=colour)
         r["run_btn"] = ttk.Button(self.canvas, text=T("Lancer", "Run") if kind == "cutout"
                                   else T("Convertir", "Convert"), style="Run.TButton",
@@ -4661,7 +4735,7 @@ class App:
     def _detail_line(self, parent, tree, col):
         """Under a table: the whole text of a column for the row selected (the notes can be long)."""
         var = tk.StringVar(value="")
-        lbl = tk.Label(parent, textvariable=var, bg=CARD_BG, fg=VIOLET, font=(FONT_SERIF, 10), justify="left",
+        lbl = tk.Label(parent, textvariable=var, bg=CARD_BG, fg=INK, font=(FONT_SERIF, 10), justify="left",
                        anchor="w", wraplength=int(700 * self.k))
         lbl.pack(fill="x", pady=(6, 0))
         parent.bind("<Configure>", lambda e: lbl.configure(wraplength=max(200, e.width - int(40 * self.k))), add="+")
@@ -5062,7 +5136,7 @@ class App:
                    pady=(0 if k < 3 else 12, 0))
             tiles.columnconfigure(k % 3, weight=1, uniform="tiles")
             tk.Label(t, text=f"0{k + 1}", bg=CARD_BG, fg=TEAL, font=(FONT_MONO, 10, "bold")).pack(anchor="w")
-            tk.Label(t, text=T(fr, en), bg=CARD_BG, fg=VIOLET, font=(FONT_DISPLAY, 18, "bold")).pack(anchor="w")
+            tk.Label(t, text=T(fr, en), bg=CARD_BG, fg=INK, font=(FONT_DISPLAY, 18, "bold")).pack(anchor="w")
             tk.Label(t, text=T(dfr, den), bg=CARD_BG, fg=MUTED, font=(FONT_SERIF, 10), justify="left",
                      wraplength=int(230 * self.k), anchor="w").pack(fill="x", pady=(4, 12))
             ttk.Button(t, text=T("Ouvrir…", "Open…"), command=cmd).pack(anchor="w")
@@ -5239,6 +5313,31 @@ class App:
         for w in self.root.winfo_children():
             if not isinstance(w, tk.Toplevel):
                 w.destroy()
+        self._build()
+        self.add_paths(paths)
+        self.check_packages()
+        self._refresh_steps()
+
+    def set_theme(self, ink, dark):
+        """Green or violet ink, light or dark: the window is built again in those colours (the other windows
+        take them when opened again)."""
+        if (ink, dark) == THEME:
+            return
+        try:
+            self._collect()
+        except ValueError:
+            pass
+        paths = list(self.tree.get_children())
+        use_theme(ink, dark)
+        self.s["theme"], self.s["dark"] = ink, dark
+        self.save_settings()
+        if getattr(self, "adv_win", None) is not None and self.adv_win.winfo_exists():
+            self.adv_win.destroy()
+        for w in self.root.winfo_children():
+            if not isinstance(w, tk.Toplevel):
+                w.destroy()
+        self.root.configure(bg=PAPER)
+        self._style()
         self._build()
         self.add_paths(paths)
         self.check_packages()

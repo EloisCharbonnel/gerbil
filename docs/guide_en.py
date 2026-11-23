@@ -90,7 +90,8 @@ PARTS = [
     ("p", "The window of Gerbil follows the work: a column on the left gives the six steps, each with its page "
           "(two have a second page, indented). "
           "The steps can be visited in any order. The interface is in French and English (FR / EN at the bottom "
-          "of the column)."),
+          "of the column), green or violet, light or dark (GREEN / VIOLET, LIGHT / DARK, just below; the choice "
+          "is kept)."),
     ("ol", ["**01 Source photographs**: *Add folder…* and choose the folder of the photos (their number is "
             "shown). Several can be added, folders dropped on the Gerbil icon, or the path of a folder pasted "
             "in the field provided (*Add*, or the Enter key).",

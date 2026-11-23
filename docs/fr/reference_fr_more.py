@@ -761,4 +761,10 @@ FR = {
     'gerbil_dng.py:previous_outputs': "Les DNG déjà écrits dans <dossier>\\<date>\\DNG : le RAW d'où vient chacun -> (chemin du DNG, valeurs inscrites). Les DNG plus anciens sont retrouvés par le nom de leur RAW d'origine.",
     'gerbil_dng.py:read_back': "Les valeurs données dans Gerbil pour les photos d'un dossier, relues dans les DNG déjà écrits : {nom de photo (minuscules) : {champ : valeur}}.",
     'gerbil_dng.py:develop_to': 'Le DNG développé par LibRaw en pleine taille, redressé, écrit en JPEG (8 bits) ou en TIFF (16 bits).',
+
+    # ---- thèmes (vert ou violet, clair ou sombre)
+    'gerbil_gui.pyw:use_theme': "Les couleurs de l'interface : une encre (vert ou violet), claire ou sombre. Les couleurs sont nommées par leur rôle (INK, TINT, RAIL, CARD_BG…) ; les fenêtres construites ensuite les prennent.",
+    'gerbil_gui.pyw:App.set_theme': 'Vert ou violet, clair ou sombre : la fenêtre est reconstruite dans ces couleurs (les autres fenêtres les prennent quand on les rouvre) ; le choix est gardé dans les réglages.',
+    'gerbil_gui.pyw:App._style': 'Couleurs et polices des éléments (styles ttk, et ceux des éléments tk simples : zones de texte, listes, fenêtres), selon le thème ; communes à toutes les fenêtres.',
+    'gerbil_gui.pyw:App._rail': 'La colonne des étapes : la gerbille, le nom, les six étapes (deux avec une seconde page, en retrait), les langues, les thèmes et les crédits.',
 }

@@ -564,7 +564,8 @@ The `models` folder can also be copied from one computer to another.
 ## The interface (`Gerbil.bat` or `Gerbil.exe`)
 
 Double-clicking **`Gerbil.bat`** (or `gerbil_gui.pyw`, or `Gerbil.exe` in the .exe version) opens a
-window in French or English (FR / EN at the bottom of the column; it follows Windows the first time). A
+window in French or English (FR / EN at the bottom of the column; it follows Windows the first time), green
+or violet, light or dark (GREEN / VIOLET, LIGHT / DARK, just below; the choice is kept in the settings). A
 column on the left gives the six steps of the work, each with its page (two have a second page, indented);
 the steps can be visited in any order:
 

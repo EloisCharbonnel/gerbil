@@ -137,7 +137,8 @@ PARTS = [
     ("h2", "4. Premier traitement, pas à pas"),
     ("p", "La fenêtre de Gerbil suit le travail : une colonne à gauche donne les six étapes, chacune avec sa "
           "page (deux ont une seconde page, en retrait). On peut passer d'une étape à l'autre dans n'importe quel ordre. L'interface existe en français et "
-          "en anglais (FR / EN en bas de la colonne)."),
+          "en anglais (FR / EN en bas de la colonne), en vert ou en violet, claire ou sombre (VERT / VIOLET, "
+          "CLAIR / SOMBRE, juste dessous ; le choix est gardé)."),
     ("ol", ["**01 Photographies sources** : *Ajouter un dossier…* et choisir le dossier des photographies (leur "
             "nombre s'affiche). On peut en ajouter plusieurs, déposer des dossiers sur l'icône de Gerbil, ou "
             "coller le chemin d'un dossier dans le champ prévu (*Ajouter*, ou la touche Entrée).",
