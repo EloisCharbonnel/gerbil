@@ -262,12 +262,36 @@ def photo_fields(folder, name):
     return {label: vals.get(key, "") for key, label in labels.items()}
 
 
-def collect_images(folder):
+def measured_scales(folder, results=None):
+    """The scales measured by the cut-out (step 03) for the photos of a folder: {photo name (lowercase):
+    pixels per centimetre}, read in outlined_report.csv of its results folder ("outlined_result" next to
+    the photos, or the folder given). Only the photos whose scale was found."""
+    out = {}
+    for d in [os.path.join(folder, "outlined_result")] + ([results] if results else []):
+        try:
+            with open(os.path.join(d, REPORT), encoding="utf-8-sig", newline="") as fh:
+                rows = list(csv.DictReader(fh, delimiter=";"))
+        except (OSError, csv.Error):
+            continue
+        for r in rows:
+            try:
+                px_cm = float(str(r.get("px_per_cm") or "").replace(",", "."))
+            except ValueError:
+                continue
+            if r.get("scale_found") == "yes" and px_cm > 0 and r.get("file"):
+                out.setdefault(r["file"].lower(), px_cm)
+    return out
+
+
+def collect_images(folder, results=None):
     """Free plates: the photos of a folder (field photos, orthophotos; JPEG, TIFF, PNG; Gerbil's own
     results left out) as items, each at its real size. The scale of a photo is the one given by hand
     (two points clicked and the length between them, gerbil_scales.json next to the photos), else the
-    one of its world file (orthophoto). Their fields (captions, order, groups) are those of the batch
-    renaming of the folder. Returns (items, names of the photos without a scale)."""
+    one measured by the cut-out (step 03, its report; results: its folder when it is not next to the
+    photos), else the one of its world file (orthophoto); values["scale_from"] says which. Their fields
+    (captions, order, groups) are those of the batch renaming of the folder. Returns (items, names of the
+    photos without a scale)."""
+    measured = measured_scales(folder, results)
     try:
         with open(os.path.join(folder, MANUAL_SCALES), encoding="utf-8") as fh:
             manual = json.load(fh)
@@ -281,7 +305,11 @@ def collect_images(folder):
         if ext.lower() not in IMAGE_EXTS or re.search(GERBIL_SUFFIX, stem, re.I).group(0):
             continue
         path = os.path.join(folder, n)
-        px_cm = manual_px_cm(manual.get(n)) or world_file_px_cm(path)
+        px_cm, source = manual_px_cm(manual.get(n)), "manual"
+        if not px_cm and measured.get(n.lower()):
+            px_cm, source = measured[n.lower()], "measured"
+        if not px_cm:
+            px_cm, source = world_file_px_cm(path), "world file"
         if not px_cm:
             unscaled.append(n)
             continue
@@ -289,8 +317,8 @@ def collect_images(folder):
             w, h = photo_size(path)
         except OSError:
             continue
-        items.append(Item(stem, path, w / px_cm, h / px_cm, dict({"file": n}, **photo_fields(folder, n)),
-                          photo=True))
+        items.append(Item(stem, path, w / px_cm, h / px_cm,
+                          dict({"file": n, "scale_from": source}, **photo_fields(folder, n)), photo=True))
     return items, unscaled
 
 

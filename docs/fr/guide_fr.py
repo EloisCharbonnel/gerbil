@@ -65,7 +65,7 @@ SECTION_TITLES = {
     "Colour: white balance and exposure from a white reference of the photo":
         "Couleur : balance des blancs et exposition d'après un blanc de la photographie",
     "AI second opinion (optional, --ai): neural segmentation of the object":
-        "Second avis de l'IA (option --ai) : segmentation de l'objet par un réseau de neurones",
+        "Second avis (option --ai) : segmentation de l'objet par un réseau d'apprentissage automatique",
     "One-click cut-out (review window): Segment Anything, MobileSAM version":
         "Détourage en un clic (fenêtre de vérification) : Segment Anything, version MobileSAM",
     "Layers and compositing": "Calques et fusion",
@@ -220,7 +220,7 @@ USER = [
             "Ouvrir Gerbil depuis le menu Démarrer."]),
     ("warn", "Les programmes ne sont pas signés : au premier lancement, Windows peut afficher « Windows a protégé "
              "votre ordinateur ». Cliquer sur *Informations complémentaires*, puis *Exécuter quand même*."),
-    ("p", "**Mettre à jour** : lancer un Gerbil_Setup.exe plus récent ; les modèles d'IA déjà téléchargés sont "
+    ("p", "**Mettre à jour** : lancer un Gerbil_Setup.exe plus récent ; les modèles de BiRefNet déjà téléchargés sont "
           "gardés. **Désinstaller** : *Paramètres > Applications > Applications installées*. Les photographies et "
           "les résultats ne sont jamais touchés."),
     ("h3", "Avec les scripts Python"),
@@ -232,8 +232,8 @@ USER = [
             "une fois installé.",
             "**ExifTool** est fourni avec Gerbil (métadonnées des DNG).",
             "**Inkscape** (gratuit), si l'on place des dessins `.ai`, `.pdf` ou `.eps` sur les planches.",
-            "Les **modèles d'IA** (détourage par l'IA, détourage en un clic) se téléchargent une fois, à la "
-            "première utilisation, puis tout se fait sur l'ordinateur."]),
+            "Les **modèles d'apprentissage automatique** (BiRefNet, détourage en un clic) se téléchargent une "
+            "fois, à la première utilisation, puis tout se fait sur l'ordinateur."]),
 
     # ------------------------------------------------------------------------------------------------ 3
     ("part", "3", "Bien photographier", "Gerbil mesure ce qu'il voit : la qualité du résultat se décide à la "
@@ -257,8 +257,8 @@ USER = [
           "TIFF à Gerbil."),
     ("h2", "Petits conseils", "conseils"),
     ("ul", ["**Pâte à fixe** : une pâte bleue, ou cachée derrière l'objet, n'est pas confondue avec un objet clair.",
-            "**Objets très clairs** (pâte blanche, craie, cortex) : sur un fond gris ou noir, ou détourage par "
-            "l'IA.",
+            "**Objets très clairs** (pâte blanche, craie, cortex) : sur un fond gris ou noir ; BiRefNet, le "
+            "détourage par défaut, les voit le plus souvent.",
             "**Une charte couleur** dans le champ permet ensuite d'équilibrer les blancs "
             "([[couleurs|réglage Couleur]]).",
             "**Une étiquette** peut rester sur la photographie : Gerbil l'écarte. La placer de l'autre côté de "
@@ -304,9 +304,9 @@ USER = [
     ("p", "La page résume le renommage en lot du dossier ; *Ouvrir le renommage en lot…* ouvre la fenêtre qui "
           "associe à chaque photographie ses informations et le nom de ses fichiers. Seules les photographies de "
           "l'étape 01 y sont montrées (une case montre tout le dossier)."),
-    ("shot", "project", "La fenêtre du renommage en lot : les champs et le modèle de nom en haut, l'assistant de "
-                        "règle à droite, les valeurs communes, puis une ligne par photographie avec son nom de "
-                        "sortie. Les lignes incomplètes sont en orange.", "half"),
+    ("shot", "project", "La fenêtre du renommage en lot : les champs, le modèle de nom et les valeurs à gauche, "
+                        "une ligne par photographie avec son nom de sortie ; à droite, la photographie choisie, en "
+                        "grand, pour la reconnaître. Les lignes incomplètes sont en orange."),
     ("h3", "Champs, modèle de nom, règle"),
     ("ul", ["**Champs** : par défaut *Site*, *Sector*, *US*, *Object number*, *Material*, *View* ; ceux du "
             "profil sinon. *Ajouter un champ…*, *Modifier le champ…* (nom, sens, champ IPTC, obligatoire).",
@@ -315,7 +315,7 @@ USER = [
             "`{building|first}` garde, de plusieurs valeurs (`B27 ; B20`), celle au plus petit numéro. "
             "**Les photographies originales ne sont jamais renommées.**",
             "**Règle de nommage** (facultative) : une expression régulière, lue comme le `-match` de "
-            "PowerShell. L'assistant l'écrit à partir de cases à cocher (majuscules seulement, se termine par un "
+            "PowerShell. L'assistant (*▸ Assistant de règle*, replié par défaut) l'écrit à partir de cases à cocher (majuscules seulement, se termine par un "
             "nombre…) et montre la ligne PowerShell équivalente, pour apprendre. *Tester un nom* l'essaie.",
             "**Noms sans accents** (case de l'assistant) : « céramique » devient « ceramique » dans les fichiers "
             "produits. À cocher avant un versement : la plupart des services d'archives refusent les accents, et "
@@ -356,8 +356,9 @@ USER = [
     ("shot", "cutout", "L'étape 03 après un traitement : la mire de progression, une ligne par photographie "
                        "(vert : ok, orange : à vérifier, rouge : échec), les réglages à droite."),
     ("table", [["Réglage", "Choix"],
-               ["*Détourage*", "*par la couleur* (rapide, exact sur fond uni) ; *ai* ou *ai-lite* : le réseau "
-                               "BiRefNet désigne les objets ([[ia|voir]])."],
+               ["*Détourage*", "*BiRefNet* (par défaut) : un algorithme d'apprentissage automatique désigne les "
+                               "objets, le plus sûr ([[ia|voir]]) ; *BiRefNet allégé* : plus rapide ; *par la "
+                               "couleur* : des règles écrites à la main, rapide, exact sur un fond bien uni."],
                ["*Couleur*", "*inchangée* ; *balance* des blancs ; *exposure* : balance et même clarté pour "
                              "toute la série ([[couleurs|voir]])."],
                ["*Blanc de référence*", "*charte couleur*, *échelle* ou *fond*."],
@@ -365,11 +366,11 @@ USER = [
                ["*Fond des TIFF*", "transparent ou blanc."],
                ["*Chercher l'échelle*", "décocher pour des photographies sans échelle."],
                ["*Réglages avancés…*", "marges, mise en page de l'échelle, pâte à fixe, compression, second avis "
-                                       "de l'IA, photographies en parallèle…"],
+                                       "(apprentissage automatique), photographies en parallèle…"],
                ["*Résultats*", "*à côté des photographies* (dossier `outlined_result`) ou dans un dossier choisi."]],
      [0.3, 0.7]),
     ("p", "*Modifié par rapport au défaut* rappelle ce qui a été changé ; *Revenir aux valeurs par défaut* "
-          "annule tout. Compter 3 à 4 secondes par photographie ; plusieurs sont traitées en même temps."),
+          "annule tout. Compter 20 à 30 secondes par photographie avec BiRefNet, 3 à 4 secondes par la couleur."),
 
     ("h2", "Ce qui sort", "ce-qui-sort"),
     ("p", "Tous les fichiers d'une photographie gardent son nom (ou le nom du renommage en lot), pour se suivre "
@@ -388,7 +389,7 @@ USER = [
                ["Orange", "centimètres lus sur l'échelle"],
                ["Rouge", "ce qui a été écarté (étiquette, charte, petit élément isolé) ou pâte à fixe possible"],
                ["Bleu", "support en plexiglas ou ombre portée retirés"],
-               ["Cyan", "fond retiré par le second avis de l'IA"]], [0.3, 0.7]),
+               ["Cyan", "fond retiré par le second avis"]], [0.3, 0.7]),
     ("h3", "Le suffixe _to_be_verified"),
     ("p", "Quand quelque chose est douteux, tous les fichiers de la photographie reçoivent ce suffixe "
           "(`NOM_outlined_to_be_verified.tif`) : taper `to_be_verified` dans la recherche de l'Explorateur pour "
@@ -416,9 +417,10 @@ USER = [
                ["*Informations*", "les champs du renommage, modifiables ici."],
                ["*Valider et suivante*", "enregistre et **réexporte la photographie aussitôt**, en arrière-plan."]],
      [0.34, 0.66]),
-    ("p", "*Refaire avec l'IA…* détoure à nouveau, avec le [[ia|détourage par l'IA]], les photographies à "
-          "vérifier (ou celles choisies dans la liste) : c'est souvent tout ce qu'il faut pour une ombre portée, le "
-          "bord de la table ou un objet blanc sur fond blanc. Le réglage de la fenêtre ne change pas."),
+    ("p", "*Refaire avec BiRefNet…* détoure à nouveau, avec [[ia|BiRefNet]], les photographies à vérifier (ou "
+          "celles choisies dans la liste), quand on avait choisi le détourage par la couleur : c'est souvent tout "
+          "ce qu'il faut pour une ombre portée, le bord de la table ou un objet blanc sur fond blanc. Le réglage de "
+          "la fenêtre ne change pas."),
     ("p", "Navigation : molette pour zoomer ; bouton droit ou du milieu, {{Espace}} + glisser ou les flèches pour "
           "déplacer la vue ; {{R}} pour revoir la photographie entière."),
     ("note", "Les corrections sont gardées **à côté des photographies**, dans `gerbil_edits` : les traitements "
@@ -505,6 +507,8 @@ USER = [
     ("ul", ["*Échelle des photographies…* liste les photographies avec leur taille réelle ; un double-clic ouvre "
             "une photographie : cliquer les deux extrémités d'une longueur connue (jalon, mire, longueur de la "
             "fosse mesurée sur le terrain) et la donner en centimètres.",
+            "Une photographie **déjà détourée à l'étape 03** garde l'échelle mesurée alors : rien à faire (la "
+            "liste indique d'où vient chaque échelle).",
             "Une **orthophoto** avec son fichier de géoréférencement (`.jgw`, `.tfw`) n'a besoin de rien.",
             "**Un clic sur une photographie de l'aperçu** : choisir son échelle (1:5 à 1:100) ou la mesurer.",
             "**Légendes, ordre et groupes** viennent du renommage en lot du dossier (ajouter *Sépulture*, *Type*, "
@@ -619,6 +623,10 @@ USER = [
           "couleur, et reste ainsi hors de l'objet."),
 
     ("h2", "Le modèle du fond", "modele-fond"),
+    ("note", "Cette section et les deux suivantes décrivent le **détourage par la couleur**, fait de règles écrites "
+             "à la main. Avec [[ia|BiRefNet]], le détourage par défaut, c'est un algorithme d'apprentissage "
+             "automatique qui désigne les objets ; le tri des morceaux et le tracé du bord restent ceux décrits "
+             "ici."),
     ("p", "Le fond n'est jamais uniforme : l'éclairage fait un dégradé. Gerbil ajuste donc une **surface** qui le "
           "suit : pour L\\*, a\\* et b\\*, un polynôme de degré 2 en x et y, ajusté par **moindres carrés** sur "
           "les pixels du fond. On part de la couleur médiane (le fond est la plus grande partie), on garde les "
@@ -690,15 +698,21 @@ USER = [
           "pâte possible si elle est à la fois plus lisse, d'une autre couleur, moins colorée et plus claire que "
           "le reste. Par défaut elle est seulement signalée (zone rouge) ; `--remove-putty` la retire."),
 
-    ("h2", "Le détourage par l'IA", "ia"),
-    ("p", "Par défaut, l'objet est ce qui diffère du fond par sa couleur : rapide et exact sur un fond uni, mais "
-          "une ombre portée, le bord de la table ou un objet blanc sur fond blanc le trompent. Avec *Détourage : "
-          "ai*, le réseau **BiRefNet** désigne d'abord les objets ; Gerbil trie ensuite les morceaux comme "
-          "d'habitude et trace toujours le bord d'après la photographie, à pleine résolution."),
+    ("h2", "BiRefNet : le détourage par apprentissage automatique", "ia"),
+    ("p", "Le détourage par la couleur suit des règles écrites à la main : rapide et exact sur un fond bien uni, "
+          "il se laisse tromper par une ombre portée, le bord de la table ou un objet blanc sur fond blanc. "
+          "**BiRefNet**, le détourage par défaut, est un algorithme d'**apprentissage automatique** : un réseau de "
+          "neurones dont les quelque 220 millions de réglages n'ont été écrits par personne, mais appris en lui "
+          "montrant des centaines de milliers d'images déjà détourées. Il désigne les objets ; Gerbil trie ensuite "
+          "les morceaux comme d'habitude (échelle, étiquette, charte, support) et trace toujours le bord d'après "
+          "la photographie, à pleine résolution."),
     ("ul", ["Tout se fait sur l'ordinateur : aucune photographie n'est envoyée sur internet.",
-            "*ai* : BiRefNet (970 Mo, téléchargé une fois), environ 8 s de plus par photographie ; *ai-lite* : "
-            "réseau allégé (224 Mo), environ 4 s, un peu moins sûr sur les cas difficiles.",
-            "**Second avis de l'IA** (*Réglages avancés*) : IS-Net ou BiRefNet ne peut que **retirer** du fond "
+            "*BiRefNet* (970 Mo, téléchargé une fois) : environ 20 s de plus par photographie ; *BiRefNet "
+            "allégé* (224 Mo) : plus rapide, un peu moins sûr sur les cas difficiles. En ligne de commande : "
+            "`--cutout ai` et `--cutout ai-lite`.",
+            "Sur un lot réel de 13 tessons, le détourage par la couleur en a mis 5 à vérifier ou mal détouré "
+            "(ombres, bord de table, tesson blanc) ; BiRefNet les a tous réussis.",
+            "**Second avis** (*Réglages avancés*) : IS-Net ou BiRefNet ne peut que **retirer** du fond "
             "(perforations, écarts, halos), jamais ajouter : ses erreurs n'ont donc pas d'effet.",
             "**Un clic sur l'objet** (vérification) : **Segment Anything**, version MobileSAM (45 Mo) ; on lui "
             "dit quel objet détourer, Gerbil garde son propre bord là où les deux sont d'accord."]),
@@ -748,7 +762,8 @@ USER = [
     ("ul", ["La mesure n'est juste que si l'échelle est **dans le plan de l'objet**.",
             "Le fond doit être uni et différent de l'objet ; un support opaque blanc logé dans un creux n'est pas "
             "reconnu (l'effacer dans *Vérifier*).",
-            "Un objet très clair sur fond blanc peut perdre des parties : fond plus sombre, détourage par l'IA, "
+            "Un objet très clair sur fond blanc peut perdre des parties avec le détourage par la couleur : fond "
+            "plus sombre, BiRefNet, "
             "ou un clic sur l'objet.",
             "Une autre forme d'échelle est le plus souvent signalée : l'apprendre, ou la donner à la main.",
             "Sur 1 764 photographies de référence, aucune échelle déjà trouvée n'a changé d'une version à "
@@ -761,9 +776,12 @@ USER = [
               "(Charbonnel 2026, logiciel libre, GPL v3). L'échelle de chaque photographie est détectée et "
               "mesurée automatiquement (damier : longueur des cases ajustée au sous-pixel ; réglet : pas du "
               "millimètre ajusté sur l'ensemble des graduations, précision d'environ 0,1 %), puis la résolution "
-              "réelle est inscrite dans les fichiers, ce qui restitue les objets au 1:1. Le détourage repose sur "
-              "la distance de couleur (CIELAB) à un modèle polynomial du fond, avec seuillage par hystérésis ; "
-              "les cas douteux ont été signalés par le logiciel et vérifiés un à un. »"),
+              "réelle est inscrite dans les fichiers, ce qui restitue les objets au 1:1. Les objets ont été "
+              "désignés par BiRefNet (Zheng et al. 2024), un algorithme d'apprentissage automatique, et leur bord "
+              "tracé d'après la photographie à pleine résolution ; les cas douteux ont été signalés par le "
+              "logiciel et vérifiés un à un. »"),
+    ("p", "Avec le détourage par la couleur, remplacer la phrase sur BiRefNet par : « Le détourage repose sur la "
+          "distance de couleur (CIELAB) à un modèle polynomial du fond, avec seuillage par hystérésis. »"),
 
     # ------------------------------------------------------------------------------------------------ 7
     ("part", "7", "Inspirations et sources", "Les pratiques, les normes, les méthodes et les logiciels dont "
@@ -802,9 +820,9 @@ USER = [
                                                          "Invariant Keypoints*, 2004"],
                ["RANSAC", "garder les correspondances qui s'accordent", "M. Fischler et R. Bolles, 1981"],
                ["ECC", "alignement fin de l'échelle apprise", "G. Evangelidis et E. Psarakis, 2008"],
-               ["IS-Net", "second avis de l'IA", "X. Qin et al., *Highly Accurate Dichotomous Image "
+               ["IS-Net", "second avis", "X. Qin et al., *Highly Accurate Dichotomous Image "
                                                  "Segmentation*, 2022"],
-               ["BiRefNet", "détourage par l'IA, second avis", "P. Zheng et al., *Bilateral Reference for "
+               ["BiRefNet", "détourage par défaut, second avis", "P. Zheng et al., *Bilateral Reference for "
                     "High-Resolution Dichotomous Image Segmentation*, 2024"],
                ["Segment Anything", "un clic sur l'objet", "A. Kirillov et al., 2023 ; MobileSAM : C. Zhang et "
                                                             "al., *Faster Segment Anything*, 2023"]],
@@ -859,7 +877,8 @@ USER = [
     ("p", "`py gerbil.py DOSSIER --option` (scripts) ou `gerbil_cli.exe DOSSIER --option` (version .exe) :"),
     ("table", [["Option", "Effet"],
                ["`-o DOSSIER`", "dossier de sortie (par défaut `outlined_result` à côté des photographies)"],
-               ["`--cutout colour|ai|ai-lite`", "détourage par la couleur ou par l'IA"],
+               ["`--cutout colour|ai|ai-lite`", "détourage par la couleur, par BiRefNet ou BiRefNet allégé (la "
+                                                "ligne de commande garde la couleur par défaut)"],
                ["`--colour none|balance|exposure`, `--white chart|scale|background`", "couleurs et blanc de "
                                                                                        "référence"],
                ["`--background white`", "TIFF sur fond blanc"],
@@ -870,7 +889,7 @@ USER = [
                ["`--no-psd`, `--no-original-layer`, `--no-original-copy`, `--no-control`", "fichiers en moins"],
                ["`--compression lzw|zip|none`", "compression des TIFF"],
                ["`--default-ppi 300`", "résolution sans échelle"],
-               ["`--ai`, `--ai-model isnet|birefnet|birefnet-lite`, `--ai-device cpu`", "second avis de l'IA"],
+               ["`--ai`, `--ai-model isnet|birefnet|birefnet-lite`, `--ai-device cpu`", "second avis (apprentissage automatique)"],
                ["`--profile FICHIER`", "profil de site"],
                ["`--refresh-names`", "applique un renommage modifié sans retraiter"],
                ["`-j 4`, `--open`, `-v`", "photographies en parallèle ; ouvrir à la fin ; détails des erreurs"],
@@ -910,15 +929,15 @@ USER = [
                                                            "OpenCV, Pillow, rawpy."],
                ["« Échelle non trouvée »", "vérifier qu'elle est entière et nette ; la [[echelle-main|donner à la "
                                            "main]] ou l'[[profils|apprendre]]."],
-               ["Des parties d'un objet clair manquent", "fond plus sombre, *Détourage : ai*, ou un clic sur "
+               ["Des parties d'un objet clair manquent", "*Détourage : BiRefNet*, fond plus sombre, ou un clic sur "
                                                          "l'objet dans *Vérifier*."],
-               ["L'ombre est gardée avec l'objet", "*Détourage : ai*, ou *Retirer un morceau*."],
+               ["L'ombre est gardée avec l'objet", "*Détourage : BiRefNet*, ou *Retirer un morceau*."],
                ["« Information manquante »", "remplir les champs obligatoires du renommage en lot "
                                              "([[relire|relire]])."],
                ["Deux photographies ont le même nom de sortie", "Gerbil ajoute un suffixe ; compléter le modèle "
                                                                  "(numéro, vue)."],
                ["L'étape 04 demande Adobe DNG Converter", "l'installer (gratuit, chez Adobe), puis relancer."],
-               ["Le détourage par l'IA est lent", "*ai-lite*, ou moins de photographies en parallèle."],
+               ["Le détourage est lent", "*BiRefNet allégé*, ou *par la couleur* pour un fond bien uni."],
                ["La mesure semble fausse de quelques %", "l'échelle était-elle dans le plan de l'objet ? Contrôler "
                                                          "avec `NOM_outlined_scale.tif` dans Illustrator."]],
      [0.42, 0.58]),
@@ -968,7 +987,7 @@ USER = [
                ["OpenCV", "traitement d'image : couleurs, morphologie, contours, SIFT, ECC", "Apache 2.0"],
                ["Pillow", "lire et écrire les images, dessiner les planches", "MIT-CMU"],
                ["rawpy, LibRaw", "développer les photographies RAW", "MIT ; LGPL 2.1 ou CDDL"],
-               ["onnxruntime", "faire tourner les réseaux d'IA sur l'ordinateur", "MIT"],
+               ["onnxruntime", "faire tourner les réseaux d'apprentissage automatique sur l'ordinateur", "MIT"],
                ["BiRefNet, IS-Net", "réseaux de détourage (exports ONNX de rembg)", "MIT ; Apache 2.0"],
                ["MobileSAM", "un clic sur l'objet (export ONNX d'Acly)", "MIT"],
                ["Tk (tkinter)", "les fenêtres", "licence BSD de Tcl/Tk"],

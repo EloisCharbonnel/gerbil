@@ -21,7 +21,7 @@ When something is doubtful, the output files get the "_to_be_verified" suffix.
 The scale (1 cm squares, or a ruler graduated in millimetres; 5 or 10 cm) gives the real
 resolution of each photo. It is stored in the files: dropped into Illustrator, they show at 1:1.
 
-Optional (--ai, needs onnxruntime): an AI second opinion (IS-Net or BiRefNet) that may only remove
+Optional (--ai, needs onnxruntime): a second opinion by machine learning (IS-Net or BiRefNet) that may only remove
 background kept by the colour rule (perforations, gaps between sherds, halos), never add anything.
 
 Usage:
@@ -2704,7 +2704,7 @@ def ai_model_path(model):
     if os.path.exists(path):
         return path
     os.makedirs(AI_DIR, exist_ok=True)
-    print(f"Downloading the AI model {file} (once) from {url}", flush=True)
+    print(f"Downloading the model {file} (once) from {url}", flush=True)
     tmp, h, done = path + ".part", hashlib.md5(), 0
     with urllib.request.urlopen(url) as r, open(tmp, "wb") as out:
         total = int(r.headers.get("Content-Length") or 0)
@@ -3898,16 +3898,16 @@ def process_photo(path, opts, out_dir, plan=None):
             try:
                 ai = ai_mask(rgb, opts)
             except Exception as e:
-                notes.append(f"AI not used ({type(e).__name__}: {e})")
+                notes.append(f"machine learning not used ({type(e).__name__}: {e})")
         ai_first = getattr(opts, "cutout", "colour") != "colour"
         cer, msg = outline_object(photo, small, f, background, scale, ai, ai_first)
         if ai_first and cer is None and ai is not None:
             # the network saw nothing to keep: the colour rule is tried
             cer, msg = outline_object(photo, small, f, background, scale, ai)
             if cer is not None:
-                notes.append("the AI saw no object: cut-out by the colour")
+                notes.append("BiRefNet saw no object: cut-out by the colour")
         elif ai_first and cer is not None and cer.get("ai_first"):
-            notes.append(f"cut-out drawn from the AI ({AI_MODELS[opts.ai_model][0]})")
+            notes.append(f"cut-out drawn by machine learning ({AI_MODELS[opts.ai_model][0]})")
         edited_mask, angle = edits_entry(path)
         if edited_mask is not None and edited_mask.shape[:2] == (H, W):
             # cut-out corrected by hand in the review window: it replaces the computed one
@@ -3947,7 +3947,7 @@ def process_photo(path, opts, out_dir, plan=None):
         if cer is not None and cer.get("chart_attached"):
             doubts.append("colour chart touching the object (kept with it)")
         if cer is not None and cer.get("ai_removed"):
-            notes.append(f"AI ({AI_MODELS[opts.ai_model][0]}) removed background: {len(cer['ai_removed'])} area(s), "
+            notes.append(f"second opinion ({AI_MODELS[opts.ai_model][0]}) removed background: {len(cer['ai_removed'])} area(s), "
                          f"{cer['ai_area']:.2f} cm² (cyan outline in preview)")
         if cer is not None:
             x0, y0, x1, y1 = cer["box"]
@@ -4132,12 +4132,13 @@ def _main(argv=None):
     p.add_argument("--compression", choices=list(TIFF_COMPRESSIONS), default="lzw", help="TIFF compression")
     p.add_argument("--default-ppi", type=float, default=300, help="resolution used when no scale is found")
     p.add_argument("--cutout", choices=["colour", "ai-lite", "ai"], default="colour",
-                   help="colour: the objects are what differs from the background (the usual way, fast); "
-                        "ai: the BiRefNet network says what is an object, the edge is still drawn from the "
-                        "photo - surer with cast shadows, a table border or a white object on white, but "
-                        "about 8 s more per photo; ai-lite: the same with the lighter BiRefNet-lite network "
-                        "(224 MB instead of 970, about 4 s more per photo, a little less sure on difficult "
-                        "photos). Both need the onnxruntime package")
+                   help="colour: the objects are what differs from the background (rules written by hand, "
+                        "fast); ai: BiRefNet, an algorithm of machine learning (its settings were learned from "
+                        "images), says what is an object, the edge is still drawn from the photo - surer with "
+                        "cast shadows, a table border or a white object on white, about 20 s more per photo; "
+                        "ai-lite: the same with the lighter BiRefNet-lite (224 MB instead of 970, faster, a "
+                        "little less sure on difficult photos). Both need the onnxruntime package; the "
+                        "interface uses ai by default")
     p.add_argument("--colour", choices=["none", "balance", "exposure"], default="none",
                    help="none: the colours of the photo are kept; balance: white balance on a white of the "
                         "photo (see --white); exposure: white balance, and that white brought to the same "
@@ -4149,8 +4150,9 @@ def _main(argv=None):
                         "Archaeo Colorimeter); scale: the white of the scale (when it is really white: some "
                         "are cream); background: the background itself (white paper only)")
     p.add_argument("--ai", action="store_true",
-                   help="AI second opinion (needs the onnxruntime package): the network may only remove "
-                        "background the script kept (perforations, gaps, halos), never add anything")
+                   help="second opinion by machine learning (needs the onnxruntime package): the network "
+                        "may only remove background the script kept (perforations, gaps, halos), never add "
+                        "anything")
     p.add_argument("--ai-model", choices=list(AI_MODELS), default="isnet",
                    help="model of the second opinion. isnet: fast, uses the graphics card; birefnet: more "
                         "precise on perforations, much slower; birefnet-lite: in between. Downloaded once "
@@ -4194,10 +4196,10 @@ def _main(argv=None):
         try:
             ai_model_path(opts.ai_model)           # download it now, once, rather than in each worker
         except Exception as e:
-            print(f"AI model not available: {e}")
+            print(f"Model not available: {e}")
             return 1
         device = ai_providers(opts.ai_device, opts.ai_model)[0].replace("ExecutionProvider", "")
-        print(f"{'Cut-out drawn from the AI' if opts.cutout != 'colour' else 'AI second opinion'}: "
+        print(f"{'Cut-out by machine learning' if opts.cutout != 'colour' else 'Second opinion'}: "
               f"{AI_MODELS[opts.ai_model][0]} ({'processor' if device == 'CPU' else device})")
     # result folder of each photo: forced (-o) or "outlined_result" next to the photo
     tasks = [(fp, os.path.abspath(opts.output) if opts.output else

@@ -173,7 +173,7 @@ USER = [
             "Open Gerbil from the Start menu."]),
     ("warn", "The programs are not signed: the first time, Windows may show \"Windows protected your PC\". Click "
              "*More info*, then *Run anyway*."),
-    ("p", "**Update**: run a newer Gerbil_Setup.exe; the AI models already downloaded are kept. **Uninstall**: "
+    ("p", "**Update**: run a newer Gerbil_Setup.exe; the BiRefNet models already downloaded are kept. **Uninstall**: "
           "*Settings > Apps > Installed apps*. Photos and results are never touched."),
     ("h3", "With the Python scripts"),
     ("p", "Copy the folder of the program, double-click **Install.bat** once (it installs Python if needed, then "
@@ -183,7 +183,8 @@ USER = [
     ("ul", ["**Adobe DNG Converter** (free, from Adobe) for step 04 only; Gerbil finds it once installed.",
             "**ExifTool** ships with Gerbil (metadata of the DNG files).",
             "**Inkscape** (free), to place `.ai`, `.pdf` or `.eps` drawings on the plates.",
-            "The **AI models** (AI cut-out, one-click cut-out) are downloaded once, the first time they are used; "
+            "The **models of machine learning** (BiRefNet, one-click cut-out) are downloaded once, the first time "
+            "they are used; "
             "then everything runs on the computer."]),
 
     # ------------------------------------------------------------------------------------------------ 3
@@ -207,7 +208,8 @@ USER = [
           "for very precise colours, develop it yourself (Lightroom, darktable) and give the TIFFs to Gerbil."),
     ("h2", "Small tips", "conseils"),
     ("ul", ["**Mounting putty**: a blue putty, or putty hidden behind the object, is not mistaken for a light object.",
-            "**Very light objects** (white fabric, chalk, cortex): on a grey or black background, or AI cut-out.",
+            "**Very light objects** (white fabric, chalk, cortex): on a grey or black background; BiRefNet, the "
+            "default cut-out, mostly sees them.",
             "**A colour chart** in the frame lets you balance the whites afterwards ([[couleurs|Colour setting]]).",
             "**A label** may stay on the photo: Gerbil leaves it out. Placing it on the other side of the scale "
             "helps.",
@@ -248,9 +250,9 @@ USER = [
     ("p", "The page sums up the batch renaming of the folder; *Open the batch renaming…* opens the window that "
           "gives each photo its information and the name of its files. Only the photos of step 01 are shown in it "
           "(a box shows the whole folder)."),
-    ("shot", "project", "The batch renaming window: the fields and name template at the top, the rule helper on "
-                        "the right, the values for all photos, then one row per photo with its output name. "
-                        "Incomplete rows are in orange.", "half"),
+    ("shot", "project", "The batch renaming window: fields, name template and values on the left, one row per photo "
+                        "with its output name; on the right, the photo chosen, in large, to recognise it. Incomplete "
+                        "rows are in orange."),
     ("h3", "Fields, name template, rule"),
     ("ul", ["**Fields**: by default *Site*, *Sector*, *US*, *Object number*, *Material*, *View*; else those of the "
             "profile. *Add field…*, *Edit field…* (name, meaning, IPTC field, required).",
@@ -258,7 +260,7 @@ USER = [
             "(`EX24_US1043_1_pottery_outlined.tif`). The *Insert* buttons add a field. `{building|first}` keeps, of "
             "several values (`B27 ; B20`), the one with the smallest number. **The original photos are never "
             "renamed.**",
-            "**Naming rule** (optional): a regular expression, read as PowerShell's `-match`. The helper writes it "
+            "**Naming rule** (optional): a regular expression, read as PowerShell's `-match`. The helper (*▸ Rule helper*, folded by default) writes it "
             "from tick boxes (uppercase only, ends with a number…) and shows the equivalent PowerShell line, to "
             "learn. *Test a name* tries it.",
             "**Names without accents** (box of the helper): \"céramique\" becomes \"ceramique\" in the files "
@@ -301,19 +303,20 @@ USER = [
     ("shot", "cutout", "Step 03 after a run: the progress chart, one row per photo (green: ok, orange: to verify, "
                        "red: failed), the settings on the right."),
     ("table", [["Setting", "Choices"],
-               ["*Cut-out*", "*by the colour* (fast, exact on a plain background); *ai* or *ai-lite*: the BiRefNet "
-                             "network points out the objects ([[ia|see]])."],
+               ["*Cut-out*", "*BiRefNet* (default): an algorithm of machine learning points out the objects, the "
+                             "surest ([[ia|see]]); *BiRefNet, lighter*: faster; *by the colour*: rules written by "
+                             "hand, fast, exact on a really plain background."],
                ["*Colour*", "*unchanged*; white *balance*; *exposure*: balance and the same lightness for the whole "
                             "series ([[couleurs|see]])."],
                ["*White reference*", "*colour chart*, *scale* or *background*."],
                ["*Photoshop file (.psd)*", "a layered PSD besides the TIFFs."],
                ["*TIFF background*", "transparent or white."],
                ["*Look for the scale*", "untick for photos without a scale."],
-               ["*Advanced settings…*", "margins, layout of the scale, putty, compression, AI second opinion, photos "
+               ["*Advanced settings…*", "margins, layout of the scale, putty, compression, second opinion (machine learning), photos "
                                         "in parallel…"],
                ["*Results*", "*next to the photos* (`outlined_result` folder) or in a folder chosen."]], [0.3, 0.7]),
-    ("p", "*Changed from the defaults* recalls what was changed; *Back to the defaults* undoes it all. Count 3 to "
-          "4 seconds per photo; several are processed at the same time."),
+    ("p", "*Changed from the defaults* recalls what was changed; *Back to the defaults* undoes it all. Count 20 to "
+          "30 seconds per photo with BiRefNet, 3 to 4 seconds by the colour."),
 
     ("h2", "What comes out", "ce-qui-sort"),
     ("p", "All the files of a photo keep its name (or the name of the batch renaming), to follow them in Explorer:"),
@@ -330,7 +333,7 @@ USER = [
                ["Orange", "centimetres read on the scale"],
                ["Red", "what was left out (label, chart, small isolated piece) or possible putty"],
                ["Blue", "plexiglas support or cast shadow removed"],
-               ["Cyan", "background removed by the AI second opinion"]], [0.3, 0.7]),
+               ["Cyan", "background removed by the second opinion"]], [0.3, 0.7]),
     ("h3", "The _to_be_verified suffix"),
     ("p", "When something is doubtful, all the files of the photo get this suffix (`NAME_outlined_to_be_verified.tif`): "
           "type `to_be_verified` in Explorer's search to find them. There is a doubt when the scale is not found or "
@@ -357,9 +360,9 @@ USER = [
                ["*Information*", "the fields of the renaming, editable here."],
                ["*Accept and next*", "saves and **exports the photo again at once**, in the background."]],
      [0.34, 0.66]),
-    ("p", "*Redo with the AI…* cuts out again, with the [[ia|AI cut-out]], the photos to verify (or those chosen "
-          "in the list): often all that is needed for a cast shadow, the edge of the table or a white object on "
-          "white. The setting of the window does not change."),
+    ("p", "*Redo with BiRefNet…* cuts out again, with [[ia|BiRefNet]], the photos to verify (or those chosen in "
+          "the list), when the cut-out by the colour had been chosen: often all that is needed for a cast shadow, "
+          "the edge of the table or a white object on white. The setting of the window does not change."),
     ("p", "Moving around: mouse wheel to zoom; right or middle button, {{Space}} + drag or the arrow keys to move "
           "the view; {{R}} to see the whole photo again."),
     ("note", "The corrections are kept **next to the photos**, in `gerbil_edits`: later runs keep them. Keep this "
@@ -442,6 +445,8 @@ USER = [
     ("ul", ["*Scale of the photos…* lists the photos with their real size; a double-click opens a photo: click both "
             "ends of a known length (ranging pole, target, length of the pit measured in the field) and give it in "
             "centimetres.",
+            "A photo **already outlined in step 03** keeps the scale measured then: nothing to do (the list says "
+            "where each scale comes from).",
             "An **orthophoto** with its georeferencing file (`.jgw`, `.tfw`) needs nothing.",
             "**A click on a photo of the preview**: choose its scale (1:5 to 1:100) or measure it.",
             "**Captions, order and groups** come from the batch renaming of the folder (add *Burial*, *Type*, "
@@ -553,6 +558,9 @@ USER = [
           "colour, and so stays out of the object."),
 
     ("h2", "The background model", "modele-fond"),
+    ("note", "This section and the next two describe the **cut-out by the colour**, made of rules written by hand. "
+             "With [[ia|BiRefNet]], the default cut-out, an algorithm of machine learning points out the objects; "
+             "the sorting of the pieces and the drawing of the edge stay as described here."),
     ("p", "The background is never even: the lighting makes a gradient. Gerbil therefore fits a **surface** that "
           "follows it: for L\\*, a\\* and b\\*, a polynomial of degree 2 in x and y, fitted by **least squares** "
           "on the background pixels. It starts from the median colour (the background is the largest part), keeps "
@@ -622,15 +630,19 @@ USER = [
           "putty if it is at once smoother, of another colour, less colourful and lighter than the rest. By default "
           "it is only flagged (red area); `--remove-putty` removes it."),
 
-    ("h2", "AI cut-out", "ia"),
-    ("p", "By default, the object is what differs from the background by its colour: fast and exact on a plain "
-          "background, but a cast shadow, the edge of the table or a white object on white fool it. With *Cut-out: "
-          "ai*, the **BiRefNet** network first points out the objects; Gerbil then sorts the pieces as usual and "
-          "always draws the edge from the photo, at full resolution."),
+    ("h2", "BiRefNet: the cut-out by machine learning", "ia"),
+    ("p", "The cut-out by the colour follows rules written by hand: fast and exact on a really plain background, it "
+          "is fooled by a cast shadow, the edge of the table or a white object on white. **BiRefNet**, the default "
+          "cut-out, is an algorithm of **machine learning**: a neural network whose 220 million or so settings were "
+          "written by nobody but learned by showing it hundreds of thousands of images already outlined. It points "
+          "out the objects; Gerbil then sorts the pieces as usual (scale, label, chart, support) and always draws "
+          "the edge from the photo, at full resolution."),
     ("ul", ["Everything runs on the computer: no photo is sent over the internet.",
-            "*ai*: BiRefNet (970 MB, downloaded once), about 8 s more per photo; *ai-lite*: a lighter network "
-            "(224 MB), about 4 s, a little less sure on difficult cases.",
-            "**AI second opinion** (*Advanced settings*): IS-Net or BiRefNet may only **remove** background "
+            "*BiRefNet* (970 MB, downloaded once): about 20 s more per photo; *BiRefNet, lighter* (224 MB): faster, "
+            "a little less sure on difficult cases. From the command line: `--cutout ai` and `--cutout ai-lite`.",
+            "On a real set of 13 sherds, the cut-out by the colour left 5 to verify or badly outlined (shadows, "
+            "table edge, white sherd); BiRefNet got them all right.",
+            "**Second opinion** (*Advanced settings*): IS-Net or BiRefNet may only **remove** background "
             "(perforations, gaps, halos), never add: its mistakes therefore have no effect.",
             "**One click on the object** (review): **Segment Anything**, MobileSAM version (45 MB); it is told which "
             "object to outline, Gerbil keeps its own edge where both agree."]),
@@ -678,7 +690,8 @@ USER = [
     ("ul", ["The measurement is only right if the scale is **in the plane of the object**.",
             "The background must be plain and differ from the object; an opaque white support in a hollow is not "
             "recognised (erase it in *Review*).",
-            "A very light object on white may lose parts: darker background, AI cut-out, or one click on the object.",
+            "A very light object on white may lose parts with the cut-out by the colour: darker background, "
+            "BiRefNet, or one click on the object.",
             "Another kind of scale is most often flagged: learn it, or give it by hand.",
             "On 1,764 reference photos, no scale already found changed from one version to the next: every change "
             "of the program is checked to the pixel on these sets."]),
@@ -727,9 +740,9 @@ USER = [
                                                       "Keypoints*, 2004"],
                ["RANSAC", "keep the matches that agree", "M. Fischler and R. Bolles, 1981"],
                ["ECC", "fine alignment of a learned scale", "G. Evangelidis and E. Psarakis, 2008"],
-               ["IS-Net", "AI second opinion", "X. Qin et al., *Highly Accurate Dichotomous Image Segmentation*, "
+               ["IS-Net", "second opinion", "X. Qin et al., *Highly Accurate Dichotomous Image Segmentation*, "
                                                "2022"],
-               ["BiRefNet", "AI cut-out, second opinion", "P. Zheng et al., *Bilateral Reference for High-Resolution "
+               ["BiRefNet", "default cut-out, second opinion", "P. Zheng et al., *Bilateral Reference for High-Resolution "
                                                          "Dichotomous Image Segmentation*, 2024"],
                ["Segment Anything", "one click on the object", "A. Kirillov et al., 2023; MobileSAM: C. Zhang et al., "
                                                                "*Faster Segment Anything*, 2023"]],
@@ -780,7 +793,8 @@ USER = [
     ("p", "`py gerbil.py FOLDER --option` (scripts) or `gerbil_cli.exe FOLDER --option` (.exe version):"),
     ("table", [["Option", "Effect"],
                ["`-o FOLDER`", "output folder (default `outlined_result` next to the photos)"],
-               ["`--cutout colour|ai|ai-lite`", "cut-out by the colour or by the AI"],
+               ["`--cutout colour|ai|ai-lite`", "cut-out by the colour, by BiRefNet or BiRefNet lighter (the "
+                                                "command line keeps the colour by default)"],
                ["`--colour none|balance|exposure`, `--white chart|scale|background`", "colours and white reference"],
                ["`--background white`", "TIFF on white"],
                ["`--remove-putty`", "removes the putty found"],
@@ -790,7 +804,7 @@ USER = [
                ["`--no-psd`, `--no-original-layer`, `--no-original-copy`, `--no-control`", "fewer files"],
                ["`--compression lzw|zip|none`", "TIFF compression"],
                ["`--default-ppi 300`", "resolution without a scale"],
-               ["`--ai`, `--ai-model isnet|birefnet|birefnet-lite`, `--ai-device cpu`", "AI second opinion"],
+               ["`--ai`, `--ai-model isnet|birefnet|birefnet-lite`, `--ai-device cpu`", "second opinion (machine learning)"],
                ["`--profile FILE`", "site profile"],
                ["`--refresh-names`", "applies a changed renaming without processing again"],
                ["`-j 4`, `--open`, `-v`", "photos in parallel; open at the end; error details"],
@@ -828,13 +842,13 @@ USER = [
                                                          "rawpy."],
                ["\"Scale not found\"", "check it is whole and sharp; [[echelle-main|give it by hand]] or "
                                        "[[profils|learn it]]."],
-               ["Parts of a light object are missing", "darker background, *Cut-out: ai*, or one click on the object "
+               ["Parts of a light object are missing", "*Cut-out: BiRefNet*, darker background, or one click on the object "
                                                        "in *Review*."],
-               ["The shadow is kept with the object", "*Cut-out: ai*, or *Remove a piece*."],
+               ["The shadow is kept with the object", "*Cut-out: BiRefNet*, or *Remove a piece*."],
                ["\"Missing information\"", "fill in the required fields of the batch renaming ([[relire|check]])."],
                ["Two photos have the same output name", "Gerbil adds a suffix; complete the template (number, view)."],
                ["Step 04 asks for Adobe DNG Converter", "install it (free, from Adobe), then run again."],
-               ["The AI cut-out is slow", "*ai-lite*, or fewer photos in parallel."],
+               ["The cut-out is slow", "*BiRefNet, lighter*, or *by the colour* for a really plain background."],
                ["The measurement seems a few % off", "was the scale in the plane of the object? Check with "
                                                      "`NAME_outlined_scale.tif` in Illustrator."]], [0.42, 0.58]),
 
@@ -879,7 +893,7 @@ USER = [
                ["OpenCV", "image processing: colours, morphology, contours, SIFT, ECC", "Apache 2.0"],
                ["Pillow", "reading and writing images, drawing the plates", "MIT-CMU"],
                ["rawpy, LibRaw", "developing RAW photos", "MIT; LGPL 2.1 or CDDL"],
-               ["onnxruntime", "running the AI networks on the computer", "MIT"],
+               ["onnxruntime", "running the networks of machine learning on the computer", "MIT"],
                ["BiRefNet, IS-Net", "cut-out networks (ONNX exports by rembg)", "MIT; Apache 2.0"],
                ["MobileSAM", "one click on the object (ONNX export by Acly)", "MIT"],
                ["Tk (tkinter)", "the windows", "Tcl/Tk BSD licence"],

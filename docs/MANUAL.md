@@ -339,6 +339,8 @@ graves or structures, orthophotos, any JPEG, TIFF or PNG. Each photo is brought 
   length is typed in centimetres (1 m = 100). It is saved in `gerbil_scales.json` next to the photos, as
   the manual scale of the objects. The scale holds in the plane of the two points: a photo taken at an
   angle is not an orthophoto.
+- A photo **already outlined in step 03** keeps the scale measured then (read in `outlined_report.csv` of
+  its results folder): nothing to do. A scale given by hand wins over it.
 - An **orthophoto** with its world file (`photo.jgw`, `.tfw`, `.pgw` or `.wld`, pixel size in metres)
   needs nothing: its scale is read from it.
 - A photo without a scale is left out of the plates (and counted).
@@ -510,13 +512,15 @@ cannot be found (rectangular chart stuck to the object), the chart is kept and t
 Holes through which the background shows (opening between the attachments of a handle, perforation)
 stay transparent. The other holes of the cut-out (gloss reflections, light concretions) are filled.
 
-## Cut-out drawn from the AI (`--cutout ai` or `ai-lite`, setting *Cut-out*)
+## Cut-out by BiRefNet, machine learning (`--cutout ai` or `ai-lite`, setting *Cut-out*)
 
-By default (*Cut-out: colour*) the objects are what differs from the background by its colour: fast, and
-exact on a plain background, but a cast shadow, the border of the table or a white object on a white
-background mislead it. With `--cutout ai`, the **BiRefNet** network (a neural network trained to tell
-objects from backgrounds, run on this computer: no photo is sent anywhere) says what is an object, and
-Gerbil does the rest as usual:
+The cut-out by the colour (`--cutout colour`) follows rules written by hand: the objects are what differs
+from the background by its colour; fast, and exact on a plain background, but a cast shadow, the border of
+the table or a white object on a white background mislead it. With `--cutout ai`, **BiRefNet**, an algorithm
+of machine learning (a neural network whose settings were learned from images already outlined, run on this
+computer: no photo is sent anywhere), says what is an object, and Gerbil does the rest as usual. **It is the
+default cut-out of the interface** since 2.3 (the settings saved before are switched to it once); the command
+line keeps the colour by default:
 
 - the pieces are sorted by the same rules: scale, colour chart, translucent support, isolated elements. A
   paper label is an object for the network: it is discarded when it is a light, uncoloured card with
@@ -525,14 +529,14 @@ Gerbil does the rest as usual:
   network, a pixel belongs to the object when its colour differs from the background and is not that of a
   shadow. Where the colour cannot tell (a shadow, or an object of the colour of the background), the
   network decides;
-- the report says "cut-out drawn from the AI (birefnet-general)". When the network sees no object, the
-  colour rule is used instead ("the AI saw no object: cut-out by the colour").
+- the report says "cut-out drawn by machine learning (birefnet-general)". When the network sees no object,
+  the colour rule is used instead ("BiRefNet saw no object: cut-out by the colour").
 
 Two networks can be chosen (both run on the processor: DirectML cannot run them; processing several
 photos in parallel does not make them faster; both need onnxruntime):
 
-- `--cutout ai`: BiRefNet (970 MB, downloaded once), about 8 s more per photo;
-- `--cutout ai-lite`: BiRefNet-lite (224 MB), about 4 s more per photo.
+- `--cutout ai`: BiRefNet (970 MB, downloaded once), about 20 s more per photo of 45 megapixels;
+- `--cutout ai-lite`: BiRefNet-lite (224 MB), faster.
 
 On 13 photos of 45 megapixels of sherds with cast shadows, a table border and a white glazed sherd on white
 paper, the colour rule gave 13 photos to correct and both networks 13 clean cut-outs, the same within
@@ -542,16 +546,16 @@ than 15 % and the same elsewhere; BiRefNet-lite gave the same cut-out as BiRefNe
 and 306 s), and was a little less sure on two difficult ones (a reflection kept under a flint, a heap of
 sherds). The results of the default cut-out are not changed by this option.
 
-## AI second opinion (`--ai` option)
+## Second opinion by machine learning (`--ai` option)
 
 Without the option, nothing changes. With `--ai`, a neural cut-out network gives a second opinion (the
 IS-Net/DIS or BiRefNet models, the same as the rembg library). It can **only remove** background that the
 script kept, never add anything. An area is removed only when the four conditions are met: the script keeps
-it, the AI sees background there, its colour stays close to the background, and it covers at least
+it, the network sees background there, its colour stays close to the background, and it covers at least
 0.02 cm². This opens shadowed perforations, gaps between two objects, background halos along a blurred edge
 or small background patches between two close objects. Labels, supports, scale and colour charts keep their
-usual treatment. The areas removed by the AI are outlined in **cyan** on the preview, with a note in the
-report ("AI (...) removed background: ...").
+usual treatment. The areas removed by the second opinion are outlined in **cyan** on the preview, with a
+note in the report ("second opinion (...) removed background: ...").
 
 - `--ai`: IS-Net model, fast (less than 1 s per photo on the graphics card).
 - `--ai --ai-model birefnet`: BiRefNet, more precise on perforations (colanders), but much slower (on the
@@ -584,7 +588,7 @@ the steps can be visited in any order:
    and what to do in a few words; double-click a row to fix it. The lines of the engine are in *Technical
    details*.
    Second page, **See the results**: the photos to look at with their problem, the review window, the
-   manual scale, and *Redo with the AI…*, which cuts out again with the AI the photos to verify (or those
+   manual scale, and *Redo with BiRefNet…*, which cuts out again with BiRefNet the photos to verify (or those
    chosen), the setting of the window left as it is.
 4. **Convert**: the RAW photos of step 01 to DNG, with a JPG (preview or full size) and, if wanted, a 16-bit
    TIFF; its own table of the results (double-click a row: the batch renaming, on that photo).
@@ -634,7 +638,7 @@ The sections below describe each window in detail, with the English names of the
   run. Selecting several photos in the list before *Set scale…* does the same for them. Folders or photos dropped on
   `Gerbil.bat` / `Gerbil.exe` are added straight away.
 - **Results**: in an `outlined_result` folder next to the photos (default), or in a chosen folder.
-- **Options**: the same as on the command line, grouped (files, scale and layout, cleaning, AI, run).
+- **Options**: the same as on the command line, grouped (files, scale and layout, cleaning, second opinion, run).
   Resting the mouse on an option shows its explanation.
 - **Run** starts the processing; the bar and the log show each photo (green: ok, terracotta: to verify,
   red: failed). **Cancel** stops it cleanly. **Open results** opens the result folder.
@@ -699,7 +703,7 @@ In the .exe version, `gerbil_cli.exe` takes the same arguments (`gerbil_cli.exe 
 | `--cutout ai-lite` | the same with the lighter BiRefNet-lite network: about 4 s more per photo, a little less sure |
 | `--colour balance` | white balance from a white of the photo (see above); `--colour exposure`: and the same lightness on every photo |
 | `--white scale` | the white is the one of the scale; `--white background`: the background (white paper); default: a round colour chart |
-| `--ai` | AI second opinion, which can only remove background (see above) |
+| `--ai` | second opinion by machine learning, which can only remove background (see above) |
 | `--ai-model birefnet` | with `--ai`: BiRefNet model instead of IS-Net (more precise, much slower) |
 | `--ai-device cpu` | with `--ai`: processor instead of the graphics card |
 | `-o FOLDER` | write everything into this folder |
@@ -748,7 +752,7 @@ develop them yourself (Lightroom, darktable…) and give Gerbil the TIFF files.
 (by default `%LOCALAPPDATA%\Programs\Gerbil`, no administrator rights needed), tick the desktop shortcut
 or not, then *Install*. Gerbil goes in the Start menu and in Windows *Settings > Apps > Installed apps*,
 from where it is removed (or with `Uninstall.bat` in its folder; photos and results are never touched).
-Running a newer `Gerbil_Setup.exe` updates the installed version and keeps the AI models already
+Running a newer `Gerbil_Setup.exe` updates the installed version and keeps the models of machine learning already
 downloaded. The setup is not signed either: "Windows protected your PC" > *More info* > *Run anyway*.
 
 Without the installer, the `Gerbil` folder (or `Gerbil.zip`) works as it is, neither Python nor packages
@@ -757,7 +761,7 @@ needed, on Windows 10 or 11 (64-bit):
 - **`Gerbil.exe`**: the interface (purple gerbil icon).
 - **`gerbil_cli.exe`**: the processing engine, used by the interface. Folders can also be dropped on it,
   or on `Gerbil_drop.bat` (which keeps the `set OPTIONS=` line for the settings).
-- The AI second opinion is included; its model is downloaded at its first use into a `models` folder next
+- BiRefNet and the second opinion are included; its model is downloaded at its first use into a `models` folder next
   to the .exe files (or copy this `models` folder from another computer).
 
 To distribute it: copy `dist\Gerbil.zip` to the other computer, right-click > *Extract All*, then
@@ -819,17 +823,18 @@ https://github.com/EloisCharbonnel/gerbil. Contributing: `CONTRIBUTING.md`.
 ## Installation on another computer (Python version)
 
 1. **Copy the whole folder**: `gerbil.py`, `gerbil_gui.pyw`, `gerbil_plates.py`, `gerbil_tools.py`, the `.bat` files, `requirements.txt`,
-   `README.md`, the `icons` and `fonts` folders (and the `models` folder only for the AI option: otherwise it is
+   `README.md`, the `icons` and `fonts` folders (and the `models` folder only for the machine learning: otherwise it is
    downloaded at its first use).
 2. **Double-click `Install.bat`** (once per computer, internet connection needed):
    - if Python is not installed, it offers to install it with winget, the installer built into Windows
      (otherwise: install it from https://www.python.org/downloads/), then run `Install.bat` again;
    - it then installs what is missing among numpy, OpenCV, Pillow and rawpy (about 2 minutes);
-   - finally it offers the AI option (onnxruntime, about 60 MB), which is optional.
+   - finally it offers the machine learning (BiRefNet, second opinion: onnxruntime, about 60 MB), which is
+     optional.
 3. Open the interface with **`Gerbil.bat`** (or use `Gerbil_drop.bat`).
 
 It also works without `Install.bat`: the interface shows the missing packages in a banner with an
-**Install now** button, and `Gerbil_drop.bat` installs them at its first launch. Ticking "AI second
+**Install now** button, and `Gerbil_drop.bat` installs them at its first launch. Ticking "Second
 opinion" likewise offers to install onnxruntime when it is missing.
 
 The launchers find Python through the `py` command (python.org installation) or, failing that, `python`
@@ -843,5 +848,5 @@ py -3 -m pip install -r requirements.txt
 py -3 -m pip install onnxruntime-directml
 ```
 
-(the second line only for the AI option; `onnxruntime-directml` uses the graphics card on Windows, plain
+(the second line only for the machine learning; `onnxruntime-directml` uses the graphics card on Windows, plain
 `onnxruntime` uses only the processor.)

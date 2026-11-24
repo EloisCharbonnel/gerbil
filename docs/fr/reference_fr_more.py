@@ -775,4 +775,11 @@ FR = {
     'gerbil_gui.pyw:App.redo_with_ai': "Détoure à nouveau, avec l'IA, les photographies à vérifier du dernier détourage (ou celles choisies dans la liste) ; le réglage de la fenêtre reste celui d'avant.",
     'gerbil_gui.pyw:App._final_kind': "Ce qu'est un fichier de l'étape 05, en un mot (TIFF 1:1, aperçu, planche, copie de l'original…) ; None pour le laisser de côté (les fichiers du contrôle de versement).",
     'gerbil_gui.pyw:App._final_fill': "Le tableau de l'étape 05 : tous les fichiers produits avec leur nature, et leur nombre dans la colonne des étapes.",
+
+    # ---- planches libres à l'échelle de l'étape 03, assistant de règle replié, BiRefNet
+    'gerbil_plates.py:measured_scales': "Les échelles mesurées par le détourage (étape 03) pour les photographies d'un dossier : {nom de photographie (minuscules) : pixels par centimètre}, lues dans outlined_report.csv de son dossier de résultats (outlined_result à côté des photographies, ou celui donné). Seulement les photographies dont l'échelle a été trouvée.",
+    'gerbil_plates.py:collect_images': 'Planches libres : les photographies d\'un dossier (terrain, orthophotos ; JPEG, TIFF, PNG ; sans les résultats de Gerbil), chacune à sa taille réelle. L\'échelle d\'une photographie est celle donnée à la main (gerbil_scales.json), sinon celle mesurée par le détourage (étape 03, son rapport), sinon celle de son fichier de géoréférencement ; values["scale_from"] dit laquelle. Les champs viennent du renommage en lot du dossier. Renvoie (objets, photographies sans échelle).',
+    'gerbil_gui.pyw:PlatesWindow.results_dir': "Planches libres : le dossier de résultats du détourage quand il n'est pas à côté des photographies (son rapport donne les échelles mesurées à l'étape 03), sinon None.",
+    'gerbil_gui.pyw:ProjectWindow.toggle_helper': "Ouvre ou replie l'assistant de règle.",
+    'gerbil_gui.pyw:App.redo_with_ai': "Détoure à nouveau, avec BiRefNet (apprentissage automatique), les photographies à vérifier du dernier détourage (ou celles choisies dans la liste) ; le réglage de la fenêtre reste celui d'avant.",
 }

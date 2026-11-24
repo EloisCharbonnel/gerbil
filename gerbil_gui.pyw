@@ -191,7 +191,7 @@ P_SOURCES, P_NAMING, P_META, P_CUTOUT, P_REVIEW, P_CONVERT, P_FINAL, P_PUBLICATI
 
 # settings of the processing: kind, label (fr, en), choices or (min, max, step)
 OPTION_SPECS = {
-    "cutout": ("choice", ("Détourage", "Cut-out"), ["colour", "ai-lite", "ai"]),
+    "cutout": ("choice", ("Détourage", "Cut-out"), ["ai", "ai-lite", "colour"]),
     "colour": ("choice", ("Couleur", "Colour"), ["none", "balance", "exposure"]),
     "white": ("choice", ("Blanc de référence", "White reference"), ["chart", "scale", "background"]),
     "psd": ("check", ("Fichier Photoshop (.psd)", "Photoshop file (.psd)"), None),
@@ -209,16 +209,18 @@ OPTION_SPECS = {
     "margin_cm": ("number", ("Marge (cm)", "Margin (cm)"), (0, 5, 0.1)),
     "gap_cm": ("number", ("Écart objet / échelle (cm)", "Object / scale gap (cm)"), (0, 5, 0.1)),
     "remove_putty": ("check", ("Retirer la pâte à fixe", "Remove mounting putty"), None),
-    "ai": ("check", ("Second avis de l'IA", "AI second opinion"), None),
-    "ai_model": ("choice", ("Modèle d'IA", "AI model"), ["isnet", "birefnet-lite", "birefnet"]),
-    "ai_device": ("choice", ("Processeur de l'IA", "AI device"), ["auto", "cpu"]),
+    "ai": ("check", ("Second avis (apprentissage automatique)", "Second opinion (machine learning)"), None),
+    "ai_model": ("choice", ("Modèle du second avis", "Model of the second opinion"), ["isnet", "birefnet-lite",
+                                                                                    "birefnet"]),
+    "ai_device": ("choice", ("Processeur du second avis", "Device of the second opinion"), ["auto", "cpu"]),
 }
 OPTION_KEYS = list(OPTION_SPECS)
 ESSENTIAL_OPTIONS = ["cutout", "colour", "white", "psd", "background", "scale"]
 # choices shown in plain words (the setting keeps the value of the command line)
 CHOICE_TEXT = {
-    "cutout": {"colour": ("par la couleur", "by the colour"), "ai-lite": ("par l'IA, rapide", "by the AI, fast"),
-               "ai": ("par l'IA, précis", "by the AI, precise")},
+    "cutout": {"colour": ("par la couleur", "by the colour"),
+               "ai-lite": ("BiRefNet allégé", "BiRefNet, lighter"),
+               "ai": ("BiRefNet (apprentissage)", "BiRefNet (learned)")},
     "colour": {"none": ("inchangée", "unchanged"), "balance": ("balance des blancs", "white balance"),
                "exposure": ("balance et exposition", "balance and exposure")},
     "white": {"chart": ("charte couleur", "colour chart"), "scale": ("échelle", "scale"),
@@ -265,11 +267,12 @@ HELP_FR = {
     "default_ppi": "Résolution utilisée quand aucune échelle n'est trouvée.",
     "remove_putty": "Retirer automatiquement la pâte à fixe soupçonnée (sinon elle est seulement signalée, zone "
                     "rouge sur l'aperçu).",
-    "cutout": "Par la couleur : les objets sont ce qui diffère du fond (rapide). Par l'IA, précis : le réseau BiRefNet désigne les "
-              "objets et le bord reste tracé d'après la photographie. Plus sûr avec des ombres portées, un bord de "
-              "table ou un objet blanc sur fond blanc, mais environ 8 secondes de plus par photographie. "
-              "Par l'IA, rapide : la même chose avec un réseau allégé (224 Mo à télécharger au lieu de 970), environ "
-              "4 secondes de plus par photographie, un peu moins sûr sur les photographies difficiles. Tout se "
+    "cutout": "BiRefNet (par défaut) : un algorithme d'apprentissage automatique (ses réglages ont été appris "
+              "sur des images détourées) désigne les objets, et le bord reste tracé d'après la photographie. Le "
+              "plus sûr avec des ombres portées, un bord de table ou un objet blanc sur fond blanc ; environ 20 "
+              "secondes de plus par photographie. BiRefNet allégé : la même chose, plus rapide (224 Mo au lieu de "
+              "970), un peu moins sûr sur les photographies difficiles. Par la couleur : les objets sont ce qui "
+              "diffère du fond, selon des règles écrites à la main ; rapide, exact sur un fond bien uni. Tout se "
               "fait sur cet ordinateur.",
     "colour": "Inchangée : les couleurs de la photographie sont gardées. Balance des blancs : la dominante de la "
               "lumière est retirée d'après un blanc de la photographie (« Blanc de référence »). Balance et "
@@ -281,9 +284,9 @@ HELP_FR = {
              "Colorimeter), la seule référence faite pour cela. Échelle : le blanc de l'échelle, quand "
              "elle est vraiment blanche (certaines sont crème). Fond : le fond lui-même, sur papier "
              "blanc uniquement. Une photographie qui n'a pas ce blanc n'est pas corrigée (c'est noté).",
-    "ai": "Second avis de l'IA : le réseau peut seulement retirer du fond que le script a gardé (perforations, "
-          "écarts entre objets, halos), jamais ajouter. Nécessite onnxruntime. Sans effet quand le détourage "
-          "est fait par l'IA.",
+    "ai": "Second avis par apprentissage automatique : le réseau peut seulement retirer du fond que le script a "
+          "gardé (perforations, écarts entre objets, halos), jamais ajouter. Nécessite onnxruntime. Sans effet "
+          "quand le détourage est fait par BiRefNet.",
     "ai_model": "Modèle du second avis. IS-Net : rapide, utilise la carte graphique. BiRefNet : plus précis sur "
                 "les perforations, beaucoup plus lent (processeur). BiRefNet-lite : entre les deux.",
     "ai_device": "auto : carte graphique si possible. cpu : processeur seulement.",
@@ -334,7 +337,8 @@ DOUBTS = [("scale not detected", "Échelle non trouvée", "Scale not found"),
           ("no ceramic kept", "Aucun objet trouvé", "No object found"),
           ("no object kept", "Aucun objet trouvé", "No object found"),
           ("cast shadow removed", "Ombre retirée", "Shadow removed"),
-          ("cut-out drawn from the ai", "Détourage par l'IA", "Cut-out drawn from the AI"),
+          ("cut-out drawn by machine learning", "Détourage BiRefNet", "Cut-out by BiRefNet"),
+          ("cut-out drawn from the ai", "Détourage BiRefNet", "Cut-out by BiRefNet"),      # reports of 2.2
           ("not written as expected", "Valeur mal écrite", "Value not written as expected"),
           ("not mentioned", "Non renseigné", "Not mentioned"),
           ("tiff not created", "TIFF non créé", "TIFF not created"),
@@ -350,7 +354,8 @@ DOUBTS = [("scale not detected", "Échelle non trouvée", "Scale not found"),
           ("exiftool not found", "ExifTool introuvable", "ExifTool not found"),
           ("colours balanced on", "Couleurs équilibrées", "Colours balanced"),
           ("colours not corrected", "Couleurs non corrigées", "Colours not corrected"),
-          ("the ai saw no object", "IA sans objet : détourage par la couleur", "AI saw no object: cut-out by colour"),
+          ("saw no object", "BiRefNet sans objet : détourage par la couleur", "BiRefNet saw no object: cut-out by "
+                                                                               "colour"),
           ("translucent support removed", "Support retiré", "Support removed"),
           ("scale, label or card discarded", "Échelle ou étiquette écartée", "Scale or label set aside"),
           ("paper label discarded", "Étiquette écartée", "Label set aside"),
@@ -399,10 +404,10 @@ DEFAULTS = {
     "psd": True, "original_layer": True, "original_copy": True, "control": True,
     "layout": "recompose", "margin_cm": 0.5, "gap_cm": 0.5,
     "scale": True, "scale_cm": "auto", "default_ppi": 300, "remove_putty": False,
-    "ai": False, "ai_model": "isnet", "ai_device": "auto", "cutout": "colour", "colour": "none", "white": "chart",
+    "ai": False, "ai_model": "isnet", "ai_device": "auto", "cutout": "ai", "colour": "none", "white": "chart",
     "mode": "cutout", "dng_jpg": "preview", "dng_tiff": False,
     "jobs": max(1, min(4, (os.cpu_count() or 2) // 2)), "open": True, "last_dir": "",
-    "plates": {}, "profile": "", "lang": "", "theme": "green", "dark": False,
+    "plates": {}, "profile": "", "lang": "", "theme": "green", "dark": False, "settings_version": 2,
 }
 
 HELP = {
@@ -421,11 +426,12 @@ HELP = {
     "default_ppi": "Resolution used when no scale is found.",
     "remove_putty": "Remove the suspected mounting putty automatically (otherwise it is only flagged, "
                     "red area in the preview).",
-    "cutout": "By the colour: the objects are what differs from the background (fast). By the AI, precise: the BiRefNet network "
-              "says what is an object and the edge is still drawn from the photo. Surer with cast shadows, a table "
-              "border or a white object on a white background, but about 8 seconds more per photo. By the AI, fast: the "
-              "same with a lighter network (224 MB to download instead of 970), about 4 seconds more per photo, "
-              "a little less sure on difficult photos. Everything runs on this computer.",
+    "cutout": "BiRefNet (default): an algorithm of machine learning (its settings were learned from outlined "
+              "images) says what is an object, and the edge is still drawn from the photo. The surest with cast "
+              "shadows, a table border or a white object on white; about 20 seconds more per photo. BiRefNet, "
+              "lighter: the same, faster (224 MB instead of 970), a little less sure on difficult photos. By the "
+              "colour: the objects are what differs from the background, from rules written by hand; fast, exact "
+              "on a really plain background. Everything runs on this computer.",
     "colour": "Unchanged: the colours of the photo are kept. White balance: the colour cast of the light is "
               "removed from a white of the photo ('White reference'). Balance and exposure: that white is also "
               "brought to the same lightness on every photo (85 % luminance), for an even series. The cut-out "
@@ -435,9 +441,9 @@ HELP = {
              "reference made for this. Scale: the white of the scale, when it is "
              "really white (some are cream). Background: the background itself, on white paper only. A "
              "photo that does not hold this white is not corrected (it is noted).",
-    "ai": "AI second opinion: the network may only remove background the script kept "
+    "ai": "Second opinion by machine learning: the network may only remove background the script kept "
           "(perforations, gaps between objects, halos), never add anything. Needs onnxruntime. No effect when "
-          "the cut-out is drawn from the AI.",
+          "the cut-out is drawn by BiRefNet.",
     "ai_model": "Model of the second opinion. IS-Net: fast, uses the graphics card. BiRefNet: more precise on "
                 "perforations, much slower (processor). BiRefNet-lite: in between.",
     "ai_device": "Auto: graphics card when available. CPU: processor only.",
@@ -461,7 +467,7 @@ def missing_packages():
 
 
 def has_ai():
-    """True when onnxruntime (the AI engine) is available."""
+    """True when onnxruntime (which runs the networks of machine learning) is available."""
     if FROZEN:
         return os.path.isdir(os.path.join(RESOURCES, "onnxruntime"))
     importlib.invalidate_caches()
@@ -504,12 +510,12 @@ def console_install():
         return 1
     print("\nRequired packages: OK.")
     if not has_ai():
-        answer = input("\nAlso install the optional AI second opinion (onnxruntime, about 60 MB)? [y/N] ")
+        answer = input("\nAlso install the optional machine learning (BiRefNet, second opinion: onnxruntime, about 60 MB)? [y/N] ")
         if answer.strip().lower() in ("y", "yes", "o", "oui"):
             if subprocess.call(pip_command([AI_PACKAGE])) == 0:
                 print("\nAI second opinion: OK (its model is downloaded at its first use).")
             else:
-                print("\nThe AI installation failed; everything else works without it.")
+                print("\nThe installation of the machine learning failed; everything else works without it.")
     print("\nAll set: open the interface with Gerbil.bat.")
     return 0
 
@@ -529,10 +535,14 @@ def load_settings():
     for path in [SETTINGS] + OLD_SETTINGS:           # (settings saved before the renaming are taken over)
         try:
             with open(path, encoding="utf-8") as fh:
-                s.update({k: v for k, v in json.load(fh).items() if k in DEFAULTS})
+                saved = json.load(fh)
+            s.update({k: v for k, v in saved.items() if k in DEFAULTS})
+            if saved.get("settings_version", 1) < 2 and saved.get("cutout", "colour") == "colour":
+                s["cutout"] = DEFAULTS["cutout"]     # 2.3: BiRefNet became the default; once, then the choice holds
             break
         except (OSError, ValueError):
             continue
+    s["settings_version"] = 2
     return s
 
 
@@ -1231,10 +1241,15 @@ class ProjectWindow:
         win.title(T(f"Renommage en lot - {folder}", f"Batch renaming - {folder}"))
         win.configure(bg=WINDOW_BG)
         sw, sh = win.winfo_screenwidth(), win.winfo_screenheight()
-        win.geometry(f"{min(int(sw * 0.9), 1400)}x{int(sh * 0.9)}+{max(0, (sw - min(int(sw * 0.9), 1400)) // 2)}+{int(sh * 0.02)}")
+        W = int(sw * 0.96)                                  # nearly the whole screen: room for a large photo
+        win.geometry(f"{W}x{int(sh * 0.9)}+{max(0, (sw - W) // 2)}+{int(sh * 0.02)}")
         win.protocol("WM_DELETE_WINDOW", self.close)
 
-        top = ttk.Frame(win, style="Card.TFrame", padding=12)
+        # left: fields, template, values and table; right: the photo, over the whole height (packed after the
+        # buttons at the bottom, so that they always stay visible)
+        outer = tk.PanedWindow(win, orient="horizontal", sashwidth=8, bg=LINE, bd=0, sashrelief="flat")
+        body = ttk.Frame(outer, style="Window.TFrame")
+        top = ttk.Frame(body, style="Card.TFrame", padding=12)
         top.pack(fill="x")
         top.columnconfigure(1, weight=1)
         ttk.Label(top, text=tr("FIELDS"), style="Section.TLabel").grid(row=0, column=0, sticky="w")
@@ -1306,39 +1321,47 @@ class ProjectWindow:
         ttk.Label(helper, textvariable=self.test_result, wraplength=430).grid(row=r + 6, column=0, columnspan=2,
                                                                               sticky="w")
         self.test_name.trace_add("write", lambda *_: self.rule_feedback())
-        ttk.Label(helper, text=tr("Also check the photos:"), style="Section.TLabel").grid(
-            row=r + 7, column=0, columnspan=2, sticky="w", pady=(10, 0))
+        # checks of the photos and options of the files written: under the rule, always visible
+        opts = ttk.Frame(top, style="Card.TFrame")
+        opts.grid(row=6, column=1, sticky="nw", padx=8, pady=(4, 0))
+        ttk.Label(opts, text=tr("Also check the photos:"), style="Section.TLabel").grid(
+            row=0, column=0, columnspan=2, sticky="w", pady=(10, 0))
         self.ext_lower = tk.BooleanVar(value=bool(self.pr.get("photo_ext_lower")))
-        cb = ttk.Checkbutton(helper, text=tr("Extension in lowercase (.jpg, not .JPG)"), variable=self.ext_lower,
+        cb = ttk.Checkbutton(opts, text=tr("Extension in lowercase (.jpg, not .JPG)"), variable=self.ext_lower,
                              command=self.ext_changed)
-        cb.grid(row=r + 8, column=0, columnspan=2, sticky="w")
+        cb.grid(row=1, column=0, columnspan=2, sticky="w")
         Tooltip(cb, tr("Separate control of the names of the original photos (they are never renamed): a photo "
                     "whose extension has capital letters is flagged. In PowerShell: "
                     "$photo.Extension -cmatch '^\\.[a-z0-9]+$'"))
         self.ext_info = tk.StringVar()
-        ttk.Label(helper, textvariable=self.ext_info, style="Muted.TLabel").grid(row=r + 9, column=0, columnspan=2,
+        ttk.Label(opts, textvariable=self.ext_info, style="Muted.TLabel").grid(row=2, column=0, columnspan=2,
                                                                                 sticky="w")
-        ttk.Label(helper, text=tr("Extension of the files written:")).grid(row=r + 10, column=0, sticky="w",
+        ttk.Label(opts, text=tr("Extension of the files written:")).grid(row=3, column=0, sticky="w",
                                                                            pady=(8, 0))
         self.case_names = {"": tr("as usual (.tif, .psd, .jpg)"), "lower": tr("lowercase, also the copy (.jpg)"),
                            "upper": tr("capitals (.TIF, .PSD, .JPG)")}
         self.ext_case = tk.StringVar(value=self.case_names.get(self.pr.get("ext_case") or "", self.case_names[""]))
-        cb = ttk.Combobox(helper, textvariable=self.ext_case, state="readonly", width=30,
+        cb = ttk.Combobox(opts, textvariable=self.ext_case, state="readonly", width=30,
                           values=list(self.case_names.values()))
-        cb.grid(row=r + 10, column=1, sticky="w", pady=(8, 0))
+        cb.grid(row=3, column=1, sticky="w", pady=(8, 0))
         cb.bind("<<ComboboxSelected>>", lambda _: self.case_changed())
         Tooltip(cb, tr("Case of the extension of the files Gerbil writes in the results folder: TIFF, PSD, "
                        "previews and the copy of the original photo. The original photos are never renamed."))
         self.ascii = tk.BooleanVar(value=bool(self.pr.get("ascii_names")))
-        cb = ttk.Checkbutton(helper, text=T("Noms sans accents (é devient e), pour un versement",
+        cb = ttk.Checkbutton(opts, text=T("Noms sans accents (é devient e), pour un versement",
                                             "Names without accents (é becomes e), for a deposit"),
                              variable=self.ascii, command=self.ascii_changed)
-        cb.grid(row=r + 11, column=0, columnspan=2, sticky="w", pady=(6, 0))
+        cb.grid(row=4, column=0, columnspan=2, sticky="w", pady=(6, 0))
         Tooltip(cb, T("Les services d'archives refusent souvent les accents dans les noms de fichiers : avec "
                       "cette case, « céramique » donne « ceramique » dans les fichiers produits. Les photographies "
                       "originales ne sont jamais renommées.",
                       "Archives often refuse accents in file names: with this box, 'céramique' gives 'ceramique' "
                       "in the files written. The original photos are never renamed."))
+        self.helper = helper                          # the rule helper: folded away until asked for
+        helper.grid_remove()
+        self.helper_btn = ttk.Button(top, text=T("▸ Assistant de règle", "▸ Rule helper"), style="Link.TButton",
+                                     command=self.toggle_helper)
+        self.helper_btn.grid(row=5, column=1, sticky="w", padx=8)
         top.columnconfigure(3, weight=0)
 
         foot = ttk.Frame(win, style="Window.TFrame", padding=12)    # packed first at the bottom: always visible
@@ -1350,11 +1373,12 @@ class ProjectWindow:
         Tooltip(b, tr("Which field goes into which IPTC field (title, keywords, location, copyright…), written "
                    "into the output files and, if wanted, next to the original photos."))
         ttk.Button(foot, text=tr("Close"), command=self.close).pack(side="right")
-        self.common_frame = ttk.Labelframe(win, text=tr("  Values for all the photos  "), style="Card.TLabelframe",
+        outer.pack(fill="both", expand=True)
+        self.common_frame = ttk.Labelframe(body, text=tr("  Values for all the photos  "), style="Card.TLabelframe",
                                            padding=8)
         self.common_frame.pack(fill="x", padx=12, pady=(8, 0))
 
-        mid = ttk.Frame(win, style="Window.TFrame", padding=(12, 8, 12, 0))
+        mid = ttk.Frame(body, style="Window.TFrame", padding=(12, 8, 12, 0))
         mid.pack(fill="both", expand=True)
         bar = ttk.Frame(mid, style="Window.TFrame")
         bar.pack(fill="x", pady=(0, 6))
@@ -1376,15 +1400,16 @@ class ProjectWindow:
             cb.pack(anchor="w", pady=(0, 6))
         ttk.Label(mid, text=tr("Double-click: edit a cell. Square at the corner of a cell: drag it to copy the value "
                             "(Ctrl: count up). Ctrl+A: all rows; Ctrl+D: copy down the first selected row."),
-                  style="Footer.TLabel", wraplength=int(min(sw * 0.9, 1400)) - 40, justify="left").pack(
+                  style="Footer.TLabel", wraplength=int(W * 0.55), justify="left").pack(
             anchor="w", pady=(0, 6))
         # table and photo preview side by side; the bar between them can be dragged
         pane = tk.PanedWindow(mid, orient="horizontal", sashwidth=8, bg=LINE, bd=0, sashrelief="flat")
         pane.pack(fill="both", expand=True)
         tablef = ttk.Frame(pane, style="Window.TFrame")
-        side = ttk.Frame(pane, style="Card.TFrame", padding=8)
+        side = ttk.Frame(outer, style="Card.TFrame", padding=8)
         pane.add(tablef, stretch="always", minsize=420)
-        pane.add(side, stretch="never", minsize=220, width=460)
+        outer.add(body, stretch="always", minsize=560)
+        outer.add(side, stretch="never", minsize=260, width=int(W * 0.4))   # a large preview
         self.thumb_lbl = tk.Label(side, bg=CARD_BG)
         self.thumb_lbl.pack(fill="both", expand=True)
         self.thumb_lbl.bind("<Configure>", lambda _: self.after_resize())
@@ -1394,12 +1419,12 @@ class ProjectWindow:
         ttk.Button(side, text=tr("Open the photo"), command=self.open_photo).pack(fill="x")
         self.check_msg = tk.StringVar()
         tk.Label(side, textvariable=self.check_msg, bg=CARD_BG, fg=TERRA, font=(FONT_SERIF, 10), justify="left",
-                 anchor="w", wraplength=420).pack(fill="x", pady=(6, 0))
+                 anchor="w", wraplength=int(W * 0.38)).pack(fill="x", pady=(6, 0))
         if any(f.get("meaning") or f.get("iptc") for f in pr.get("fields", [])):
             # guide of the fields: what each one means here, and the IPTC field (Bridge) it goes into
             tk.Label(side, text=T("GUIDE DES CHAMPS", "GUIDE OF THE FIELDS"), bg=CARD_BG, fg=MUTED,
                      font=(FONT_MONO, 9, "bold"), anchor="w").pack(fill="x", pady=(10, 2))
-            guide = tk.Text(side, height=14, wrap="word", bg=CARD_BG, relief="flat", font=(FONT_SERIF, 10))
+            guide = tk.Text(side, height=5, wrap="word", bg=CARD_BG, relief="flat", font=(FONT_SERIF, 10))
             guide.tag_configure("label", font=(FONT_SERIF, 10, "bold"), foreground=INK)
             guide.tag_configure("iptc", font=(FONT_MONO, 9), foreground=TEAL)
             for f in pr.get("fields", []):
@@ -1672,6 +1697,15 @@ class ProjectWindow:
             self.tree.set(name, "output", project_output_name(self.pr, name))
             self.tree.item(name, tags=("bad",) if self.problems(name) else ())
         self.update_preview()
+
+    def toggle_helper(self):
+        """Opens or folds the rule helper."""
+        if self.helper.winfo_ismapped():
+            self.helper.grid_remove()
+            self.helper_btn.configure(text=T("▸ Assistant de règle", "▸ Rule helper"))
+        else:
+            self.helper.grid()
+            self.helper_btn.configure(text=T("▾ Assistant de règle", "▾ Rule helper"))
 
     def ascii_changed(self):
         """"Names without accents" ticked or not: the output names computed again."""
@@ -2880,7 +2914,7 @@ class PlatesWindow:
         self.st = gp.PlateSettings.from_dict(app.s.get("plates") or {})
         self.unscaled = []                          # free plates: photos without a scale yet
         if images:
-            self.items, self.unscaled = gp.collect_images(folder)
+            self.items, self.unscaled = gp.collect_images(folder, self.results_dir())
         else:
             self.items = gp.collect(folder, True)
         self.thumbs = {}                            # item path -> reduced image (preview)
@@ -3209,7 +3243,7 @@ class PlatesWindow:
 
     def reload_images(self):
         """Free plates: a scale was set or removed - the photos are read again, the preview drawn again."""
-        self.items, self.unscaled = self.gp.collect_images(self.folder)
+        self.items, self.unscaled = self.gp.collect_images(self.folder, self.results_dir())
         self.count_lbl.set(self.count_text())
         if getattr(self, "fill_scales", None):
             try:
@@ -3226,6 +3260,12 @@ class PlatesWindow:
             messagebox.showerror("Gerbil", T("Impossible d'ouvrir la photographie :\n", "Could not open the photo:\n")
                                  + f"{type(e).__name__}: {e}", parent=self.win)
 
+    def results_dir(self):
+        """Free plates: the results folder of the cut-out when it is not next to the photos (its report gives
+        the scales measured in step 03), else None."""
+        s = getattr(self.app, "s", {})
+        return s.get("output_dir") if s.get("output_mode") == "other" and s.get("output_dir") else None
+
     def photo_scales(self):
         """Free plates: the photos of the folder with their real size, or 'no scale'; double-click (or the
         button) to measure the scale of one on the photo."""
@@ -3233,17 +3273,20 @@ class PlatesWindow:
         top.title(tr("Scale of the photos"))
         top.configure(bg=WINDOW_BG)
         top.transient(self.win)
-        top.geometry("560x520")
+        top.geometry(f"{int(760 * self.app.k)}x{int(560 * self.app.k)}")
         ttk.Label(top, text=tr("Double-click a photo to measure its scale: click the two ends of a known length "
                                "and give that length. An orthophoto with its world file (.jgw, .tfw) needs "
-                               "nothing."), style="Footer.TLabel", wraplength=520).pack(anchor="w", padx=10, pady=(10, 4))
+                               "nothing.") + T(" Une photographie déjà détourée à l'étape 03 garde l'échelle "
+                                               "mesurée alors.", " A photo already outlined in step 03 keeps the "
+                                               "scale measured then."),
+                  style="Footer.TLabel", wraplength=520).pack(anchor="w", padx=10, pady=(10, 4))
         bar = ttk.Frame(top, style="Window.TFrame", padding=10)
         bar.pack(side="bottom", fill="x")
         tree = ttk.Treeview(top, columns=("size",), show="tree headings", height=16, selectmode="browse")
         tree.heading("#0", text=tr("Photo"), anchor="w")
         tree.heading("size", text=tr("Real size"), anchor="w")
         tree.column("#0", width=300)
-        tree.column("size", width=200)
+        tree.column("size", width=int(360 * self.app.k))
         tree.tag_configure("none", foreground=TERRA)
         sb = ttk.Scrollbar(top, orient="vertical", command=tree.yview)
         tree.configure(yscrollcommand=sb.set)
@@ -3253,7 +3296,11 @@ class PlatesWindow:
         def fill():
             keep = tree.selection()
             tree.delete(*tree.get_children())
-            rows = [(it.values.get("file", it.name), f"{it.width_cm:.0f} x {it.height_cm:.0f} cm", ()) for it in self.items]
+            where = {"manual": T("donnée à la main", "given by hand"),
+                     "measured": T("mesurée à l'étape 03", "measured in step 03"),
+                     "world file": T("orthophoto", "orthophoto")}
+            rows = [(it.values.get("file", it.name), f"{it.width_cm:.0f} x {it.height_cm:.0f} cm   ("
+                     + where.get(it.values.get("scale_from"), "") + ")", ()) for it in self.items]
             rows += [(n, tr("no scale"), ("none",)) for n in self.unscaled]
             for name, size, tags in sorted(rows, key=lambda r: self.gp.natural_key(r[0])):
                 tree.insert("", "end", iid=name, text=name, values=(size,), tags=tags)
@@ -5141,14 +5188,16 @@ class App:
         b.pack(fill="x", pady=(10, 0))
         ttk.Button(b, text=T("Régler l'échelle à la main…", "Set the scale by hand…"),
                    command=self._scale_for_selection).pack(side="left")
-        self.redo_btn = ttk.Button(b, text=T("Refaire avec l'IA…", "Redo with the AI…"), command=self.redo_with_ai)
+        self.redo_btn = ttk.Button(b, text=T("Refaire avec BiRefNet…", "Redo with BiRefNet…"),
+                                   command=self.redo_with_ai)
         self.redo_btn.pack(side="left", padx=8)
-        Tooltip(self.redo_btn, T("Détoure à nouveau, avec l'IA, les photographies à vérifier (ou celles choisies "
-                                 "dans la liste) : plus sûr sur les ombres portées, le bord de la table et les "
-                                 "objets blancs sur fond blanc, environ 25 s par photographie.",
-                                 "Cuts out again, with the AI, the photos to verify (or those chosen in the "
-                                 "list): surer with cast shadows, the edge of the table and white objects on "
-                                 "white, about 25 s per photo."))
+        Tooltip(self.redo_btn, T("Détoure à nouveau, avec BiRefNet (apprentissage automatique), les "
+                                 "photographies à vérifier (ou celles choisies dans la liste) : plus sûr sur les "
+                                 "ombres portées, le bord de la table et les objets blancs sur fond blanc, environ "
+                                 "25 s par photographie.",
+                                 "Cuts out again, with BiRefNet (machine learning), the photos to verify (or those "
+                                 "chosen in the list): surer with cast shadows, the edge of the table and white "
+                                 "objects on white, about 25 s per photo."))
 
         right = self._card()
         self._section(right, T("Les couleurs", "The colours"))
@@ -5315,7 +5364,7 @@ class App:
             r += 1
 
     def advanced(self):
-        """The window of the other settings (files, run, scale and layout, cleaning, AI)."""
+        """The window of the other settings (files, run, scale and layout, cleaning, second opinion)."""
         if getattr(self, "adv_win", None) is not None and self.adv_win.winfo_exists():
             self.adv_win.lift()
             return
@@ -5485,7 +5534,7 @@ class App:
         self.apply_profile()
 
     def redo_with_ai(self):
-        """The photos to verify of the last cut-out (or those chosen in the list) cut out again, with the AI;
+        """The photos to verify of the last cut-out (or those chosen in the list) cut out again, with BiRefNet;
         the setting of the window is left as it was."""
         rows = [r for r in self.rows_by.get("cutout", []) if r[1] != "ok" and r[4]]
         chosen = set(self.todo_tree.selection())
@@ -5495,11 +5544,11 @@ class App:
             return
         if not self.ai_ok:
             self.v["cutout"].set("ai")
-            self._ai_ticked()                          # offers to install what the AI needs
+            self._ai_ticked()                          # offers to install what BiRefNet needs
             return
-        if not messagebox.askyesno("Gerbil", T(f"Détourer à nouveau {len(paths)} photographie(s) avec l'IA "
+        if not messagebox.askyesno("Gerbil", T(f"Détourer à nouveau {len(paths)} photographie(s) avec BiRefNet "
                                                 f"(environ {max(1, len(paths) * 25 // 60)} min) ?",
-                                                f"Cut out {len(paths)} photo(s) again with the AI (about "
+                                                f"Cut out {len(paths)} photo(s) again with BiRefNet (about "
                                                 f"{max(1, len(paths) * 25 // 60)} min)?")):
             return
         before = self.v["cutout"].get()
@@ -5511,17 +5560,18 @@ class App:
             self.v["cutout"].set(before)
 
     def _ai_ticked(self):
-        """AI ticked, or cut-out by the AI chosen: offers to install onnxruntime when missing."""
+        """Second opinion ticked, or cut-out by BiRefNet chosen: offers to install onnxruntime when missing."""
         if (self.v["ai"].get() or self.v["cutout"].get() != "colour") and not self.ai_ok:
             self.v["ai"].set(False)
             self.v["cutout"].set("colour")
             if FROZEN:
-                messagebox.showinfo("Gerbil", T("Cette version a été construite sans le second avis de l'IA.",
-                                                "This version was built without the AI second opinion."))
+                messagebox.showinfo("Gerbil", T("Cette version a été construite sans l'apprentissage automatique "
+                                                "(BiRefNet, second avis).", "This version was built without the "
+                                                "machine learning (BiRefNet, second opinion)."))
             elif self.proc is None and messagebox.askyesno(
-                    "Gerbil", T("Le second avis de l'IA a besoin du paquet onnxruntime (environ 60 Mo, "
+                    "Gerbil", T("BiRefNet et le second avis ont besoin du paquet onnxruntime (environ 60 Mo, "
                                 "téléchargé depuis internet).\n\nL'installer maintenant ?",
-                                "The AI second opinion needs the onnxruntime package (about 60 MB, "
+                                "BiRefNet and the second opinion need the onnxruntime package (about 60 MB, "
                                 "downloaded from the internet).\n\nInstall it now?")):
                 self._start(pip_command([AI_PACKAGE]), "pip-ai")
         self._sync()
@@ -5560,7 +5610,7 @@ class App:
             self.w["scale_cm"].state(["!disabled", "readonly"] if on("scale") else ["disabled"])
         if live("white"):                              # the white reference only matters when colours are corrected
             self.w["white"].state(["!disabled", "readonly"] if self.v["colour"].get() != "none" else ["disabled"])
-        by_ai = self.v["cutout"].get() != "colour"     # cut-out drawn from the AI: its own network, no second opinion
+        by_ai = self.v["cutout"].get() != "colour"     # cut-out by BiRefNet: its own network, no second opinion
         if live("ai"):
             self.w["ai"].state(["disabled"] if by_ai else ["!disabled"])
         if live("ai_model"):
@@ -6157,8 +6207,9 @@ class App:
         if line.startswith("Nothing to check."):
             self._log(line + "\n", "ok")
             return
-        tag = "info" if line.startswith(("Done in", "Results:", "AI second opinion", "Downloading")) else None
-        if line.startswith(("Traceback", "Warning", "Not found", "--ai needs", "AI model not available",
+        tag = "info" if line.startswith(("Done in", "Results:", "Second opinion", "Cut-out by machine learning",
+                                         "Downloading")) else None
+        if line.startswith(("Traceback", "Warning", "Not found", "--ai needs", "Model not available",
                             "Missing Python package")):
             tag = "verify"
         self._log(line + "\n", tag)
@@ -6197,10 +6248,10 @@ class App:
             return
         if self.kind == "pip-ai":
             self.ai_ok = code == 0 and imports_ok(["onnxruntime"])
-            self._log(T("Second avis de l'IA installé (son modèle est téléchargé à la première utilisation).\n",
-                        "AI second opinion installed (its model is downloaded at its first use).\n") if self.ai_ok else
-                      T("L'installation de l'IA n'a pas réussi ; tout le reste fonctionne sans elle.\n",
-                        "The AI installation did not succeed; everything else works without it.\n"),
+            self._log(T("Apprentissage automatique installé (ses modèles sont téléchargés à la première utilisation).\n",
+                        "Machine learning installed (its models are downloaded at their first use).\n") if self.ai_ok else
+                      T("L'installation de l'apprentissage automatique n'a pas réussi ; tout le reste fonctionne sans lui.\n",
+                        "The installation of the machine learning did not succeed; everything else works without it.\n"),
                       "ok" if self.ai_ok else "failed")
             if self.ai_ok:
                 if "ai" in self.w and self.w["ai"].winfo_exists():
@@ -6208,7 +6259,8 @@ class App:
                 self.v["ai"].set(True)
                 self._sync()
             self.check_packages()
-            self.status.set(T("IA prête.", "AI ready.") if self.ai_ok else T("IA non installée.", "AI not installed."))
+            self.status.set(T("Apprentissage automatique prêt.", "Machine learning ready.") if self.ai_ok
+                            else T("Apprentissage automatique non installé.", "Machine learning not installed."))
             return
         if self.results:
             self.open_btn.state(["!disabled"])

@@ -118,7 +118,7 @@ def test_cutout_drawn_from_the_ai(tmp_path, monkeypatch):
     out, rows = run(str(tmp_path), "--cutout", "ai")
     r = rows["by_ai.jpg"]
     assert r["status"] == "ok" and r["pieces"] == "1", r
-    assert "cut-out drawn from the AI" in r["notes"] and "paper label discarded" in r["notes"]
+    assert "cut-out drawn by machine learning" in r["notes"] and "paper label discarded" in r["notes"]
     alpha = np.asarray(Image.open(os.path.join(out, "by_ai_outlined.tif")))[..., 3] > 127
     assert abs(alpha.sum() - mask.sum()) / mask.sum() < 0.03          # the sherd: no label, no shadow
 

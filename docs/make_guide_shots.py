@@ -9,7 +9,7 @@ thumbnails, the profile window, the dark theme. Everything is written in a neutr
 deleted at the end; the photos given are only read. Nothing of the user's settings or profiles is touched.
 Needs a screen.
 
-    py -3 docs/make_guide_shots.py [fr] [en] [--photos FOLDER] [--raw FOLDER] [--out FOLDER] [--ai] [--stop-after SHOT] [--keep]"""
+    py -3 docs/make_guide_shots.py [fr] [en] [--photos FOLDER] [--raw FOLDER] [--out FOLDER] [--colour] [--stop-after SHOT] [--keep]"""
 import glob
 import importlib.machinery
 import importlib.util
@@ -171,7 +171,7 @@ def main(lang):
     gg.filedialog.asksaveasfilename = lambda *a, **k: os.path.join(tmp, "inventory.csv")
     gg.load_settings = lambda: dict(gg.DEFAULTS, lang=lang, theme="green", dark=False, profile=ex["name"],
                                     output_mode="next", output_dir="", last_dir="", jobs=2, open=False,
-                                    cutout="ai" if "--ai" in sys.argv else "colour")
+                                    cutout="colour" if "--colour" in sys.argv else gg.DEFAULTS["cutout"])
     tops, made = [], []
     top_init = gg.tk.Toplevel.__init__
 
