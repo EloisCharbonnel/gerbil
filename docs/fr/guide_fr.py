@@ -132,8 +132,8 @@ USER = [
                ["[[raccourcis|Raccourcis]]", "un renvoi : un clic mène à la page citée. Les signets du PDF "
                                              "donnent aussi tout le plan."]], [0.3, 0.7]),
     ("note", "L'interface existe en français et en anglais ; ce guide donne les noms français des boutons. "
-             "Les photographies de ce guide sont synthétiques (des tessons inventés, ceux des tests "
-             "automatiques) : les captures montrent la version 2.3."),
+             "Les captures montrent la version 2.3 sur un vrai lot d'essai : 13 tessons photographiés au Nikon "
+             "D850 avec une échelle à damier de 10 cm et une étiquette."),
 
     # ------------------------------------------------------------------------------------------------ 2
     ("part", "2", "Gerbil en un coup d'œil", "Ce que fait le programme, le chemin d'une série de photographies "
@@ -157,8 +157,9 @@ USER = [
             "`_to_be_verified`."]),
     ("p", "La mesure vient de l'échelle de chaque photographie, pas des données de l'appareil : l'objectif et la "
           "distance n'ont aucune importance. Les photographies originales ne sont **jamais modifiées**."),
-    ("figure", "fig_control", "L'aperçu de contrôle d'une photographie : contour du détourage en vert, échelle "
-                              "trouvée en magenta, centimètres lus en orange, mesure écrite en haut."),
+    ("figure", "fig_control", "L'aperçu de contrôle d'une photographie : contour du détourage en vert, étiquette "
+                              "écartée en rouge, échelle trouvée en magenta, centimètres lus en orange, mesure "
+                              "écrite en haut."),
 
     ("h2", "Le parcours de A à Z", "parcours"),
     ("p", "La fenêtre de Gerbil suit le travail en six étapes. Seule la première est indispensable ; les autres "
@@ -248,7 +249,7 @@ USER = [
             "échelle s'[[profils|apprend]].",
             "**L'objet entier dans le cadre**, sans toucher le bord de la photographie.",
             "**L'appareil parallèle à la table** : de face, pas en oblique."]),
-    ("figure", "fig_photo", "Une photographie à traiter : un tesson (synthétique) et une échelle à damier de "
+    ("figure", "fig_photo", "Une photographie à traiter : le tesson, son étiquette et une échelle à damier de "
                             "10 cm, sur fond clair."),
     ("h2", "Formats", "formats"),
     ("p", "JPEG, TIFF, PNG ou RAW (DNG, CR2, CR3, NEF, ARW, ORF, RW2, RAF…). Un RAW est développé par Gerbil ; "
@@ -295,6 +296,7 @@ USER = [
           "*Chercher d'abord les échelles apprises* l'utilise en premier. *Poser à côté des photographies…* "
           "copie le profil en `gerbil_profile.json` dans un dossier : il s'applique alors à ces photographies, "
           "pour toute l'équipe. *Importer…* ajoute à la bibliothèque un profil reçu (un fichier `.json`)."),
+    ("shot", "profile", "La fenêtre d'un profil de site : fond, échelles apprises, réglages gardés.", "third"),
     ("tip", "Apprendre **chaque exemplaire** d'échelle utilisé : deux impressions du même modèle peuvent "
             "différer de 1 %."),
 
@@ -314,7 +316,10 @@ USER = [
             "**Les photographies originales ne sont jamais renommées.**",
             "**Règle de nommage** (facultative) : une expression régulière, lue comme le `-match` de "
             "PowerShell. L'assistant l'écrit à partir de cases à cocher (majuscules seulement, se termine par un "
-            "nombre…) et montre la ligne PowerShell équivalente, pour apprendre. *Tester un nom* l'essaie."]),
+            "nombre…) et montre la ligne PowerShell équivalente, pour apprendre. *Tester un nom* l'essaie.",
+            "**Noms sans accents** (case de l'assistant) : « céramique » devient « ceramique » dans les fichiers "
+            "produits. À cocher avant un versement : la plupart des services d'archives refusent les accents, et "
+            "*Relire les métadonnées* signale un nom qui en porte."]),
     ("h3", "Remplir les valeurs comme dans Excel"),
     ("ul", ["**Valeurs pour toutes les photographies** : le site, la campagne, l'auteur.",
             "**Le tableau** : double-clic pour modifier une case ({{Entrée}} valide, {{Échap}} annule) ; la "
@@ -411,6 +416,9 @@ USER = [
                ["*Informations*", "les champs du renommage, modifiables ici."],
                ["*Valider et suivante*", "enregistre et **réexporte la photographie aussitôt**, en arrière-plan."]],
      [0.34, 0.66]),
+    ("p", "*Refaire avec l'IA…* détoure à nouveau, avec le [[ia|détourage par l'IA]], les photographies à "
+          "vérifier (ou celles choisies dans la liste) : c'est souvent tout ce qu'il faut pour une ombre portée, le "
+          "bord de la table ou un objet blanc sur fond blanc. Le réglage de la fenêtre ne change pas."),
     ("p", "Navigation : molette pour zoomer ; bouton droit ou du milieu, {{Espace}} + glisser ou les flèches pour "
           "déplacer la vue ; {{R}} pour revoir la photographie entière."),
     ("note", "Les corrections sont gardées **à côté des photographies**, dans `gerbil_edits` : les traitements "
@@ -423,6 +431,8 @@ USER = [
           "sur la recherche automatique (rapport : `scale_type = manual`). En fin de traitement, Gerbil propose "
           "de régler à la suite toutes les échelles non trouvées (*Enregistrer et suivante*, *Passer cette "
           "photographie*, *Arrêter*)."),
+    ("shot", "scale", "L'échelle à la main : deux clics sur une longueur connue, puis sa longueur et la largeur "
+                      "de l'échelle.", "half"),
 
     ("h2", "04 Convertir : RAW en DNG", "etape-04"),
     ("p", "Pour archiver les RAW en DNG avec leurs métadonnées (le protocole « Convert RAW to DNG » de la mission "
@@ -444,8 +454,9 @@ USER = [
             "mettent une photographie à vérifier."]),
 
     ("h2", "05 Revue finale et versement", "etape-05"),
-    ("p", "Tous les fichiers produits pour les photographies de l'étape 01 (détourage, DNG, JPG, TIFF) ; un "
-          "double-clic en ouvre un, *Ouvrir les résultats* montre les dossiers dans l'Explorateur."),
+    ("p", "Tous les fichiers produits pour les photographies de l'étape 01, chacun avec sa nature (TIFF 1:1, PSD, "
+          "aperçu, copie de l'original, planche, vignette, DNG, JPG, TIFF) ; un double-clic en ouvre un, *Ouvrir "
+          "les résultats* montre les dossiers dans l'Explorateur."),
     ("shot", "final", "La revue finale : chaque fichier produit, et le contrôle avant versement."),
     ("p", "*Contrôler avant versement…* vérifie un dossier avant sa remise à un service d'archives, **sans rien "
           "copier, déplacer ni modifier**. Pour chaque fichier : son **format** (d'après la liste des extensions "
@@ -454,6 +465,8 @@ USER = [
           "**même contenu présent deux fois**. Le dossier `deposit_check` reçoit l'inventaire "
           "(`deposit_inventory.csv`, avec la somme de contrôle SHA-256 de chaque fichier), `checksums.sha256` "
           "(pour vérifier le versement après transfert) et un rapport lisible (`deposit_report.txt`)."),
+    ("shot", "deposit_done", "Le contrôle avant versement : le dossier, les formats acceptés, et le bilan.",
+     "half"),
     ("warn", "Ce contrôle ne remplace pas le protocole de versement du service d'archives."),
 
     ("h2", "06 Publication", "etape-06"),
@@ -510,6 +523,9 @@ USER = [
             "**ligne PowerShell** qui fait le même inventaire avec Windows seul.",
             "**Vignettes** : copies réduites pour les bases de données (128 à 1 024 px), PNG transparent ou JPEG "
             "sur blanc, marge transparente coupée."]),
+    ("shot", "contact_done", "Les planches-contact : dossier, page, nombre par rangée, légende, groupes.", "half"),
+    ("shot", "inventory_done", "L'inventaire, avec la ligne PowerShell qui fait le même avec Windows seul.", "half"),
+    ("shot", "thumbnails_done", "Les vignettes : taille, format, objets détourés seulement.", "half"),
 
     # ------------------------------------------------------------------------------------------------ 5
     ("part", "5", "Workflows", "Des recettes complètes, de la caisse de mobilier au rapport, du terrain à "
@@ -636,8 +652,8 @@ USER = [
                ["Étiquette papier sur fond sombre", "claire et rectangulaire (85 % de son rectangle) ; un tesson "
                                                     "cassé ne remplit jamais autant son rectangle."]],
      [0.3, 0.7]),
-    ("figure", "fig_dark", "Sur feutre sombre : l'étiquette papier est écartée (contour rouge), l'objet gardé "
-                           "(contour vert)."),
+    ("figure", "fig_dark", "Sur feutre sombre (photographie synthétique) : l'étiquette papier est écartée "
+                           "(contour rouge), l'objet gardé (contour vert)."),
 
     ("h2", "Affiner le bord", "bord"),
     ("p", "Le premier détourage, fait sur la copie réduite, est refait **à pleine résolution** dans une bande "

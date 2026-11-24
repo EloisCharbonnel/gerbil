@@ -544,7 +544,7 @@ def convert_folder(folder, conv, et, jpg, settings, progress, only=None, tiff=Fa
         rows.append(row)
         what = row.get("dng_status", "DNG not made")
         detail = " | ".join(x for x in (row["to_verify"], row["notes"]) if x)
-        progress(f"[{i}/{len(raws)}] {name}: {status} (DNG {what}, {row['duration_s']} s)"
+        progress(f"[{i}/{len(raws)}] {name}: {status} (DNG {what}, {row['duration_s']} s, {row['output_name']}.dng)"
                  + (f" | {detail}" if detail else ""))
     if rows:
         report = os.path.join(folder, f"conversion_report_{datetime.datetime.now():%Y-%m-%d_%H-%M}.csv")

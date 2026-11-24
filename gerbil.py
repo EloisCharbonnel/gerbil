@@ -3631,8 +3631,8 @@ def template_text(template, vals):
 
 def project_name(project, name):
     """Output name (without extension) built from the template, or None (template empty or giving
-    nothing). Forbidden characters and spaces become "_"; the separators left by empty fields are
-    merged ("{site}_{us}_{number}" without US: "QSR25_12"); {field|first}: of several values, the one with
+    nothing). Forbidden characters and spaces become "_" (accents are taken off when the project asks for
+    names without accents, "ascii_names"); the separators left by empty fields are merged ("{site}_{us}_{number}" without US: "QSR25_12"); {field|first}: of several values, the one with
     the smallest number."""
     template = (project or {}).get("template", "").strip()
     if not template:
@@ -3640,8 +3640,20 @@ def project_name(project, name):
     vals = dict(photo_values(project, name), photo=os.path.splitext(name)[0])
     out = template_text(template, vals)
     out = NAME_FORBIDDEN.sub("_", out)
+    if project.get("ascii_names"):                  # names an archive accepts: accents taken off (é -> e)
+        out = ascii_name(out)
     out = re.sub(r"([_\-.])[_\-.]+", r"\1", out).strip("_-. ")
     return out or None
+
+
+def ascii_name(text):
+    """A name without accents or other letters outside plain ASCII: é -> e, œ -> oe, ß -> ss; what has no
+    plain form becomes "_" (archives often refuse anything else in file names)."""
+    import unicodedata
+    for a, b in (("œ", "oe"), ("Œ", "OE"), ("æ", "ae"), ("Æ", "AE"), ("ß", "ss")):
+        text = text.replace(a, b)
+    text = "".join(c for c in unicodedata.normalize("NFKD", text) if not unicodedata.combining(c))
+    return re.sub(r"[^\x20-\x7e]", "_", text)
 
 
 def rule_regex(rule):

@@ -767,4 +767,12 @@ FR = {
     'gerbil_gui.pyw:App.set_theme': 'Vert ou violet, clair ou sombre : la fenêtre est reconstruite dans ces couleurs (les autres fenêtres les prennent quand on les rouvre) ; le choix est gardé dans les réglages.',
     'gerbil_gui.pyw:App._style': 'Couleurs et polices des éléments (styles ttk, et ceux des éléments tk simples : zones de texte, listes, fenêtres), selon le thème ; communes à toutes les fenêtres.',
     'gerbil_gui.pyw:App._rail': 'La colonne des étapes : la gerbille, le nom, les six étapes (deux avec une seconde page, en retrait), les langues, les thèmes et les crédits.',
+
+    # ---- noms sans accents, refaire avec l'IA, revue finale
+    'gerbil.py:ascii_name': "Un nom sans accents ni lettres hors de l'ASCII simple : é donne e, œ donne oe, ß donne ss ; ce qui n'a pas de forme simple devient « _ » (les services d'archives refusent souvent le reste).",
+    'gerbil.py:project_name': 'Le nom de sortie (sans extension) fait à partir du modèle, ou None. Les caractères interdits et les espaces deviennent « _ » (et les accents sont retirés quand le projet demande des noms sans accents, « ascii_names ») ; les séparateurs laissés par les champs vides sont fusionnés ; {champ|first} : de plusieurs valeurs, celle au plus petit numéro.',
+    'gerbil_gui.pyw:ProjectWindow.ascii_changed': 'Case « Noms sans accents » cochée ou non : les noms de sortie sont recalculés.',
+    'gerbil_gui.pyw:App.redo_with_ai': "Détoure à nouveau, avec l'IA, les photographies à vérifier du dernier détourage (ou celles choisies dans la liste) ; le réglage de la fenêtre reste celui d'avant.",
+    'gerbil_gui.pyw:App._final_kind': "Ce qu'est un fichier de l'étape 05, en un mot (TIFF 1:1, aperçu, planche, copie de l'original…) ; None pour le laisser de côté (les fichiers du contrôle de versement).",
+    'gerbil_gui.pyw:App._final_fill': "Le tableau de l'étape 05 : tous les fichiers produits avec leur nature, et leur nombre dans la colonne des étapes.",
 }

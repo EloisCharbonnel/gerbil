@@ -90,8 +90,8 @@ USER = [
                ["[[raccourcis|Shortcuts]]", "a cross reference: a click goes to the page. The bookmarks of the PDF "
                                             "also give the whole outline."]], [0.3, 0.7]),
     ("note", "The interface is in English and French; this guide gives the English names of the buttons. The "
-             "photos of this guide are synthetic (made-up sherds, those of the automatic tests): the "
-             "screenshots show version 2.3."),
+             "screenshots show version 2.3 on a real test set: 13 sherds photographed with a Nikon D850, with a "
+             "10 cm checkerboard scale and a label."),
 
     # ------------------------------------------------------------------------------------------------ 2
     ("part", "2", "Gerbil at a glance", "What the program does, the way of a series of photos from A to Z, and "
@@ -115,8 +115,9 @@ USER = [
             "`_to_be_verified`."]),
     ("p", "The measurement comes from the scale of each photo, not from the camera data: the lens and the distance "
           "do not matter. The original photos are **never changed**."),
-    ("figure", "fig_control", "The control preview of a photo: outline of the cut-out in green, scale found in "
-                              "magenta, centimetres read in orange, measurement written at the top."),
+    ("figure", "fig_control", "The control preview of a photo: outline of the cut-out in green, label left out "
+                              "in red, scale found in magenta, centimetres read in orange, measurement written at "
+                              "the top."),
 
     ("h2", "The way from A to Z", "parcours"),
     ("p", "Gerbil's window follows the work in six steps. Only the first is needed; the others are done as "
@@ -199,7 +200,7 @@ USER = [
             "[[profils|learned]].",
             "**The whole object in the frame**, not touching the edge of the photo.",
             "**The camera parallel to the table**: from the front, not at an angle."]),
-    ("figure", "fig_photo", "A photo to process: a (synthetic) sherd and a 10 cm checkerboard scale, on a light "
+    ("figure", "fig_photo", "A photo to process: the sherd, its label and a 10 cm checkerboard scale, on a light "
                             "background."),
     ("h2", "Formats", "formats"),
     ("p", "JPEG, TIFF, PNG or RAW (DNG, CR2, CR3, NEF, ARW, ORF, RW2, RAF…). A RAW photo is developed by Gerbil; "
@@ -240,6 +241,7 @@ USER = [
           "scales first* uses it first. *Put next to the photos…* copies the profile as `gerbil_profile.json` into "
           "a folder: it then applies to those photos, for the whole team. *Import…* adds a profile received (a "
           "`.json` file) to the library."),
+    ("shot", "profile", "The window of a site profile: background, learned scales, settings kept.", "third"),
     ("tip", "Learn **each copy** of a scale in use: two prints of the same model may differ by 1%."),
 
     ("h2", "02 Naming and metadata", "etape-02"),
@@ -258,7 +260,10 @@ USER = [
             "renamed.**",
             "**Naming rule** (optional): a regular expression, read as PowerShell's `-match`. The helper writes it "
             "from tick boxes (uppercase only, ends with a number…) and shows the equivalent PowerShell line, to "
-            "learn. *Test a name* tries it."]),
+            "learn. *Test a name* tries it.",
+            "**Names without accents** (box of the helper): \"céramique\" becomes \"ceramique\" in the files "
+            "written. Tick it before a deposit: most archives refuse accents, and *Check the metadata* flags a name "
+            "that has some."]),
     ("h3", "Filling in the values as in Excel"),
     ("ul", ["**Values for all the photos**: the site, the season, the author.",
             "**The table**: double-click to edit a cell ({{Enter}} accepts, {{Esc}} cancels); the **handle** at the "
@@ -352,6 +357,9 @@ USER = [
                ["*Information*", "the fields of the renaming, editable here."],
                ["*Accept and next*", "saves and **exports the photo again at once**, in the background."]],
      [0.34, 0.66]),
+    ("p", "*Redo with the AI…* cuts out again, with the [[ia|AI cut-out]], the photos to verify (or those chosen "
+          "in the list): often all that is needed for a cast shadow, the edge of the table or a white object on "
+          "white. The setting of the window does not change."),
     ("p", "Moving around: mouse wheel to zoom; right or middle button, {{Space}} + drag or the arrow keys to move "
           "the view; {{R}} to see the whole photo again."),
     ("note", "The corrections are kept **next to the photos**, in `gerbil_edits`: later runs keep them. Keep this "
@@ -363,6 +371,8 @@ USER = [
           "scale is kept in `gerbil_scales.json` and wins over the automatic search (report: `scale_type = manual`). "
           "At the end of a run, Gerbil offers to set in a row all the scales it did not find (*Save and next*, "
           "*Skip this photo*, *Stop*)."),
+    ("shot", "scale", "The scale by hand: two clicks on a known length, then that length and the width of the "
+                      "scale.", "half"),
 
     ("h2", "04 Convert: RAW to DNG", "etape-04"),
     ("p", "To archive RAW photos as DNG with their metadata (the \"Convert RAW to DNG\" protocol of the MAFKF / QSR "
@@ -384,8 +394,9 @@ USER = [
             "verify."]),
 
     ("h2", "05 Final review and deposit", "etape-05"),
-    ("p", "Every file written for the photos of step 01 (cut-out, DNG, JPG, TIFF); a double-click opens one, *Open "
-          "results* shows the folders in Explorer."),
+    ("p", "Every file written for the photos of step 01, each with what it is (TIFF 1:1, PSD, preview, copy of the "
+          "original, plate, thumbnail, DNG, JPG, TIFF); a double-click opens one, *Open results* shows the folders "
+          "in Explorer."),
     ("shot", "final", "The final review: every file written, and the check before a deposit."),
     ("p", "*Check before a deposit…* checks a folder before it goes to an archive, **without copying, moving or "
           "changing anything**. For each file: its **format** (from the list of accepted extensions, to adapt to "
@@ -394,6 +405,8 @@ USER = [
           "twice**. The `deposit_check` folder receives the inventory (`deposit_inventory.csv`, with the SHA-256 "
           "checksum of each file), `checksums.sha256` (to check the deposit after its transfer) and a readable "
           "report (`deposit_report.txt`)."),
+    ("shot", "deposit_done", "The check before a deposit: the folder, the formats accepted, and the summary.",
+     "half"),
     ("warn", "This check does not replace the deposit protocol of the archive."),
 
     ("h2", "06 Publication", "etape-06"),
@@ -446,6 +459,10 @@ USER = [
             "inventory with Windows alone.",
             "**Thumbnails**: reduced copies for databases (128 to 1,024 px), transparent PNG or JPEG on white, "
             "transparent margin cut off."]),
+    ("shot", "contact_done", "Contact sheets: folder, page, number per row, caption, groups.", "half"),
+    ("shot", "inventory_done", "The inventory, with the PowerShell line that does the same with Windows alone.",
+     "half"),
+    ("shot", "thumbnails_done", "Thumbnails: size, format, outlined objects only.", "half"),
 
     # ------------------------------------------------------------------------------------------------ 5
     ("part", "5", "Workflows", "Complete recipes, from the box of finds to the report, from the field to the "
@@ -568,8 +585,8 @@ USER = [
                                    "pieces more than 8 mm from the object."],
                ["Paper label on a dark background", "light and rectangular (85% of its rectangle); a broken sherd never "
                                                     "fills its rectangle that much."]], [0.3, 0.7]),
-    ("figure", "fig_dark", "On dark felt: the paper label is left out (red outline), the object kept (green "
-                           "outline)."),
+    ("figure", "fig_dark", "On dark felt (synthetic photo): the paper label is left out (red outline), the "
+                           "object kept (green outline)."),
 
     ("h2", "Refining the edge", "bord"),
     ("p", "The first cut-out, made on the reduced copy, is made again **at full resolution** in a band around the "

@@ -27,7 +27,9 @@ plates/
 *.nef
 *.arw
 *.psd
-# icons are the exception
+# icons are the exception, and the pictures of the guides (screenshots and figures; the test photos shown
+# there are the author's own)
 !icons/*.png
+!docs/guide_images/*.jpg
 .pytest_cache/
 third_party/

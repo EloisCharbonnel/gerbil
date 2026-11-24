@@ -164,7 +164,9 @@ photos — choosing an `outlined_result` folder opens the folder of its photos; 
   `_`, also `-`, no double separator, ends with a number, starts with…, at most N characters): the rule is
   written for you, shown as a PowerShell line (`'NAME' -match '…'`, to learn or to reuse), and a name can be
   tested (✓ True / ✗ False). *Also check the photos: extension in lowercase* flags the original photos
-  whose extension has capital letters (`.JPG`); they are not renamed, only reported.
+  whose extension has capital letters (`.JPG`); they are not renamed, only reported. *Names without accents*
+  takes the accents off the output names (`céramique` gives `ceramique`, setting `ascii_names` of the project):
+  most archives refuse them, and *Check the metadata* mentions a name that has some.
 - **Values**: those common to all the photos (e.g. the site), and a table with one row per photo: double-
   click a cell to edit it; **drag the small square at the corner of a cell** over the rows below to copy its
   value (with Ctrl: a series 187, 188, 189…), as in Excel; *Select all* (Ctrl+A) then *Set for selected…*
@@ -581,8 +583,9 @@ the steps can be visited in any order:
    scale bar whose squares fill in; a table gives each photo, its state (ok, to verify, failed), its scale
    and what to do in a few words; double-click a row to fix it. The lines of the engine are in *Technical
    details*.
-   Second page, **See the results**: the photos to look at with their problem, the review window and the
-   manual scale.
+   Second page, **See the results**: the photos to look at with their problem, the review window, the
+   manual scale, and *Redo with the AI…*, which cuts out again with the AI the photos to verify (or those
+   chosen), the setting of the window left as it is.
 4. **Convert**: the RAW photos of step 01 to DNG, with a JPG (preview or full size) and, if wanted, a 16-bit
    TIFF; its own table of the results (double-click a row: the batch renaming, on that photo).
 5. **Final review**: every file written (cut-out results, DNG, JPG, TIFF; double-click to open one) and the
